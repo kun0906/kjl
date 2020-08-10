@@ -1,0 +1,17 @@
+.idea/
+__pycache__/
+utils/_pycache__/
+*.pcap
+*.csv
+*.pdf
+*.png
+*.log
+*.dat
+*.sh
+
+
+/examples/data/*
+/examples/out/*
+kjl/legacy
+
+

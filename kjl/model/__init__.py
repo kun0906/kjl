@@ -1,0 +1,2 @@
+def rnn():
+    return None
