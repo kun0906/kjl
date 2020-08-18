@@ -347,6 +347,145 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
         self.params = params
         self.random_state = params['random_state']
 
+    def train_project_kjl(self, X_train, kjl_params={}, debug=False):
+        if kjl_params['kjl']:
+            d = kjl_params['kjl_d']
+            n = kjl_params['kjl_n']
+            q = kjl_params['kjl_q']
+
+            start = datetime.now()
+            n = n or max([200, int(np.floor(X_train.shape[0] / 100))])  # n_v: rows; m_v: cols. 200, 100?
+            m = n
+            if hasattr(self, 'sigma') and self.sigma:
+                sigma = self.sigma
+            else:
+                # compute sigma
+                dists = pairwise_distances(X_train)
+                if debug:
+                    # for debug
+                    _qs = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
+                    _sigmas = np.quantile(dists, _qs)  # it will cost time
+                    print(f'train set\' sigmas with qs: {list(zip(_sigmas, _qs))}')
+                sigma = np.quantile(dists, q)
+                if sigma == 0:
+                    print(f'sigma:{sigma}, and use 1e-7 for the latter experiment.')
+                    sigma = 1e-7
+            print("sigma: {}".format(sigma))
+
+            # project train data
+            # if debug: data_info(X_train, name='before KJL, X_train')
+            X_train, U, Xrow = kernelJLInitialize(X_train, sigma, d, m, n, centering=1,
+                                                  independent_row_col=0, random_state=self.random_state)
+            if debug: data_info(X_train, name='after KJL, X_train')
+
+            end = datetime.now()
+            kjl_train_time = (end - start).total_seconds()
+            print("kjl on train set took {} seconds".format(kjl_train_time))
+
+        else:
+            kjl_train_time = 0
+
+        self.kjl_train_time = kjl_train_time
+
+        return X_train, U, Xrow, sigma
+
+    def test_project_kjl(self, X_test, U, Xrow, sigma, kjl_params={}, debug=False):
+        if kjl_params['kjl']:
+            # # for debug
+            if debug:
+                data_info(X_test, name='X_test_std')
+                _qs = [0, 0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1]
+                _sigmas = np.quantile(pairwise_distances(X_test), _qs)
+                print(f'test set\' sigmas with qs: {list(zip(_sigmas, _qs))}')
+
+            start = datetime.now()
+            print("Projecting test data")
+            K = getGaussianGram(X_test, Xrow, sigma)  # get kernel matrix using rbf
+            X_test = np.matmul(K, U)
+            # print(K, K.shape, U, U.shape, X_test)
+            if debug: data_info(X_test, name='after KJL, X_test')
+            end = datetime.now()
+            kjl_test_time = (end - start).total_seconds()
+            print("kjl on test set took {} seconds".format(kjl_test_time))
+
+        else:
+            kjl_test_time = 0
+
+        self.kjl_test_time = kjl_test_time
+
+        return X_test
+
+    def train_project_nystrom(self, X_train, nystrom_params={}, debug=False):
+
+        if nystrom_params['nystrom']:
+            d = nystrom_params['nystrom_d']
+            n = nystrom_params['nystrom_n']
+            q = nystrom_params['nystrom_q']
+
+            start = datetime.now()
+            n = n or max([200, int(np.floor(X_train.shape[0] / 100))])  # n_v: rows; m_v: cols. 200, 100?
+            m = n
+            if hasattr(self, 'sigma') and self.sigma:
+                sigma = self.sigma
+            else:
+                # compute sigma
+                dists = pairwise_distances(X_train)
+                if debug:
+                    # for debug
+                    _qs = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
+                    _sigmas = np.quantile(dists, _qs)  # it will cost time
+                    print(f'train set\' sigmas with qs: {list(zip(_sigmas, _qs))}')
+                sigma = np.quantile(dists, q)
+                if sigma == 0:
+                    print(f'sigma:{sigma}, and use 1e-7 for the latter experiment.')
+                    sigma = 1e-7
+            print("sigma: {}".format(sigma))
+
+            # project train data
+            Eigvec, Lambda, subX = nystromInitialize(X_train, sigma, n, d, random_state=self.random_state)
+            # Phix = nystromFeatures(X_train, subX, sigma, Eigvec, Lambda)
+            X_train = np.matmul(np.matmul(getGaussianGram(X_train, subX, sigma), Eigvec),
+                                np.diag(1. / np.sqrt(np.diag(Lambda))))
+
+            if debug: data_info(X_train, name='after nystrom, X_train')
+
+            end = datetime.now()
+            nystrom_train_time = (end - start).total_seconds()
+            print("nystrom on train set took {} seconds".format(nystrom_train_time))
+
+
+        else:
+            nystrom_train_time = 0
+
+        self.nystrom_train_time = nystrom_train_time
+
+        return X_train, subX, sigma, Eigvec, Lambda
+
+    def test_project_nystrom(self, X_test, subX, sigma, Eigvec, Lambda, nystrom_params={}, debug=False):
+
+        if nystrom_params['nystrom']:
+            # # for debug
+            if debug:
+                data_info(X_test, name='X_test_std')
+                _qs = [0, 0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1]
+                _sigmas = np.quantile(pairwise_distances(X_test), _qs)
+                print(f'test set\' sigmas with qs: {list(zip(_sigmas, _qs))}')
+
+            start = datetime.now()
+            print("Projecting test data")
+            K = getGaussianGram(X_test, subX, sigma)  # get kernel matrix using rbf
+            X_test = np.matmul(np.matmul(K, Eigvec), np.diag(1. / np.sqrt(np.diag(Lambda))))
+            if debug: data_info(X_test, name='after nystrom, X_test')
+            end = datetime.now()
+            nystrom_test_time = (end - start).total_seconds()
+            print("nystrom on test set took {} seconds".format(nystrom_test_time))
+        else:
+            nystrom_test_time = 0
+
+        self.nystrom_test_time = nystrom_test_time
+
+        return X_test
+
     def train_test_intf(self, X_train, y_train, X_test, y_test):
         """ X_test y_test required for gridsearch
 
@@ -361,13 +500,20 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
         -------
 
         """
+        self.debug = False
+
         self.train_time = 0
-        self.test_time = 0
 
         # should do standardization before using pairwise_distances
-        X_train, X_test = self.standardize(X_train, X_test)
+        self.scaler = StandardScaler()
+
+        start = datetime.now()
+        self.scaler.fit(X_train)
+        X_train = self.scaler.transform(X_train)
+        end = datetime.now()
+        self.std_train_time = (end - start).total_seconds()
+
         self.train_time += self.std_train_time
-        self.test_time += self.std_test_time
 
         self.thres_n = 100  # used to filter clusters which have less than 100 datapoints
         if 'meanshift' in self.params.keys() and self.params['meanshift']:
@@ -376,32 +522,34 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
             self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = meanshift_seek_modes(
                 X_train, bandwidth=self.sigma, thres_n=self.thres_n)
             self.params['n_components'] = self.n_components
-            self.seek_test_time = 0
+
         elif 'quickshift' in self.params.keys() and self.params['quickshift']:
             self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
                 X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
                 thres_n=self.thres_n)
             self.params['n_components'] = self.n_components
-            self.seek_test_time = 0
+
         else:
             self.seek_train_time = 0
-            self.seek_test_time = 0
+
         self.train_time += self.seek_train_time
-        self.test_time += self.seek_test_time  # self.seek_test_time = 0
 
         if 'kjl' in self.params.keys() and self.params['kjl']:
-            X_train, X_test = self.project_kjl(X_train, X_test, kjl_params=self.params)
+            X_train, self.U_kjl, self.Xrow_kjl, self.sigma_kjl = self.train_project_kjl(self, X_train,
+                                                                                        kjl_params=self.params,
+                                                                                        debug=self.debug)
+
             self.proj_train_time = self.kjl_train_time
-            self.proj_test_time = self.kjl_test_time
+
         elif 'nystrom' in self.params.keys() and self.params['nystrom']:
-            X_train, X_test = self.project_nystrom(X_train, X_test, nystrom_params=self.params)
+            X_train, self.subX_nystrom, self.sigma_nystrom, self.Eigvec_nystrom, self.Lambda_nystrom = \
+                self.train_project_nystrom(X_train, nystrom_params=self.params, debug=self.debug)
             self.proj_train_time = self.nystrom_train_time
-            self.proj_test_time = self.nystrom_test_time
+
         else:
             self.proj_train_time = 0
-            self.proj_test_time = 0
+
         self.train_time += self.proj_train_time
-        self.test_time += self.proj_test_time
 
         model = GMM()
         model_params = {'n_components': self.params['n_components'],
@@ -429,11 +577,11 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
               f'model_train_time: {self.model_train_time}')
 
         self.y_score, self.model_test_time, self.auc = self._test(self.model, X_test, y_test)
-        self.test_time += self.model_test_time
-        print(
-            f'Total test time: {self.test_time} <= std_test_time: {self.std_test_time}, seek_test_time: {self.seek_test_time}'
-            f', proj_test_time: {self.proj_test_time}, '
-            f'model_test_time: {self.model_test_time}')
+        # self.test_time += self.model_test_time
+        # print(
+        #     f'Total test time: {self.test_time} <= std_test_time: {self.std_test_time}, seek_test_time: {self.seek_test_time}'
+        #     f', proj_test_time: {self.proj_test_time}, '
+        #     f'model_test_time: {self.model_test_time}')
 
         return self
 
@@ -472,20 +620,55 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
 
         # In each time, we only process one datapoint (x)
         for i, x in enumerate(X_test):
+            x = x.reshape(1, -1)
 
-            # step 1: obtain the abnormal score
+            self.test_time = 0
+
+            ### preprocessing
+            # step 1: standardization
+            start = datetime.now()
+            x = self.scaler.transform(x)
+            end = datetime.now()
+            self.std_test_time = (end - start).total_seconds()
+            self.test_time += self.std_test_time
+
+            # step 2: quickshift or meanshift
+            self.seek_test_time = 0
+            self.test_time += self.seek_test_time  # self.seek_test_time = 0
+
+            # step 3: kjl or nystrom
+            if 'kjl' in self.params.keys() and self.params['kjl']:
+                x = self.test_project_kjl(x, self.U_kjl, self.Xrow_kjl, self.sigma_kjl,
+                                          kjl_params=self.params, debug=self.debug)
+                self.proj_test_time = self.kjl_test_time
+            elif 'nystrom' in self.params.keys() and self.params['nystrom']:
+                x = self.test_project_nystrom(x, self.subX_nystrom, self.sigma_nystrom, self.Eigvec_nystrom,
+                                              self.Lambda_nystrom, nystrom_params=self.params, debug=self.debug)
+                self.proj_test_time = self.nystrom_test_time
+            else:
+                self.proj_test_time = 0
+            self.test_time += self.proj_test_time
+
+            # step 4: obtain the abnormal score
             start = datetime.now()
 
             # For inlier, a small value is used; a larger value is for outlier (positive)
             # here the output should be the abnormal score because we use y=1 as abnormal and roc_acu(pos_label=1)
-            x = x.reshape(1, -1)
+
             _y_score = model.decision_function(x)  # output the abnormal score of each x
 
             end = datetime.now()
             testing_time = (end - start).total_seconds()
             print("i:{}, Test model takes {} seconds, y_score: {}".format(i, testing_time, _y_score))
+            self.model_test_time = testing_time
 
-            # step 2: check if the score exceeds some preset thresholds (obtained from the train set)
+            self.test_time += self.model_test_time
+            # print(
+            #     f'Total test time: {self.test_time} <= std_test_time: {self.std_test_time}, seek_test_time: {self.seek_test_time}'
+            #     f', proj_test_time: {self.proj_test_time}, '
+            #     f'model_test_time: {self.model_test_time}')
+
+            # step 5: check if the score exceeds some preset thresholds (obtained from the train set)
             lower_bound = -np.infty
             if _y_score < self.abnormal_thres:
                 # According to the _y_score, the x is predicted as a normal datapoint.
@@ -541,7 +724,6 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
                             self.converged_ = True
                             print(f'n_iter: {n_iter}')
                             break
-
                 else:
                     # the x is predicted as a normal point, so we just need to update the previous components
                     for n_iter in range(1, self.max_iter + 1):
@@ -551,8 +733,8 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
                         log_prob_norm, log_resp = new_model._e_step(x)
                         new_model.log_resp = log_resp
 
-                        # use m_step to update params: weights, means, and covariances with x and the previous
-                        # params: log_resp, means and covariances
+                        # use m_step to update params: weights (i.e., mixing coefficients), means, and covariances with x and
+                        # the previous params: log_resp (the log probability of each component), means and covariances
                         new_model._m_step(x, new_model.log_resp,
                                           new_model.n_samples - 1)  # update mean, covariance and weight
 
