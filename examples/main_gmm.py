@@ -712,7 +712,7 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
         model: detection instance
             the fitted detection model
 
-        X_arrival: array with shape (n_samples, n_features)
+        X_arrival: array with shape (n_samples, n_feats)
         y_arrival: array with shape (n_samples, )
 
         Returns
@@ -762,16 +762,35 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
                 proj_online_train_time = self.kjl_test_time
 
                 # update kjl: self.U_kjl, self.Xrow_kjl.
-                # (what about self.sigma_kjl? (should we update it? ))
-                self.Xrow_kjl[-1] = x
-                # only one column and one row will change comparing with the previous one, so we need to optimize it.
-                A = getGaussianGram(self.Xrow_kjl, self.Xrow_kjl, self.sigma_kjl)
-                centering = True
-                if centering:
-                    # subtract the mean of col from each element in a col
-                    A = A - np.mean(A, axis=0)
+                fix_U = True
+                if fix_U:  # U: nxn
+                    # (what about self.sigma_kjl? (should we update it? ))
+                    self.Xrow_kjl[-1] = x
+                    # only one column and one row will change comparing with the previous one, so we need to optimize it.
+                    A = getGaussianGram(self.Xrow_kjl, self.Xrow_kjl, self.sigma_kjl)
+                    centering = True
+                    if centering:
+                        # subtract the mean of col from each element in a col
+                        A = A - np.mean(A, axis=0)
 
-                self.U_kjl = np.matmul(A, self.random_matrix)  # preferred for matrix multiplication
+                    self.U_kjl = np.matmul(A, self.random_matrix)  # preferred for matrix multiplication
+
+                else:  # the size of U : n <- n+1
+                    self.Xrow_kjl = np.concatenate([self.Xrow_kjl, x], axis=0)
+                    # only one column and one row will change comparing with the previous one, so we need to optimize it.
+                    # To be modified?
+                    A = getGaussianGram(self.Xrow_kjl, self.Xrow_kjl, self.sigma_kjl)
+                    centering = True
+                    if centering:
+                        # subtract the mean of col from each element in a col
+                        A = A - np.mean(A, axis=0)
+
+                    d = self.params['kjl']['kjl_d']
+                    n = self.Xrow_kjl.shape[0]  # n <= n+1
+                    self.random_matrix = np.random.multivariate_normal([0] * d, np.diag([1] * d), n)
+
+                    self.U_kjl = np.matmul(A, self.random_matrix)  # preferred for matrix multiplication
+
 
             elif 'nystrom' in self.params.keys() and self.params['nystrom']:
                 x = self.project_X_with_nystrom(x, self.subX_nystrom, self.sigma_nystrom, self.Eigvec_nystrom,
@@ -805,6 +824,7 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
 
         end_0 = datetime.now()
         model_online_train_time = (end_0 - start_0).total_seconds()
+        print(f'Total test time: {model_online_train_time}')
 
         return model, model_online_train_time
 
@@ -819,7 +839,6 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
             # 2): create a new component for the new x
             if _y_score < self.novelty_thres:
                 # the x is predicted as a normal point, so we just need to update the previous components
-
                 if no_need_to_convergent:
                     # get log_prob and resp
                     log_prob_norm, log_resp = new_model._e_step(x)
@@ -842,6 +861,7 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
                         new_model._m_step(x, new_model.log_resp,
                                           new_model.n_samples - 1)  # update mean, covariance and weight
 
+                        # should be reconsidered again?
                         # get the difference
                         lower_bound = new_model._compute_lower_bound(log_resp, log_prob_norm)
                         change = lower_bound - prev_lower_bound
@@ -862,15 +882,16 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
                 log_resp[-1] = 1
                 # new_model.log_resp = np.concatenate([new_model.log_resp, log_resp], axis=0)
                 new_model.log_resp = log_resp
-                new_model.weights_ = np.concatenate([new_model.weights_, np.zeros((1, 1)) + 1e-6], axis=1)
+                new_model.weights_ = np.concatenate([new_model.weights_, np.zeros((1,)) + 1e-6], axis=0)
 
                 # compute the mean and covariance of the new components
                 # For the mean, we use the x value as the mean of the new component
                 # (because the new component only has one point (i.e., x)), and append it to the previous means.
-                new_model.means_ = np.concatenate([new_model.means_, x.reshape(1, self.n_feats)], axis=0)
-                # And we use a random matrix generated from a standard normal distribution as the covariance
-                new_covar = np.random.normal(loc=0, scale=1, size=(1, self.n_feats, self.n_feats))
-                new_model.covariances_ = np.concatenate([new_model.covariances_, new_covar], axis=0)
+                new_mean = x
+                new_covar = self.generate_new_covariance(x, new_model.means_, new_model.covariances_)
+                new_model.means_ = np.concatenate([new_model.means_, new_mean], axis=0)
+                new_model.covariances_ = np.concatenate([new_model.covariances_,
+                                                         new_covar.reshape(1, self.n_feats, self.n_feats)], axis=0)
 
                 print(f'new_model.params: {new_model.get_params()}')
 
@@ -908,13 +929,68 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
 
         return model
 
+    def generate_new_covariance(self, x, means, covariances, reg_covar=1e-6):
+        """ get a initial covariance matrix of the new component.
+
+        Parameters
+        ----------
+        x : array-like, shape (1, n_feats)
+
+        means: array with shape (n_components, n_feats)
+
+        covariances: array with shape (n_components, n_feats, n_feats)
+
+        reg_covar:
+            To avoid that the new covariance matrix is invalid.
+
+        Returns
+        -------
+            new_covariance: a matrix with shape (1, n_feats, n_feats)
+        """
+
+        min_dist = -1
+        idx = 0
+        for i, (mu, sigma) in enumerate(zip(means, covariances)):
+            diff = (x - mu).T  # column vector
+            diff /= np.linalg.norm(diff)
+            dist = np.matmul(np.matmul(diff.T, np.linalg.inv(sigma)), diff)
+
+            if dist > min_dist:
+                min_dist = dist
+                idx = i
+
+        diff = (x - means[idx]).T
+        diff /= np.linalg.norm(diff)
+        sigma = covariances[idx]
+        sigma_1v = np.sqrt(np.matmul(np.matmul(diff.T, np.linalg.inv(sigma)), diff)).item()  # a scale
+
+        if np.linalg.norm(diff) - sigma_1v < 0:
+            try:
+                raise ValueError('cannot find a good sigma.')
+            except:
+                sigma_1v = reg_covar
+
+        n_feats = x.shape[-1]
+        new_covariance = np.zeros((n_feats, n_feats))
+        new_covariance.flat[::n_feats + 1] += sigma_1v  # x[startAt:endBefore:step], diagonal items
+
+        return new_covariance
+
 
 def online_update_mean_variance(x, n, mu, sigma):
-    """
+    """For standardization, we should online update mean and varicance (not covariance here)
     https://stackoverflow.com/questions/1346824/is-there-any-way-to-find-arithmetic-mean-better-than-sum-n
-    :param x:
-    :return:
 
+    Parameters
+    ----------
+    x : array-like, shape (1, n_feats)
+    mu: array with shape (1, n_feats)
+    sigma: array with shape (1, n_feats)
+
+    Returns
+    -------
+        new_mu: array with shape (1, n_feats)
+        new_sigma: array with shape (1, n_feats)
     """
 
     new_mu = mu + (x - mu) / (n + 1)

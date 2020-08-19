@@ -53,7 +53,7 @@ class ONLINE_GMM(GaussianMixture):
     #
     #     Parameters
     #     ----------
-    #     X : array-like, shape (n_samples, n_features)
+    #     X : array-like, shape (n_samples, n_feats)
     #
     #     Returns
     #     -------
@@ -84,7 +84,7 @@ class ONLINE_GMM(GaussianMixture):
 
         Parameters
         ----------
-        X : array-like, shape (n_samples, n_features)
+        X : array-like, shape (n_samples, n_feats)
 
         Returns
         -------
@@ -98,7 +98,7 @@ class ONLINE_GMM(GaussianMixture):
         log_det = np.zeros((n_samples, n_components))
         for k, (mu, sigma) in enumerate(zip(self.means_, self.covariances_)):
             diff = (X.T - mu[:, np.newaxis])  # X and mu should be column vectors
-            log_prob[:, k] = np.diag(-0.5 * np.dot(np.dot(diff.T, np.linalg.inv(sigma)), diff))
+            log_prob[:, k] = np.diag(-0.5 * np.matmul(np.matmul(diff.T, np.linalg.inv(sigma)), diff))
 
             v = np.log(np.linalg.det(sigma))
             if np.isnan(v) or np.isinf(v): v = 1e-6
@@ -106,60 +106,43 @@ class ONLINE_GMM(GaussianMixture):
 
         return -.5 * (n_feats * np.log(2 * np.pi) + log_det) + log_prob
 
-    def _m_step(self, X, log_resp, n_samples):
+    def _m_step(self, x, log_resp, n_samples):
         """M step.
 
         Parameters
         ----------
-        X : array-like, shape (n_samples, n_features)
+        x : array-like, shape (1, n_feats)
 
-        log_resp : array-like, shape (n_samples, n_components)
+        log_resp : array-like, shape (1, n_components)
             Logarithm of the posterior probabilities (or responsibilities) of
             the point of each sample in X.
         """
-        # n_samples, _ = log_resp.shape
-        # # self.weights_, self.means_, self.covariances_ = (
-        # #     _estimate_gaussian_parameters(X, np.exp(log_resp), self.reg_covar,
-        # #                                   self.covariance_type))
-        # # self.weights_ /= n_samples
-        #
-        # resp = np.exp(log_resp)
-        #
-        # nk = resp.sum(axis=0) + 10 * np.finfo(resp.dtype).eps
-        # means = np.dot(resp.T, X) / nk[:, np.newaxis]
-        #
-        # n_components, n_features = means.shape
-        # reg_covar = 1e-6
-        # covariances = np.empty((n_components, n_features, n_features))
-        # for k in range(n_components):
-        #     diff = X - means[k]
-        #     covariances[k] = np.dot(resp[:, k] * diff.T, diff) / nk[k]
-        #     covariances[k].flat[::n_features + 1] += reg_covar      # x[startAt:endBefore:step], diagonal items
-        #
-        # self.weights_ = nk / n_samples
-        # self.means_ = means
-        # self.covariances_ = covariances
 
-        self.means_, self.covariances_ = self.online_means_varicance(X, n_samples, self.means_, self.covariances_,
-                                                                     self.reg_covar)
+        self.means_, self.covariances_ = self.online_means_covaricances(x, n_samples, self.means_, self.covariances_,
+                                                                        log_resp, self.reg_covar)
 
-        self.weights_ = (n_samples / (n_samples + 1)) * self.weights_ + (1 / (n_samples + 1)) * np.exp(log_resp)
+        # not sure if the online update of the weights (of each component of GMM (i.e., $\pi_k$)) is correct.
+        # self.weights_: shape (n_components, )
+        self.weights_ = (n_samples / (n_samples + 1)) * self.weights_ + (1 / (n_samples + 1)) * np.exp(
+            log_resp).flatten()
 
-    def online_means_varicance(self, x, n_samples, means, covariances, reg_covar=1e-6):
+    def online_means_covaricances(self, x, n_samples, means, covariances, log_resp, reg_covar=1e-6):
         """
         https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online
         https://stackoverflow.com/questions/1346824/is-there-any-way-to-find-arithmetic-mean-better-than-sum-n
 
         Parameters
         ----------
-        x : array-like, shape (1, n_features)
+        x : array-like, shape (1, n_feats)
 
         n_samples: int
             the number of datapoints used to fitted  the model until now.
 
-        means: array with shape (n_components, n_features)
+        means: array with shape (n_components, n_feats)
 
-        covariances: array with shape (n_components, n_features, n_features)
+        covariances: array with shape (n_components, n_feats, n_feats)
+
+        log_resp: vector with shape (1, n_components):  the weights
 
         reg_covar:
             To avoid that the new covariance matrix is invalid.
@@ -177,16 +160,16 @@ class ONLINE_GMM(GaussianMixture):
 
             Parameters
             ----------
-            x : array-like, shape (1, n_features)
+            x : array-like, shape (1, n_feats)
 
-            one_new_mu: array-like, shape (n_features, )
-                the updated means of a component
+            one_new_mu: array-like, shape (n_feats, )
+                the updated means of one component
 
-            one_mu: array-like, shape (n_features, )
-                the means of a component
+            one_mu: array-like, shape (n_feats, )
+                the means of one component
 
-            one_covariances: array-like, shape (n_features, n_features)
-                the covariances of a component
+            one_covariances: array-like, shape (n_feats, n_feats)
+                the covariances of one component
 
             Returns
             -------
@@ -205,69 +188,19 @@ class ONLINE_GMM(GaussianMixture):
 
             return one_covariances
 
-        n_components, n_features = means.shape
-        new_means = np.zeros((n_components, n_features))
-        new_covariances = np.zeros((n_components, n_features, n_features))
+        n_components, n_feats = means.shape
+        new_means = np.zeros((n_components, n_feats))
+        new_covariances = np.zeros((n_components, n_feats, n_feats))
+        resp = np.exp(log_resp).flatten()
         for k in range(n_components):
-            new_means[k] = means[k] + (x - means[k]) / (n_samples + 1)
+            new_means[k] = resp[k] * (means[k] + (x - means[k]) / (n_samples + 1))
             # new_covariances[k] = corvainces[k] + (X-new_means[k]) * (X-means[k])
-            new_covariances[k] = covariances[k] + _online_covaricane(x, new_means[k], means[k], covariances[k])
+            new_covariances[k] = resp[k] * \
+                                 (covariances[k] + _online_covaricane(x, new_means[k], means[k], covariances[k]))
 
-            new_covariances[k].flat[::n_features + 1] += reg_covar  # x[startAt:endBefore:step], diagonal items
+            new_covariances[k].flat[::n_feats + 1] += reg_covar  # x[startAt:endBefore:step], diagonal items
 
         return new_means, new_covariances
-
-    def obtain_new_variance(self, x, means, covariances, reg_covar=1e-6):
-        """ get the covariance matrix of the new component.
-
-        Parameters
-        ----------
-        x : array-like, shape (1, n_features)
-
-        means: array with shape (n_components, n_features)
-
-        covariances: array with shape (n_components, n_features, n_features)
-
-        reg_covar:
-            To avoid that the new covariance matrix is invalid.
-
-        Returns
-        -------
-            sigma_1v: a scale
-        """
-
-        min_dist = -1
-        idx = 0
-        for i, mu, sigma in enumerate(zip(means, covariances)):
-            diff = x - mu
-            dist = np.dot(np.dot(diff.T, np.linalg.inv(sigma)), diff)
-
-            if dist > min_dist:
-                min_dist = dist
-                idx = i
-
-        diff = x - means[idx]
-        sigma = covariances[idx]
-        sigma_1v = np.sqrt(np.dot(np.dot(diff.T, np.linalg.inv(sigma)), diff))
-
-        if np.linalg.norm(diff) - sigma_1v < 0:
-            raise ValueError('cannot find a good sigma.')
-
-        return sigma_1v
-
-
-# def online_means_varicance(x, n, mu, sigma):
-#     """
-#     https://stackoverflow.com/questions/1346824/is-there-any-way-to-find-arithmetic-mean-better-than-sum-n
-#     :param x:
-#     :return:
-#
-#     """
-#
-#     new_mu = mu + (x - mu) / (n + 1)
-#     new_sigma = sigma + (x - new_mu) * (x - mu)
-#
-#     return new_mu, new_sigma
 
 
 def meanshift_seek_modes(X, bandwidth=None, thres_n=100):
