@@ -104,7 +104,8 @@ def kernelJLInitialize(X, sigma, d, m, n, centering=0, independent_row_col=1, ra
 
     # Projection matrix: ZK (nXd = nXm * mXd) # matrix product : Gaussian sketching
     # U = np.dot(A, np.random.multivariate_normal([0] * d, np.diag([1] * d), m))
-    U = np.matmul(A, np.random.multivariate_normal([0] * d, np.diag([1] * d), m))  # preferred for matrix multiplication
+    random_matrix = np.random.multivariate_normal([0] * d, np.diag([1] * d), m)
+    U = np.matmul(A, random_matrix)  # preferred for matrix multiplication
     print("Finished getting the projection matrix")
 
     # Obtain gram between full data and Xrow (Nxn)
@@ -114,7 +115,7 @@ def kernelJLInitialize(X, sigma, d, m, n, centering=0, independent_row_col=1, ra
     KU = np.matmul(K, U)  # preferred for matrix multiplication
     print("Projected data")
 
-    return KU, U, Xrow
+    return KU, U, Xrow, random_matrix
 
 # def merge_parameters(tuned_parameters):
 #     if len(tuned_parameters.keys()) <=1:
