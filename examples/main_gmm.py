@@ -375,8 +375,9 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
 
             # project train data
             # if debug: data_info(X_train, name='before KJL, X_train')
-            X_train, U, Xrow, random_matrix = kernelJLInitialize(X_train, sigma, d, m, n, centering=1,
-                                                                 independent_row_col=0, random_state=self.random_state)
+            X_train, U, Xrow, random_matrix, A = kernelJLInitialize(X_train, sigma, d, m, n, centering=1,
+                                                                    independent_row_col=0,
+                                                                    random_state=self.random_state)
             if debug: data_info(X_train, name='after KJL, X_train')
 
             end = datetime.now()
@@ -388,7 +389,7 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
 
         self.kjl_train_time = kjl_train_time
 
-        return X_train, U, Xrow, sigma, random_matrix
+        return X_train, U, Xrow, sigma, random_matrix, A
 
     def project_X_with_kjl(self, X_test, U, Xrow, sigma, kjl_params={}, debug=False):
         if kjl_params['kjl']:
@@ -540,10 +541,10 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
         self.train_time += self.seek_train_time
 
         if 'kjl' in self.params.keys() and self.params['kjl']:
-            X_train, self.U_kjl, self.Xrow_kjl, self.sigma_kjl, self.random_matrix = self.train_project_kjl(self,
-                                                                                                            X_train,
-                                                                                                            kjl_params=self.params,
-                                                                                                            debug=self.debug)
+            X_train, self.U_kjl, self.Xrow_kjl, self.sigma_kjl, self.random_matrix, self.A = self.train_project_kjl(
+                X_train,
+                kjl_params=self.params,
+                debug=self.debug)
             self.proj_train_time = self.kjl_train_time
 
         elif 'nystrom' in self.params.keys() and self.params['nystrom']:
@@ -757,6 +758,7 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
 
             # step 3: kjl or nystrom
             if 'kjl' in self.params.keys() and self.params['kjl']:
+                x_copy = np.copy(x)
                 x = self.project_X_with_kjl(x, self.U_kjl, self.Xrow_kjl, self.sigma_kjl,
                                             kjl_params=self.params, debug=self.debug)
                 proj_online_train_time = self.kjl_test_time
@@ -765,31 +767,50 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
                 fix_U = True
                 if fix_U:  # U: nxn
                     # (what about self.sigma_kjl? (should we update it? ))
-                    self.Xrow_kjl[-1] = x
-                    # only one column and one row will change comparing with the previous one, so we need to optimize it.
-                    A = getGaussianGram(self.Xrow_kjl, self.Xrow_kjl, self.sigma_kjl)
+                    self.Xrow_kjl[-1] = x_copy
+                    # # only one column and one row will change comparing with the previous one, so we need to optimize it.
+                    # A = getGaussianGram(self.Xrow_kjl, self.Xrow_kjl, self.sigma_kjl)
+                    # centering = True
+                    # if centering:
+                    #     # subtract the mean of col from each element in a col
+                    #     A = A - np.mean(A, axis=0)
+
+                    A1 = getGaussianGram(self.Xrow_kjl[:-1, :], x_copy, self.sigma_kjl)
+                    A1 = A1.reshape(-1, 1)
+                    _v = np.asarray([1.0])  # kernel(A1, A1) = 1
+                    A1 = np.concatenate([A1, _v.reshape(-1, 1)], axis=0).reshape(-1, )
+                    self.A[-1, :] = A1
+                    self.A[:, -1] = A1.transpose()
                     centering = True
                     if centering:
                         # subtract the mean of col from each element in a col
-                        A = A - np.mean(A, axis=0)
+                        self.A = self.A - np.mean(self.A, axis=0)
 
-                    self.U_kjl = np.matmul(A, self.random_matrix)  # preferred for matrix multiplication
+                    self.U_kjl = np.matmul(self.A, self.random_matrix)  # preferred for matrix multiplication
 
                 else:  # the size of U : n <- n+1
-                    self.Xrow_kjl = np.concatenate([self.Xrow_kjl, x], axis=0)
-                    # only one column and one row will change comparing with the previous one, so we need to optimize it.
-                    # To be modified?
-                    A = getGaussianGram(self.Xrow_kjl, self.Xrow_kjl, self.sigma_kjl)
+                    # self.Xrow_kjl = np.concatenate([self.Xrow_kjl, x_copy], axis=0)
+                    # # only one column and one row will change comparing with the previous one, so we need to optimize it.
+                    # # To be modified?
+                    # A = getGaussianGram(self.Xrow_kjl, self.Xrow_kjl, self.sigma_kjl)
+
+                    A1 = getGaussianGram(self.Xrow_kjl, x_copy, self.sigma_kjl)
+                    self.A = np.concatenate([self.A, A1], axis=1)
+                    _v = np.asarray([1.0])  # kernel(A1, A1) = 1
+                    A1 = np.concatenate([A1, _v.reshape(-1, 1)], axis=0).reshape(1, -1)
+                    self.A = np.concatenate([self.A, A1], axis=0)
+
                     centering = True
                     if centering:
                         # subtract the mean of col from each element in a col
-                        A = A - np.mean(A, axis=0)
+                        self.A = self.A - np.mean(self.A, axis=0)
 
-                    d = self.params['kjl']['kjl_d']
+                    self.Xrow_kjl = np.concatenate([self.Xrow_kjl, x_copy], axis=0)
+                    d = self.params['kjl_d']
                     n = self.Xrow_kjl.shape[0]  # n <= n+1
                     self.random_matrix = np.random.multivariate_normal([0] * d, np.diag([1] * d), n)
 
-                    self.U_kjl = np.matmul(A, self.random_matrix)  # preferred for matrix multiplication
+                    self.U_kjl = np.matmul(self.A, self.random_matrix)  # preferred for matrix multiplication
 
 
             elif 'nystrom' in self.params.keys() and self.params['nystrom']:
@@ -890,8 +911,9 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
                 new_mean = x
                 new_covar = self.generate_new_covariance(x, new_model.means_, new_model.covariances_)
                 new_model.means_ = np.concatenate([new_model.means_, new_mean], axis=0)
+                _, dim = new_mean.shape
                 new_model.covariances_ = np.concatenate([new_model.covariances_,
-                                                         new_covar.reshape(1, self.n_feats, self.n_feats)], axis=0)
+                                                         new_covar.reshape(1, dim, dim)], axis=0)
 
                 print(f'new_model.params: {new_model.get_params()}')
 
@@ -926,6 +948,7 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
         else:
             # if _y_score >= self.abnormal_thres, the x is predicted as a abnormal flow, so we should drop it.
             print('this flow is an abnormal flow, so we drop it.')
+            model = new_model
 
         return model
 
@@ -1339,11 +1362,11 @@ def main(random_state, n_jobs=-1, n_repeats=1):
             # {'detector_name': 'OCSVM', 'gs': gs},
 
             # # GMM-gs:True
-            {'detector_name': 'GMM', 'covariance_type': 'full', 'gs': gs},
+            # {'detector_name': 'GMM', 'covariance_type': 'full', 'gs': gs},
             # {'detector_name': 'GMM', 'covariance_type': 'diag', 'gs': gs},
             #
             # # # GMM-gs:True-kjl:True
-            # {'detector_name': 'GMM', 'covariance_type': 'full', 'gs': gs, 'kjl': True},
+            {'detector_name': 'GMM', 'covariance_type': 'full', 'gs': gs, 'kjl': True},
             # {'detector_name': 'GMM', 'covariance_type': 'diag', 'gs': gs, 'kjl': True},
             # #
             # # GMM-gs:True-kjl:True-nystrom:True   # nystrom will take more time than kjl
@@ -1382,14 +1405,13 @@ def main(random_state, n_jobs=-1, n_repeats=1):
                 if case['kjl']:
                     case['kjl_ns'] = [100]
                     case['kjl_ds'] = [10]
-                    case['kjl_qs'] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-                                      0.95]  # [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
+                    case['kjl_qs'] = [0.1]  # [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
 
             if 'quickshift' not in case.keys():
                 case['quickshift'] = False
             else:
-                case['quickshift_ks'] = [100, 1000]
-                case['quickshift_betas'] = [0.1, 0.3, 0.5, 0.7, 0.9]
+                case['quickshift_ks'] = [100]  # [100, 1000]
+                case['quickshift_betas'] = [0.3]  # [0.1, 0.3, 0.5, 0.7, 0.9]
 
             if 'meanshift' not in case.keys():
                 case['meanshift'] = False
@@ -1402,8 +1424,7 @@ def main(random_state, n_jobs=-1, n_repeats=1):
                 if case['nystrom']:
                     case['nystrom_ns'] = [100]
                     case['nystrom_ds'] = [10]
-                    case['nystrom_qs'] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-                                          0.95]  # [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
+                    case['nystrom_qs'] = [0.1]  # [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
 
             case_str = '-'.join([f'{k}_{v}' for k, v in case.items() if
                                  k in ['detector_name', 'covariance_type', 'gs', 'kjl', 'nystrom', 'quickshift',

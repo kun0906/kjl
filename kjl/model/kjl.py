@@ -115,7 +115,7 @@ def kernelJLInitialize(X, sigma, d, m, n, centering=0, independent_row_col=1, ra
     KU = np.matmul(K, U)  # preferred for matrix multiplication
     print("Projected data")
 
-    return KU, U, Xrow, random_matrix
+    return KU, U, Xrow, random_matrix, A
 
 # def merge_parameters(tuned_parameters):
 #     if len(tuned_parameters.keys()) <=1:
