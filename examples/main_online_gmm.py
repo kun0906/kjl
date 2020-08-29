@@ -950,11 +950,11 @@ def split_train_arrival_test(normal_arr, abnormal_arr, random_state=42):
 
     ##########################################################################################
     # dataset1: Split train set into two subsets: initial set (init_set) and new arrival set (arvl_set)
-    # with ratio 1:9.
+    # with ratio 1:1.
+    # in the init_set: X_train1 / X_train2= 9:1
     X_train1, X_arrival1, y_train1, y_arrival1 = train_test_split(X_train1, y_train1, train_size=0.9,
                                                                   random_state=random_state)
-    # X_train1_size: X_train2_size = 9:1
-    # X_train2_size = int(len(X_train1) * 10 / 9 * 0.1)
+    # in the arrival set: X_arrival1 / X_arrival = 1:9
     X_train2, X_arrival2, y_train2, y_arrival2 = train_test_split(X_train2, y_train2, train_size=0.1,
                                                                   random_state=random_state)
     X_train = np.concatenate([X_train1, X_train2], axis=0)
