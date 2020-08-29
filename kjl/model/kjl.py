@@ -11,9 +11,12 @@ import numpy as np
 # 3. your own package
 from sklearn.exceptions import FitFailedWarning
 from sklearn.metrics import pairwise_distances
+from datetime import datetime
 
 # set some stuffs
 from sklearn.utils import resample
+
+from kjl.utils.data import data_info
 
 warnings.simplefilter('always', FitFailedWarning)
 multiprocessing.set_start_method('spawn', True)
@@ -117,9 +120,161 @@ def kernelJLInitialize(X, sigma, d, m, n, centering=0, independent_row_col=1, ra
 
     return KU, U, Xrow, random_matrix, A
 
+
 # def merge_parameters(tuned_parameters):
 #     if len(tuned_parameters.keys()) <=1:
 #         return tuned_parameters
 #     for i,
 #
 #     return
+
+
+class KJL():
+    def __init__(self, kjl_params, debug=False):
+        self.kjl_params = kjl_params
+        self.debug = debug
+        self.random_state = self.kjl_params['random_state']
+
+    def fit(self, X_train):
+        """Get KJL related data, such as, U, X_row, random matrix, and A
+
+        Parameters
+        ----------
+        X_train
+
+        Returns
+        -------
+
+        """
+        if self.kjl_params['kjl']:
+            d = self.kjl_params['kjl_d']
+            n = self.kjl_params['kjl_n']
+            q = self.kjl_params['kjl_q']
+
+            start = datetime.now()
+            n = n or max([200, int(np.floor(X_train.shape[0] / 100))])  # n_v: rows; m_v: cols. 200, 100?
+            m = n
+            if hasattr(self, 'sigma') and self.sigma:
+                sigma = self.sigma
+            else:
+                # compute sigma
+                dists = pairwise_distances(X_train)
+                if self.debug:
+                    # for debug
+                    _qs = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
+                    _sigmas = np.quantile(dists, _qs)  # it will cost time
+                    print(f'train set\' sigmas with qs: {list(zip(_sigmas, _qs))}')
+                sigma = np.quantile(dists, q)
+                if sigma == 0:
+                    print(f'sigma:{sigma}, and use 1e-7 for the latter experiment.')
+                    sigma = 1e-7
+            self.sigma_kjl = sigma
+            print("sigma: {}".format(sigma))
+
+            # project train data
+            # if debug: data_info(X_train, name='before KJL, X_train')
+            X_train, self.U_kjl, self.Xrow_kjl, self.random_matrix, self.A = kernelJLInitialize(X_train, self.sigma_kjl,
+                                                                                                d, m, n, centering=1,
+                                                                                                independent_row_col=0,
+                                                                                                random_state=self.random_state)
+            if self.debug: data_info(X_train, name='after KJL, X_train')
+
+            end = datetime.now()
+            kjl_train_time = (end - start).total_seconds()
+            print("kjl on train set took {} seconds".format(kjl_train_time))
+
+        else:
+            kjl_train_time = 0
+
+        self.kjl_train_time = kjl_train_time
+
+        # self.
+        # return X_train, U, Xrow, sigma, random_matrix, A
+        return self
+
+    def transform(self, X):  # transform
+        """Project X onto a lower space using kjl (i.e. kernel JL met)
+
+        Parameters
+        ----------
+        X: array with shape (n_samples, n_feats)
+
+        Returns
+        -------
+            X: array with shape (n_samples, d)
+            "d" is the lower space dimension
+
+        """
+        if self.kjl_params['kjl']:
+            # # for debug
+            if self.debug:
+                data_info(X, name='X_test_std')
+                _qs = [0, 0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1]
+                _sigmas = np.quantile(pairwise_distances(X), _qs)
+                print(f'test set\' sigmas with qs: {list(zip(_sigmas, _qs))}')
+
+            start = datetime.now()
+            print("Projecting test data")
+            # K = getGaussianGram(X, Xrow, sigma)  # get kernel matrix using rbf
+            # X_test = np.matmul(K, U)
+            # print(K, K.shape, U, U.shape, X_test)
+            # if self.debug: data_info(X_test, name='after KJL, X_test')
+            end = datetime.now()
+            kjl_test_time = (end - start).total_seconds()
+            print("kjl on test set took {} seconds".format(kjl_test_time))
+
+        else:
+            kjl_test_time = 0
+
+        self.kjl_test_time = kjl_test_time
+
+        return X
+
+    def update(self, x):
+        fix_U = True
+        if fix_U:  # U: nxn
+            # (what about self.sigma_kjl? (should we update it? ))
+            self.Xrow_kjl[-1] = x
+            # # only one column and one row will change comparing with the previous one, so we need to optimize it.
+            # A = getGaussianGram(self.Xrow_kjl, self.Xrow_kjl, self.sigma_kjl)
+            # centering = True
+            # if centering:
+            #     # subtract the mean of col from each element in a col
+            #     A = A - np.mean(A, axis=0)
+
+            A1 = getGaussianGram(self.Xrow_kjl[:-1, :], x, self.sigma_kjl)
+            A1 = A1.reshape(-1, 1)
+            _v = np.asarray([1.0])  # kernel(A1, A1) = 1
+            A1 = np.concatenate([A1, _v.reshape(-1, 1)], axis=0).reshape(-1, )
+            self.A[-1, :] = A1
+            self.A[:, -1] = A1.transpose()
+            centering = True
+            if centering:
+                # subtract the mean of col from each element in a col
+                self.A = self.A - np.mean(self.A, axis=0)
+
+            self.U_kjl = np.matmul(self.A, self.random_matrix)  # preferred for matrix multiplication
+
+        else:  # the size of U : n <- n+1
+            # self.Xrow_kjl = np.concatenate([self.Xrow_kjl, x_copy], axis=0)
+            # # only one column and one row will change comparing with the previous one, so we need to optimize it.
+            # # To be modified?
+            # A = getGaussianGram(self.Xrow_kjl, self.Xrow_kjl, self.sigma_kjl)
+
+            A1 = getGaussianGram(self.Xrow_kjl, x, self.sigma_kjl)
+            self.A = np.concatenate([self.A, A1], axis=1)
+            _v = np.asarray([1.0])  # kernel(A1, A1) = 1
+            A1 = np.concatenate([A1, _v.reshape(-1, 1)], axis=0).reshape(1, -1)
+            self.A = np.concatenate([self.A, A1], axis=0)
+
+            centering = True
+            if centering:
+                # subtract the mean of col from each element in a col
+                self.A = self.A - np.mean(self.A, axis=0)
+
+            self.Xrow_kjl = np.concatenate([self.Xrow_kjl, x], axis=0)
+            d = self.params['kjl_d']
+            n = self.Xrow_kjl.shape[0]  # n <= n+1
+            self.random_matrix = np.random.multivariate_normal([0] * d, np.diag([1] * d), n)
+
+            self.U_kjl = np.matmul(self.A, self.random_matrix)  # preferred for matrix multiplication

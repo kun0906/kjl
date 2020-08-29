@@ -28,7 +28,7 @@ class ONLINE_GMM(GaussianMixture):
     def __init__(self, n_components=1, covariance_type='full', tol=1e-3,
                  reg_covar=1e-6, max_iter=100, n_init=1, init_params='kmeans',
                  weights_init=None, means_init=None, precisions_init=None,
-                 random_state=None, warm_start=False,
+                 random_state=None, warm_start=False, covariances_init=None,
                  verbose=0, verbose_interval=10):
         super().__init__(
             n_components=n_components, tol=tol, reg_covar=reg_covar,
@@ -38,9 +38,9 @@ class ONLINE_GMM(GaussianMixture):
 
         self.n_components = n_components
         self.covariance_type = covariance_type
-        self.weights_init = weights_init
-        self.means_init = means_init
-        self.precisions_init = precisions_init
+        self.weights_ = weights_init
+        self.means_ = means_init
+        self.covariances_ = covariances_init
 
     def decision_function(self, X):
         # it must be abnormal score because it will be used in grid search
@@ -101,7 +101,9 @@ class ONLINE_GMM(GaussianMixture):
             log_prob[:, k] = np.diag(-0.5 * np.matmul(np.matmul(diff.T, np.linalg.inv(sigma)), diff))
 
             v = np.log(np.linalg.det(sigma))
-            if np.isnan(v) or np.isinf(v): v = 1e-6
+            if np.isnan(v) or np.isinf(v):
+                # print(f'np.log(np.linalg.det(sigma)) is inf or nan, so we use 1e-6 as the value.')
+                v = 1e-6
             log_det[:, k] = np.ones((n_samples,)) * v
 
         return -.5 * (n_feats * np.log(2 * np.pi) + log_det) + log_prob
@@ -117,7 +119,9 @@ class ONLINE_GMM(GaussianMixture):
             Logarithm of the posterior probabilities (or responsibilities) of
             the point of each sample in X.
         """
-
+        if np.isnan(log_resp).any() or np.isinf(log_resp).any():
+            print(f'log_resp: {log_resp}')
+            return -1
         self.means_, self.covariances_ = self.online_means_covaricances(x, n_samples, self.means_, self.covariances_,
                                                                         log_resp, self.reg_covar)
 
@@ -125,6 +129,7 @@ class ONLINE_GMM(GaussianMixture):
         # self.weights_: shape (n_components, )
         self.weights_ = (n_samples / (n_samples + 1)) * self.weights_ + (1 / (n_samples + 1)) * np.exp(
             log_resp).flatten()
+
 
     def online_means_covaricances(self, x, n_samples, means, covariances, log_resp, reg_covar=1e-6):
         """
@@ -195,6 +200,7 @@ class ONLINE_GMM(GaussianMixture):
         for k in range(n_components):
             new_means[k] = resp[k] * (means[k] + (x - means[k]) / (n_samples + 1))
             # new_covariances[k] = corvainces[k] + (X-new_means[k]) * (X-means[k])
+            # here would be overflow in add
             new_covariances[k] = resp[k] * \
                                  (covariances[k] + _online_covaricane(x, new_means[k], means[k], covariances[k]))
 
@@ -338,3 +344,4 @@ def get_means_init(X, k=None, beta=0.9, thres_n=100):
           f'clusters have at least {thres_n} datapoints. Counter(labels_): {Counter(labels_)}, *** '
           f'len(Counter(labels_)): {len(Counter(labels_))}')
     return means_init, len(set(labels_)), quick_training_time, n_clusters
+

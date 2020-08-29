@@ -22,8 +22,9 @@ from datetime import datetime
 from QuickshiftPP import QuickshiftPP
 from sklearn.preprocessing import StandardScaler
 
-
 # from loguru import logger as lg
+from kjl.utils.utils import execute_time
+
 
 class GMM(GaussianMixture):
 
@@ -43,6 +44,7 @@ class GMM(GaussianMixture):
         self.means_init = means_init
         self.precisions_init = precisions_init
 
+    @execute_time
     def decision_function(self, X):
         # it must be abnormal score because it will be used in grid search
         # we use y=1 as abnormal score, in grid search it will use y=1 as positive label,

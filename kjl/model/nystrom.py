@@ -13,6 +13,7 @@ from sklearn.metrics import pairwise_distances
 from sklearn.utils import resample, shuffle
 
 from kjl.model.kjl import getGaussianGram
+from kjl.utils.data import data_info
 
 
 def nystromInitialize(Xtrain, sigma, n, d, random_state=42):
@@ -200,6 +201,111 @@ idx = kmeans(PhiX, k);
     idx = km.fit_predict(PhiX)
     print(f'idx: {idx}')
     return idx
+
+
+class NYSTROM():
+    def __init__(self, nystrom_params, debug=False):
+        self.nystrom_params = nystrom_params
+        self.debug = debug
+
+    def fit(self, X_train):
+        """Get Nystrom related data, such as
+
+        Parameters
+        ----------
+        X_train
+
+        Returns
+        -------
+
+        """
+        if self.nystrom_params['nystrom']:
+            d = self.nystrom_params['nystrom_d']
+            n = self.nystrom_params['nystrom_n']
+            q = self.nystrom_params['nystrom_q']
+
+            start = datetime.now()
+            n = n or max([200, int(np.floor(X_train.shape[0] / 100))])  # n_v: rows; m_v: cols. 200, 100?
+            m = n
+            if hasattr(self, 'sigma') and self.sigma:
+                sigma = self.sigma
+            else:
+                # compute sigma
+                dists = pairwise_distances(X_train)
+                if self.debug:
+                    # for debug
+                    _qs = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
+                    _sigmas = np.quantile(dists, _qs)  # it will cost time
+                    print(f'train set\' sigmas with qs: {list(zip(_sigmas, _qs))}')
+                sigma = np.quantile(dists, q)
+                if sigma == 0:
+                    print(f'sigma:{sigma}, and use 1e-7 for the latter experiment.')
+                    sigma = 1e-7
+            self.sigma = sigma
+            print("sigma: {}".format(sigma))
+
+            # project train data
+            self.Eigvec, self.Lambda, self.subX = nystromInitialize(X_train, self.sigma, n, d,
+                                                                    random_state=self.random_state)
+            # Phix = nystromFeatures(X_train, subX, sigma, Eigvec, Lambda)
+            X_train = np.matmul(np.matmul(getGaussianGram(X_train, self.subX, self.sigma), self.Eigvec),
+                                np.diag(1. / np.sqrt(np.diag(self.Lambda))))
+
+            if self.debug: data_info(X_train, name='after nystrom, X_train')
+
+            end = datetime.now()
+            nystrom_train_time = (end - start).total_seconds()
+            print("nystrom on train set took {} seconds".format(nystrom_train_time))
+
+
+        else:
+            nystrom_train_time = 0
+
+        self.nystrom_train_time = nystrom_train_time
+
+        # return X_train, subX, sigma, Eigvec, Lambda
+
+        return self
+
+    def transform(self, X):  # transform
+        """Project X onto a lower space using Nystrom
+
+        Parameters
+        ----------
+        X: array with shape (n_samples, n_feats)
+
+        Returns
+        -------
+        X: array with shape (n_samples, d)
+            "d" is the lower space dimension
+
+        """
+        if self.nystrom_params['nystrom']:
+            # # for debug
+            if self.debug:
+                data_info(X, name='X_test_std')
+                _qs = [0, 0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1]
+                _sigmas = np.quantile(pairwise_distances(X), _qs)
+                print(f'test set\' sigmas with qs: {list(zip(_sigmas, _qs))}')
+
+            start = datetime.now()
+            print("Projecting test data")
+            K = getGaussianGram(X, self.subX, self.sigma)  # get kernel matrix using rbf
+            X = np.matmul(np.matmul(K, self.Eigvec), np.diag(1. / np.sqrt(np.diag(self.Lambda))))
+            if self.debug: data_info(X, name='after nystrom, X_test')
+            end = datetime.now()
+            nystrom_test_time = (end - start).total_seconds()
+            print("nystrom on test set took {} seconds".format(nystrom_test_time))
+        else:
+            nystrom_test_time = 0
+
+        self.nystrom_test_time = nystrom_test_time
+
+        return X
+
+    def update(self):
+
+        raise NotImplementedError('error')
 
 
 def load_data(in_file):

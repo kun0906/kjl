@@ -305,3 +305,9 @@ def save_result(result, out_file):
                 f.write(line + '\n')
                 print(line)
             f.write('\n')
+
+
+def batch(X, y, *, step=1):
+    size = len(X)
+    for i in range(0, size, step):
+        yield X[i:min(i + step, size)], y[i:min(i + step, size)]
