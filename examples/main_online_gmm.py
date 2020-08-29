@@ -36,62 +36,58 @@ class BASE_MODEL():
         self.init_X_train = X_train
         self.init_y_train = y_train
 
-        case = 'kjl-gmm_full'
-        if case == 'kjl-gmm_full':
+        ##########################################################################################
+        # Step 1: configure case
+        # case = 'GMM_full-gs_True-kjl_True-nystrom_False-quickshift_False-meanshift_False'
+        if self.params['detector_name'] == 'GMM' and self.params['covariance_type'] == 'full' and \
+                self.params['gs'] and self.params['kjl'] and not self.params['quickshift'] and \
+                not self.params['meanshift']:
             params = {}
-            # params['qs_']   # quickshift++
             params['n_components'] = [2]
             params['kjl_ns'] = [100]
             params['kjl_ds'] = [10]
             params['kjl_qs'] = [0.1, 0.2]
 
-        # self.params_copy = copy(self.params)
+        ##########################################################################################
+        # Step 2: find the best parameters
         best_auc = -1
-        for n_components, kjl_d, kjl_n, kjl_q in list(
-                itertools.product(params['n_components'], params['kjl_ds'], params['kjl_ns'], params['kjl_qs'])):
-            self.init_params = {'n_components': n_components, 'kjl_d': kjl_d, 'kjl_n': kjl_n, 'kjl_q': kjl_q}
+        for n_components, kjl_d, kjl_n, kjl_q in list(itertools.product(params['n_components'],
+                                                                        params['kjl_ds'], params['kjl_ns'],
+                                                                        params['kjl_qs'])):
+            # self.init_params = {'n_components': n_components, 'kjl_d': kjl_d, 'kjl_n': kjl_n, 'kjl_q': kjl_q}
             self.params['n_components'] = n_components
             self.params['kjl_d'] = kjl_d
             self.params['kjl_n'] = kjl_n
             self.params['kjl_q'] = kjl_q
-            self.init_model = GMM(n_components=n_components)
+            self.model = GMM(n_components=n_components)
 
-            # Fit a model on the train set (how to get the best parameters of GMM on the init_set?)
-            self._init_train(self.init_model, X_train, y_train)  # update self.init_model
+            # Fit a model on the train set
+            self._init_train(X_train, y_train)  # update self.model
             # Evaluate the model on the test set
-            self._init_test(self.init_model, X_test, y_test)
+            self._init_test(X_test, y_test)
             print(f'auc: {self.auc}')
             # for out in outs:
             if best_auc <= self.auc:
                 best_auc = self.auc
-                best_params = self.model.get_params()
-                self.params_copy = copy.deepcopy(self.params)
-
-        # get best model with best_params
-        self.params = self.params_copy
-        self.init_model = GMM()
-        self.init_model.set_params(**best_params)
-
-        # Fit a model on the train set (how to get the best parameters of GMM on the init_set?)
-        self._init_train(self.init_model, X_train, y_train)  # update self.init_model
-        # Evaluate the model on the test set
-        self._init_test(self.init_model, X_test, y_test)
-        print(f'init_train_time: {self.train_time}, init_test_time: {self.test_time}, init_auc: {self.auc}')
+                best_model_params = copy.deepcopy(self.model.get_params())
+                best_params = copy.deepcopy(self.params)
 
         ##########################################################################################
-        # online train
-        y_train_score = self.init_model.decision_function(X_train)
-        self.abnormal_thres = np.quantile(y_train_score, q=0.99)  # abnormal threshold
-        self.novelty_thres = np.quantile(y_train_score, q=0.85)  # normal threshold
-        print(f'novelty_thres: {self.novelty_thres}, abnormal_thres: {self.abnormal_thres}')
+        # Step 3: get the best model with best_params
+        self.params = best_params
+        self.model = GMM()
+        self.model.set_params(**best_model_params)
 
-        _, self.model.log_resp = self.model._e_step(X_train)
-        self.model.n_samples = X_train.shape[0]
-        self.model.X_train = X_train
+        # Fit a model on the init set
+        self._init_train(X_train, y_train)  # update self.model
+        # Evaluate the model on the test set
+        self._init_test(X_test, y_test)
+        print(f'init_train_time: {self.train_time}, init_test_time: {self.test_time}, init_auc: {self.auc},'
+              f'novelty_thres: {self.novelty_thres}, abnormal_thres: {self.abnormal_thres}')
 
-        return self.init_model
+        return self.model
 
-    def _init_train(self, model, X_train, y_train=None):
+    def _init_train(self, X_train, y_train=None):
         """Train model on the initial set (init_set)
 
         Parameters
@@ -122,22 +118,22 @@ class BASE_MODEL():
         X_train, std_train_time = func_running_time(self.std_inst.transform, X_train)
         self.train_time += std_train_time
 
-        # Step 1.2: Seek modes of the data by quickshift++ or meanshift
-        self.thres_n = 100  # used to filter clusters which have less than 100 datapoints
-        if 'meanshift' in self.params.keys() and self.params['meanshift']:
-            dists = pairwise_distances(X_train)
-            self.sigma = np.quantile(dists, self.params['kjl_q'])  # also used for kjl
-            self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = meanshift_seek_modes(
-                X_train, bandwidth=self.sigma, thres_n=self.thres_n)
-            self.params['n_components'] = self.n_components
-        elif 'quickshift' in self.params.keys() and self.params['quickshift']:
-            self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
-                X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
-                thres_n=self.thres_n)
-            self.params['n_components'] = self.n_components
-        else:
-            self.seek_train_time = 0
-        self.train_time += self.seek_train_time
+        # # Step 1.2: Seek modes of the data by quickshift++ or meanshift
+        # self.thres_n = 100  # used to filter clusters which have less than 100 datapoints
+        # if 'meanshift' in self.params.keys() and self.params['meanshift']:
+        #     dists = pairwise_distances(X_train)
+        #     self.sigma = np.quantile(dists, self.params['kjl_q'])  # also used for kjl
+        #     self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = meanshift_seek_modes(
+        #         X_train, bandwidth=self.sigma, thres_n=self.thres_n)
+        #     self.params['n_components'] = self.n_components
+        # elif 'quickshift' in self.params.keys() and self.params['quickshift']:
+        #     self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
+        #         X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
+        #         thres_n=self.thres_n)
+        #     self.params['n_components'] = self.n_components
+        # else:
+        #     self.seek_train_time = 0
+        # self.train_time += self.seek_train_time
 
         # Step 1.3. Project the data onto a lower space with KJL or Nystrom
         proj_train_time = 0.0
@@ -148,7 +144,7 @@ class BASE_MODEL():
             X_train, kjl_train_time = func_running_time(self.kjl_inst.transform, X_train)
             proj_train_time += kjl_train_time
         elif 'nystrom' in self.params.keys() and self.params['nystrom']:
-            self.nystrom_inst = NYSTROM()
+            self.nystrom_inst = NYSTROM(self.params)
             _, nystrom_train_time = func_running_time(self.nystrom_inst.fit, X_train)
             proj_train_time += nystrom_train_time
             X_train, nystrom_train_time = func_running_time(self.nystrom_inst.transform, X_train)
@@ -163,15 +159,26 @@ class BASE_MODEL():
                         'covariance_type': self.params['covariance_type'],
                         'means_init': None, 'random_state': self.random_state}
         # set model default parameters
-        model.set_params(**model_params)
-        if self.verbose > 5: print(model.get_params())
+        self.model.set_params(**model_params)
+        if self.verbose > 5: print(self.model.get_params())
         # train model
-        self.model, model_train_time = func_running_time(model.fit, X_train)
-        self.train_time += model_train_time
+        _, model_fit_time = func_running_time(self.model.fit, X_train)
+        self.train_time += model_fit_time
+
+        ##########################################################################################
+        # Step 3: get the threshold used to decide if a new flow is normal
+        # the following values will be used in the online update phase
+        y_score, _ = func_running_time(self.model.decision_function, X_train)
+        self.abnormal_thres = np.quantile(y_score, q=0.99)  # abnormal threshold
+        self.novelty_thres = np.quantile(y_score, q=0.85)  # normal threshold
+        print(f'novelty_thres: {self.novelty_thres}, abnormal_thres: {self.abnormal_thres}')
+        _, self.model.log_resp = self.model._e_step(X_train)
+        self.model.n_samples = X_train.shape[0]
+        self.model.X_train = X_train
 
         return self
 
-    def _init_test(self, model, X_test, y_test):
+    def _init_test(self, X_test, y_test):
         """Evaluate the model on the set set
 
         Parameters
@@ -212,7 +219,7 @@ class BASE_MODEL():
 
         ##########################################################################################
         # Step 2: Evaluate GMM on the test set
-        y_score, model_test_time = func_running_time(model.decision_function, X_test)
+        y_score, model_test_time = func_running_time(self.model.decision_function, X_test)
         self.test_time += model_test_time
         self.auc, _ = func_running_time(self.get_score, y_test, y_score)
 
@@ -285,9 +292,9 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         online_train_times = []
         online_test_times = []
         online_aucs = []
-        for i, (X_batch, Y_batch) in enumerate(batch(X_arrival, y_arrival, step=1000)):
+        for i, (X_batch, Y_batch) in enumerate(batch(X_arrival, y_arrival, step=100)):
             if i == 0:
-                self.model = self.init_model
+                self.model = copy.deepcopy(self.init_model)
 
             # online train model (update GMM model values, such as, means, covariances, kjl_U, and n_components)
             self._online_train(X_batch, Y_batch)  # update self.model
@@ -347,7 +354,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         seek_train_time = 0
         model_train_time += seek_train_time
 
-        # Step 3: Project the data onto a lower space with kjl or nystrom
+        # Step 1.3: Project the data onto a lower space with kjl or nystrom
         proj_train_time = 0
         if 'kjl' in self.params.keys() and self.params['kjl']:
             # Project the data
@@ -520,12 +527,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
                     # get log_prob and resp
                     log_prob_norm, log_resp = new_model._e_step(x_proj)
                     new_model.log_resp = log_resp
-                    print(f'n_iter: {n_iter}, log_resp: {log_resp}, x_proj: {x_proj}')
-
-                    # use m_step to update params: weights (i.e., mixing coefficients), means, and covariances with x and
-                    # the previous params: log_resp (the log probability of each component), means and covariances
-                    new_model._m_step(x_proj, new_model.log_resp,
-                                      new_model.n_samples - 1)  # update mean, covariance and weight
+                    # print(f'n_iter: {n_iter}, log_resp: {log_resp}, x_proj: {x_proj}')
 
                     # should be reconsidered again?
                     # get the difference
@@ -535,6 +537,12 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
                         self.converged_ = True
                         print(f'n_iter: {n_iter}')
                         break
+
+                    # use m_step to update params: weights (i.e., mixing coefficients), means, and covariances with x and
+                    # the previous params: log_resp (the log probability of each component), means and covariances
+                    new_model._m_step(x_proj, new_model.log_resp,
+                                      new_model.n_samples - 1)  # update mean, covariance and weight
+
         else:  # _y_score >= self.novelty_thres:
             ##########################################################################################
             # sub-scenario 1.2:  create a new component for the new x
@@ -573,11 +581,6 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
                     # convergence conditions: check if self.max_iter or self.tol exceeds the preset value.
                     prev_lower_bound = lower_bound
 
-                    # use m_step to update params: weights, means, and covariances with x and the initialized
-                    # params: log_resp, means and covariances
-                    new_model._m_step(x_proj, new_model.log_resp,
-                                      new_model.n_samples - 1)  # update weight, means, covariances
-
                     # get log_prob and resp
                     log_prob_norm, log_resp = new_model._e_step(x_proj)
                     new_model.log_resp = log_resp
@@ -590,6 +593,11 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
                         print(f'n_iter: {n_iter}')
                         break
 
+                    # use m_step to update params: weights, means, and covariances with x and the initialized
+                    # params: log_resp, means and covariances
+                    new_model._m_step(x_proj, new_model.log_resp,
+                                      new_model.n_samples - 1)  # update weight, means, covariances
+
         ##########################################################################################
         # Step 2: Update model, std, and projection
         # Step 2.1: update the current model with the new_model
@@ -597,17 +605,17 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
 
         # Step 2.2: update std
         # update the mean and scaler of self.std_inst with 'x'
-        std_update_time = func_running_time(self.std_inst.update, x)  # use the original X_batch to update std_inst
+        _, std_update_time = func_running_time(self.std_inst.update, x)  # use the original X_batch to update std_inst
 
         # Step 2.3: update projection
         if 'kjl' in self.params.keys() and self.params['kjl']:
             # update kjl or nystrom
             #  Update kjl: self.U_kjl, self.Xrow_kjl.
             # use the X_batch without projection to update kjl_inst
-            proj_update_time = func_running_time(self.kjl_inst.update, x_std)
+            _, proj_update_time = func_running_time(self.kjl_inst.update, x_std)
         elif 'nystrom' in self.params.keys() and self.params['nystrom']:
             # Update nystrom_inst
-            proj_update_time = func_running_time(self.nystrom_inst.update, x_proj)
+            _, proj_update_time = func_running_time(self.nystrom_inst.update, x_proj)
 
         else:
             proj_train_time = 0
@@ -724,7 +732,7 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         batch_aucs = []
         for i, (X_batch, Y_batch) in enumerate(batch(X_arrival, y_arrival, step=1000)):
             if i == 0:
-                self.model = self.init_model
+                self.model = copy.deepcopy(self.init_model)
 
             self._batch_train(X_batch, Y_batch)
             batch_train_times.append(self.train_time)
@@ -824,8 +832,10 @@ class BATCH_GMM_MAIN(BASE_MODEL):
 
         # Step 3.2: train a new model and use it to instead of the current one.
         # we use model.n_compoents to initialize n_components or the value found by quickhsift++ or meanshift
-        new_model = GMM(n_components=self.model.n_components)
-        self._init_train(new_model, self.init_X_train, self.init_y_train)  # self.train_time
+        self.model_copy = copy.deepcopy(self.model)
+        self.model = GMM(n_components=self.model.n_components)
+        # update self.model: replace the current model with new_model
+        self._init_train(self.init_X_train, self.init_y_train)  # self.train_time
 
         # the datapoint is predicted as a abnormal flow, so we should drop it.
         print(f'{abnormal_cnt} flows are predicted as abnormal, so we drop them.')
@@ -834,16 +844,27 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         model_batch_train_time = (end_0 - start_0).total_seconds()
         print(f'Total batch time: {model_batch_train_time}')
 
-        # replace the current model with new_model
-        self.model = new_model
-
         return self
 
     def _batch_test(self, X_batch, y_batch):
-        self._init_test(self.model, X_batch, y_batch)
+        self._init_test(X_batch, y_batch)
 
 
 def get_normal_abnormal(normal_file, abnormal_file, random_state=42):
+    """Get normal and abnormal data
+
+    Parameters
+    ----------
+    normal_file
+    abnormal_file
+    random_state
+
+    Returns
+    -------
+        normal data
+        abnormal data
+
+    """
     if not pth.exists(normal_file) or not pth.exists(abnormal_file):
         _normal_file = pth.splitext(normal_file)[0] + '.csv'
         _abnormal_file = pth.splitext(abnormal_file)[0] + '.csv'
@@ -997,13 +1018,18 @@ def main(random_state, n_jobs=-1, n_repeats=1):
             case['verbose'] = 10
             case['online'] = online  # online: True, otherwise, batch
 
-            case_str = '-'.join([f'{k}_{v}' for k, v in case.items() if
-                                 k in ['detector_name', 'covariance_type', 'gs', 'kjl', 'nystrom', 'quickshift',
-                                       'meanshift', 'online']])
+            keys = ['detector_name', 'covariance_type', 'gs', 'kjl', 'nystrom', 'quickshift',
+                    'meanshift', 'online']
+            case_str = ''
+            for k in keys:
+                if k not in case.keys():
+                    case[k] = False
+                case_str += f'{k}_{case[k]}-'
+
+            # case_str = '-'.join([f'{k}_{v}' for k, v in case.items() if k in keys])
             try:
                 # 3. get each result
                 print(f"\n\n\n***{case}***, {case_str}")
-                # _best_results, _middle_results = get_best_results(normal_data, abnormal_data, case, random_state)
                 X_train, y_train, X_test, y_test = split_train_test(normal_data, abnormal_data, train_size=0.8,
                                                                     test_size=-1, random_state=random_state)
 
@@ -1019,8 +1045,8 @@ def main(random_state, n_jobs=-1, n_repeats=1):
                 _middle_results = {}
 
                 # # save each result first
-                out_file = pth.abspath(f'{out_expand_dir}/{case_str}.csv')
-                print('+++', out_file)
+                # out_file = pth.abspath(f'{out_expand_dir}/{case_str}.csv')
+                # print('+++', out_file)
                 # save_each_result(_best_results, case_str, out_file)
                 #
                 # dump_data(_middle_results, out_file + '-middle_results.dat')

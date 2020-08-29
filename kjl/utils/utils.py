@@ -66,11 +66,11 @@ def execute_time(func):
 
 def func_running_time(func, *args, **kwargs):
     start = datetime.now()
+
     result = func(*args, **kwargs)
 
     end = datetime.now()
     total_time = (end - start).total_seconds()
-
     # print(f'{func} running time: {total_time}, and result: {result}')
 
     return result, total_time

@@ -10,6 +10,16 @@ class STD():
         pass
 
     def fit(self, X_train):
+        """
+
+        Parameters
+        ----------
+        X_train
+
+        Returns
+        -------
+
+        """
         self.n_samples, self.n_feats = X_train.shape
 
         self.scaler = StandardScaler()
