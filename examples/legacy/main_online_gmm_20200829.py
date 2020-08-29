@@ -253,7 +253,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         # stores important results
         self.info = {}
 
-    def train_test_model(self, X_train, y_train, X_arrival, y_arrival, X_test, y_test):
+    def train_test_model(self, X_train, y_train, X_test, y_test):
         """ Train and test model
 
         Parameters
@@ -276,13 +276,19 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
             self:
 
         """
-        self.n_samples, self.n_feats = X_train.shape
         ##########################################################################################
-        # # Step 1. Get initial model (init_model) on initial set (init_set) and evaluate it on test set
+        # Step 1. Split train set into two subsets: initial set (init_set) and new arrival set (arvl_set)
+        # with ratio 3:7.
+        X_train, X_arrival, y_train, y_arrival = train_test_split(X_train, y_train, test_size=0.7,
+                                                                  random_state=self.random_state)
+        self.n_samples, self.n_feats = X_train.shape
+
+        ##########################################################################################
+        # # Step 2. Get initial model (init_model) on initial set (init_set) and evaluate it on test set
         self.init_model = self.get_best_model(X_train, y_train, X_test, y_test)
 
         ##########################################################################################
-        # Step 2. Online train and evaluate model
+        # Step 3. Online train and evaluate model
         online_train_times = []
         online_test_times = []
         online_aucs = []
@@ -685,7 +691,7 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         # stores important results
         self.info = {}
 
-    def train_test_model(self, X_train, y_train, X_arrival, y_arrival, X_test, y_test):
+    def train_test_model(self, X_train, y_train, X_test, y_test):
         """ Train and test model
 
         Parameters
@@ -708,14 +714,19 @@ class BATCH_GMM_MAIN(BASE_MODEL):
             self:
 
         """
+        ##########################################################################################
+        # Step 1. Split train set into two subsets: initial set (init_set) and new arrival set (arvl_set)
+        # with ratio 3:7.
+        X_train, X_arrival, y_train, y_arrival = train_test_split(X_train, y_train, test_size=0.7,
+                                                                  random_state=self.random_state)
         self.n_samples, self.n_feats = X_train.shape
 
         ##########################################################################################
-        # # Step 1. Get initial model (init_model) on initial set (init_set) and evaluate it on test set
+        # # Step 2. Get initial model (init_model) on initial set (init_set) and evaluate it on test set
         self.init_model = self.get_best_model(X_train, y_train, X_test, y_test)
 
         ##########################################################################################
-        # Step 2. train the model on the batch data (previous+batch) and evaluate it.
+        # Step 3. train the model on the batch data (previous+batch) and evaluate it.
         batch_train_times = []
         batch_test_times = []
         batch_aucs = []
@@ -917,61 +928,6 @@ def save_result(result, out_file):
             f.write('\n')
 
 
-def split_train_arrival_test(normal_arr, abnormal_arr, random_state=42):
-    """
-
-    Parameters
-    ----------
-    normal_arr
-    abnormal_arr
-    random_state
-
-    Returns
-    -------
-
-    """
-    from fractions import Fraction
-
-    n_feats = min([data.shape[1] for data in normal_arr])
-    for i in range(len(normal_arr)):
-        normal_arr[i] = normal_arr[i][:, :n_feats]
-        abnormal_arr[i] = abnormal_arr[i][:, :n_feats]
-
-    ##########################################################################################
-    # dataset1
-    X_train1, y_train1, X_test1, y_test1 = split_train_test(normal_arr[0], abnormal_arr[0], train_size=0.8,
-                                                            test_size=-1, random_state=random_state)
-    # dataset2
-    X_train2, y_train2, X_test2, y_test2 = split_train_test(normal_arr[1], abnormal_arr[1], train_size=0.8,
-                                                            test_size=-1, random_state=random_state)
-
-    X_test = np.concatenate([X_test1, X_test2], axis=0)
-    y_test = np.concatenate([y_test1, y_test2], axis=0)
-
-    ##########################################################################################
-    # dataset1: Split train set into two subsets: initial set (init_set) and new arrival set (arvl_set)
-    # with ratio 1:9.
-    X_train1, X_arrival1, y_train1, y_arrival1 = train_test_split(X_train1, y_train1, train_size=0.9,
-                                                                  random_state=random_state)
-    # X_train1_size: X_train2_size = 9:1
-    # X_train2_size = int(len(X_train1) * 10 / 9 * 0.1)
-    X_train2, X_arrival2, y_train2, y_arrival2 = train_test_split(X_train2, y_train2, train_size=0.1,
-                                                                  random_state=random_state)
-    X_train = np.concatenate([X_train1, X_train2], axis=0)
-    y_train = np.concatenate([y_train1, y_train2], axis=0)
-
-    X_arrival = np.concatenate([X_arrival1, X_arrival2], axis=0)
-    y_arrival = np.concatenate([y_arrival1, y_arrival2], axis=0)
-
-    print(f'X_train: {X_train.shape}, in which, X_train1/X_train2 is {Fraction(X_train1.shape[0], X_train2.shape[0])}')
-    print(f'X_arrival: {X_arrival.shape} in which, X_arrival1/X_arrival2 is '
-          f'{Fraction(X_arrival1.shape[0], X_arrival2.shape[0])}')
-    print(
-        f'X_test: {X_test.shape},in which, X_test1/X_test2 {Fraction(X_test1.shape[0], X_test2.shape[0], _normalize=False)}')
-
-    return X_train, y_train, X_arrival, y_arrival, X_test, y_test
-
-
 @execute_time
 def main(random_state, n_jobs=-1, n_repeats=1):
     datasets = [
@@ -1045,9 +1001,7 @@ def main(random_state, n_jobs=-1, n_repeats=1):
     # All the results will be stored in the 'results'
     results = {}
 
-    normal_arr = []
-    abnormal_arr = []
-    for i, data_name in enumerate(datasets):
+    for data_name in datasets:
         ##########################################################################################
         # Step 1: extract normal and abnormal data from input files.
         in_expand_dir = pth.join(in_dir, data_name, feat_set, f'header:{header}')
@@ -1056,53 +1010,51 @@ def main(random_state, n_jobs=-1, n_repeats=1):
         abnormal_file = f'{in_expand_dir}/abnormal.dat'
         print(normal_file, abnormal_file)
         normal_data, abnormal_data = get_normal_abnormal(normal_file, abnormal_file, random_state=random_state)
-        normal_arr.append(normal_data)
-        abnormal_arr.append(abnormal_data)
 
-    ##########################################################################################
-    # Step 2: conduct experiments for each case
-    for case in cases:
-        case['random_state'] = random_state
-        case['verbose'] = 10
-        case['online'] = online  # online: True, otherwise, batch
+        ##########################################################################################
+        # Step 2: conduct experiments for each case
+        for case in cases:
+            case['random_state'] = random_state
+            case['verbose'] = 10
+            case['online'] = online  # online: True, otherwise, batch
 
-        keys = ['detector_name', 'covariance_type', 'gs', 'kjl', 'nystrom', 'quickshift',
-                'meanshift', 'online']
-        case_str = ''
-        for k in keys:
-            if k not in case.keys():
-                case[k] = False
-            case_str += f'{k}_{case[k]}-'
+            keys = ['detector_name', 'covariance_type', 'gs', 'kjl', 'nystrom', 'quickshift',
+                    'meanshift', 'online']
+            case_str = ''
+            for k in keys:
+                if k not in case.keys():
+                    case[k] = False
+                case_str += f'{k}_{case[k]}-'
 
-        # case_str = '-'.join([f'{k}_{v}' for k, v in case.items() if k in keys])
-        try:
-            # 3. get each result
-            print(f"\n\n\n***{case}***, {case_str}")
-            X_train, y_train, X_arrival, y_arrival, X_test, y_test = split_train_arrival_test(normal_arr, abnormal_arr,
-                                                                                              random_state)
+            # case_str = '-'.join([f'{k}_{v}' for k, v in case.items() if k in keys])
+            try:
+                # 3. get each result
+                print(f"\n\n\n***{case}***, {case_str}")
+                X_train, y_train, X_test, y_test = split_train_test(normal_data, abnormal_data, train_size=0.8,
+                                                                    test_size=-1, random_state=random_state)
 
-            if 'GMM' == case['detector_name']:
-                if case['online']:
-                    model = ONLINE_GMM_MAIN(case)
-                else:  # 'batch', i.e., batch_GMM
-                    model = BATCH_GMM_MAIN(case)
-            else:
-                raise NotImplementedError()
-            model.train_test_model(X_train, y_train, X_arrival, y_arrival, X_test, y_test)
-            _best_results = model.info  # model.info['train_times']
-            _middle_results = {}
+                if 'GMM' == case['detector_name']:
+                    if case['online']:
+                        model = ONLINE_GMM_MAIN(case)
+                    else:  # 'batch', i.e., batch_GMM
+                        model = BATCH_GMM_MAIN(case)
+                else:
+                    raise NotImplementedError()
+                model.train_test_model(X_train, y_train, X_test, y_test)
+                _best_results = model.info  # model.info['train_times']
+                _middle_results = {}
 
-            # # save each result first
-            # out_file = pth.abspath(f'{out_expand_dir}/{case_str}.csv')
-            # print('+++', out_file)
-            # save_each_result(_best_results, case_str, out_file)
-            #
-            # dump_data(_middle_results, out_file + '-middle_results.dat')
-            #
-            results[(in_expand_dir, case_str)] = (_best_results, _middle_results)
-        except Exception as e:
-            traceback.print_exc()
-            print(f"some error exists in {case}")
+                # # save each result first
+                # out_file = pth.abspath(f'{out_expand_dir}/{case_str}.csv')
+                # print('+++', out_file)
+                # save_each_result(_best_results, case_str, out_file)
+                #
+                # dump_data(_middle_results, out_file + '-middle_results.dat')
+                #
+                results[(in_expand_dir, case_str)] = (_best_results, _middle_results)
+            except Exception as e:
+                traceback.print_exc()
+                print(f"some error exists in {case}")
 
     ##########################################################################################
     # # 4. save results first
