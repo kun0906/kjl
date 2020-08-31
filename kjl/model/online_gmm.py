@@ -131,8 +131,9 @@ class ONLINE_GMM(GaussianMixture):
 
             # not sure if the online update of the weights (of each component of GMM (i.e., $\pi_k$)) is correct.
             # self.weights_: shape (n_components, )
-            self.weights_ = (n_samples / (n_samples + 1)) * self.weights_ + (
-                    1 / (n_samples + 1)) * np.exp(log_resp).flatten()
+            # self.weights_ = (n_samples / (n_samples + 1)) * self.weights_ + (
+            #         1 / (n_samples + 1)) * np.exp(log_resp).flatten()
+            self.weights_ = self.weights_ + (np.exp(log_resp).flatten() - self.weights_) / (n_samples + 1)
 
         else:
             # how to rewrite it in vector?
@@ -141,16 +142,10 @@ class ONLINE_GMM(GaussianMixture):
                 self.means_, self.covariances_ = self.online_means_covaricances(_x, n_samples, self.means_,
                                                                                 self.covariances_,
                                                                                 _log_resp, self.reg_covar)
-                n_samples += 1
-
                 # not sure if the online update of the weights (of each component of GMM (i.e., $\pi_k$)) is correct.
                 # self.weights_: shape (n_components, )
-                self.weights_ = (n_samples / (n_samples + 1)) * self.weights_ + (
-                        1 / (n_samples + 1)) * np.exp(_log_resp).flatten()
-                # self.weights_ = (n_samples / (n_samples + x.shape[0])) * self.weights_ + (
-                #             x.shape[0] / (n_samples + x.shape[0])) * np.exp(
-                # log_resp).flatten()
-
+                self.weights_ = self.weights_ + (np.exp(_log_resp).flatten() - self.weights_) / (n_samples + 1)
+                n_samples += 1
 
     def online_means_covaricances(self, x, n_samples, means, covariances, log_resp, reg_covar=1e-6):
         """
@@ -180,8 +175,8 @@ class ONLINE_GMM(GaussianMixture):
 
         """
 
-        def _online_covaricane(x, one_new_mu, one_mu, one_covariances):
-            """ get the covariance of the new component.
+        def _online_covaricane(x, one_new_mu, one_covariances, n_samples):
+            """ get the updated covariance.
             https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online
 
             Parameters
@@ -190,9 +185,6 @@ class ONLINE_GMM(GaussianMixture):
 
             one_new_mu: array-like, shape (n_feats, )
                 the updated means of one component
-
-            one_mu: array-like, shape (n_feats, )
-                the means of one component
 
             one_covariances: array-like, shape (n_feats, n_feats)
                 the covariances of one component
@@ -204,11 +196,15 @@ class ONLINE_GMM(GaussianMixture):
 
             x = x.flatten()
 
-            rows, cols = one_covariances.shape  # a "n_feats by n_feats" matrix
+            rows, cols = one_covariances.shape  # a "n_feats by n_feats" matrix: symmetric matrix
             for i in range(rows):
                 for j in range(cols):
                     if i <= j:
-                        one_covariances[i][j] += (x[i] - one_new_mu[i]) * (x[j] - one_mu[j])
+                        # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online
+                        #  COV(X,Y) = (C_n)/(n), C_n = C_(n-1) + N/(N-1)(x_n-x_mean_(n))*(y_n-y_mean_(n))
+                        #
+                        one_covariances[i][j] = (one_covariances[i][j] * n_samples + (n_samples + 1) / (n_samples) *
+                                                 (x[i] - one_new_mu[i]) * (x[j] - one_new_mu[j])) / (n_samples + 1)
                     else:  # j < i
                         one_covariances[i][j] = one_covariances[j][i]
 
@@ -220,11 +216,8 @@ class ONLINE_GMM(GaussianMixture):
         resp = np.exp(log_resp).flatten()
         for k in range(n_components):
             new_means[k] = resp[k] * (means[k] + (x - means[k]) / (n_samples + 1))
-            # new_covariances[k] = corvainces[k] + (X-new_means[k]) * (X-means[k])
             # here would be overflow in add
-            new_covariances[k] = resp[k] * \
-                                 (covariances[k] + _online_covaricane(x, new_means[k], means[k], covariances[k]))
-
+            new_covariances[k] = resp[k] * _online_covaricane(x, new_means[k], covariances[k], n_samples)
             new_covariances[k].flat[::n_feats + 1] += reg_covar  # x[startAt:endBefore:step], diagonal items
 
         return new_means, new_covariances
@@ -365,4 +358,3 @@ def get_means_init(X, k=None, beta=0.9, thres_n=100):
           f'clusters have at least {thres_n} datapoints. Counter(labels_): {Counter(labels_)}, *** '
           f'len(Counter(labels_)): {len(Counter(labels_))}')
     return means_init, len(set(labels_)), quick_training_time, n_clusters
-

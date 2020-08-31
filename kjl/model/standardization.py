@@ -32,7 +32,7 @@ class STD():
         return self.scaler.transform(X)
 
     def update(self, x):
-        # Update self.scaler
+        # Update self.scaler, in which mean_ is mean, scale_ is np.sqrt(variance/n-1)
         self.scaler.mean_, self.scaler.scale_ = online_update_mean_variance(x, self.n_samples, self.scaler.mean_,
                                                                             self.scaler.scale_)
         self.scaler.var_ = np.square(self.scaler.scale_)
@@ -41,12 +41,15 @@ class STD():
 def online_update_mean_variance(x, n, mu, sigma):
     """For standardization, we should online update mean and varicance (not covariance here)
     https://stackoverflow.com/questions/1346824/is-there-any-way-to-find-arithmetic-mean-better-than-sum-n
+    https://jonisalonen.com/2013/deriving-welfords-method-for-computing-variance/
+    https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
 
     Parameters
     ----------
     x : array-like, shape (1, n_feats)
     mu: array with shape (1, n_feats)
     sigma: array with shape (1, n_feats)
+        sigma = np.sqrt(variance/n-1)
 
     Returns
     -------
@@ -59,8 +62,8 @@ def online_update_mean_variance(x, n, mu, sigma):
         mu += (_x - mu) / (n + 1)
         sigma_sq += (_x - mu) * (_x - mu_prev)
         n += 1
-    #  mean = M
-    #  std dev = sqrt(S / N) or sqrt(S / N + 1)
+
     new_mu = mu
     new_sigma = np.sqrt(sigma_sq / (n - 1))
+
     return new_mu, new_sigma
