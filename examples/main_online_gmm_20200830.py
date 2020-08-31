@@ -389,21 +389,72 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
 
         # cond_normal = y_score < self.novelty_thres  # return bool values:  normal index
         normal_idx = np.where((y_score < self.novelty_thres) == True)
-        X_batch_normal, X_batch_std_normal, X_batch_proj_normal, y_score_normal = X_batch[normal_idx], \
-                                                                                  X_batch_std[normal_idx], \
-                                                                                  X_batch_proj[normal_idx], \
-                                                                                  y_score[normal_idx]
+        normal_cnt = len(normal_idx[0])  # normal_idx is a tuple
+        if normal_cnt > 0:
+            X_batch_normal, X_batch_std_normal, X_batch_proj_normal, y_score_normal = X_batch[normal_idx], \
+                                                                                      X_batch_std[normal_idx], \
+                                                                                      X_batch_proj[normal_idx], \
+                                                                                      y_score[normal_idx]
+
+            # update normal data
+            new_model = ONLINE_GMM(n_components=self.model.n_components,
+                                   covariance_type=self.model.covariance_type,
+                                   weights_init=self.model.weights_,
+                                   means_init=self.model.means_,
+                                   covariances_init=self.model.covariances_,
+                                   warm_start=True)
+            new_model.n_samples = self.model.n_samples
+            # online update the model: self.model = new_model
+
+            # 1): just update the previous components
+            normal_cnt += len(y_score_normal)
+            create_new_component = False
+            self._online_train_update(new_model, X_batch_normal, X_batch_std_normal, X_batch_proj_normal
+                                      , create_new_component, to_convergent=True)
+
         # novelty_idx = np.where((self.novelty_thres <= y_score < self.abnormal_thres)==True)
         novelty_idx = np.where(((self.novelty_thres <= y_score) & (y_score < self.abnormal_thres)) == True)
-        X_batch_novelty, X_batch_std_novelty, X_batch_proj_novelty, y_score_novelty = X_batch[novelty_idx], \
-                                                                                      X_batch_std[novelty_idx], \
-                                                                                      X_batch_proj[novelty_idx], \
-                                                                                      y_score[novelty_idx]
-        abnormal_idx = np.where((y_score > self.abnormal_thres) == True)
-
-        normal_cnt = len(normal_idx[0])  # normal_idx is a tuple
         novelty_cnt = len(novelty_idx[0])
+
+        abnormal_idx = np.where((y_score > self.abnormal_thres) == True)
         abnormal_cnt = len(abnormal_idx[0])
+
+        if novelty_cnt > 0:
+            X_batch_novelty, X_batch_std_novelty, X_batch_proj_novelty, y_score_novelty = X_batch[novelty_idx], \
+                                                                                          X_batch_std[novelty_idx], \
+                                                                                          X_batch_proj[novelty_idx], \
+                                                                                          y_score[novelty_idx]
+
+            for i, (x, x_std, x_proj, y) in enumerate(zip(X_batch_novelty, X_batch_std_novelty, X_batch_proj_novelty,
+                                                          y_score_novelty)):
+                ##########################################################################################
+                # Step 3. online train a GMM based on the current GMM parameters (such as means, covariances)
+                # and use it to replace the current one.
+                if y < self.abnormal_thres:
+                    new_model = ONLINE_GMM(n_components=self.model.n_components,
+                                           covariance_type=self.model.covariance_type,
+                                           weights_init=self.model.weights_,
+                                           means_init=self.model.means_,
+                                           covariances_init=self.model.covariances_,
+                                           warm_start=True)
+                    new_model.n_samples = self.model.n_samples
+                    # online update the model: self.model = new_model
+
+                    # According to y, x is predicted as a normal datapoint.
+                    # two sub-scenarios:
+                    # 1): just update the previous components
+                    # 2): create a new component for the new x
+                    if y < self.novelty_thres:
+                        normal_cnt += 1
+                        create_new_component = False
+                    else:
+                        novelty_cnt += 1
+                        create_new_component = True
+                    self._online_train_update(new_model, x, x_std, x_proj, create_new_component, to_convergent=True)
+                else:
+                    # if _y_score >= self.abnormal_thres, the x is predicted as a abnormal flow, so we should drop it.
+                    abnormal_cnt += 1
+                    # print(f'this flow (x, y_score:{y}) is an abnormal flow, so we drop it.')
 
         # for i, (x, x_std, x_proj, y) in enumerate(zip(X_batch, X_batch_std, X_batch_proj, y_score)):
         #     ##########################################################################################
@@ -434,53 +485,6 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         #         # if _y_score >= self.abnormal_thres, the x is predicted as a abnormal flow, so we should drop it.
         #         abnormal_cnt += 1
         #         # print(f'this flow (x, y_score:{y}) is an abnormal flow, so we drop it.')
-
-        # update normal data
-        new_model = ONLINE_GMM(n_components=self.model.n_components,
-                               covariance_type=self.model.covariance_type,
-                               weights_init=self.model.weights_,
-                               means_init=self.model.means_,
-                               covariances_init=self.model.covariances_,
-                               warm_start=True)
-        new_model.n_samples = self.model.n_samples
-        # online update the model: self.model = new_model
-
-        # 1): just update the previous components
-        normal_cnt += len(y_score_normal)
-        create_new_component = False
-        self._online_train_update(new_model, X_batch_normal, X_batch_std_normal, X_batch_proj_normal
-                                  , create_new_component, to_convergent=True)
-
-        for i, (x, x_std, x_proj, y) in enumerate(zip(X_batch_novelty, X_batch_std_novelty, X_batch_proj_novelty,
-                                                      y_score_novelty)):
-            ##########################################################################################
-            # Step 3. online train a GMM based on the current GMM parameters (such as means, covariances)
-            # and use it to replace the current one.
-            if y < self.abnormal_thres:
-                new_model = ONLINE_GMM(n_components=self.model.n_components,
-                                       covariance_type=self.model.covariance_type,
-                                       weights_init=self.model.weights_,
-                                       means_init=self.model.means_,
-                                       covariances_init=self.model.covariances_,
-                                       warm_start=True)
-                new_model.n_samples = self.model.n_samples
-                # online update the model: self.model = new_model
-
-                # According to y, x is predicted as a normal datapoint.
-                # two sub-scenarios:
-                # 1): just update the previous components
-                # 2): create a new component for the new x
-                if y < self.novelty_thres:
-                    normal_cnt += 1
-                    create_new_component = False
-                else:
-                    novelty_cnt += 1
-                    create_new_component = True
-                self._online_train_update(new_model, x, x_std, x_proj, create_new_component, to_convergent=True)
-            else:
-                # if _y_score >= self.abnormal_thres, the x is predicted as a abnormal flow, so we should drop it.
-                abnormal_cnt += 1
-                # print(f'this flow (x, y_score:{y}) is an abnormal flow, so we drop it.')
 
         print(f'normal: {normal_cnt}, novelty: {novelty_cnt}, abnormal: {abnormal_cnt}')
 
@@ -581,7 +585,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         # 2): create a new component for the new x
 
         lower_bound = -np.infty
-        if len(x) == 1:
+        if len(x.shape) == 1:
             x = x.reshape(1, -1)
             x_std = x_std.reshape(1, -1)
             x_proj = x_proj.reshape(1, -1)
@@ -688,13 +692,14 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         # Step 2.2: update std
         # update the mean and scaler of self.std_inst with 'x'
         self.std_inst.n_samples += x.shape[0]
+        print(x.shape)  # for debug
         _, std_update_time = func_running_time(self.std_inst.update, x)  # use the original X_batch to update std_inst
 
         # Step 2.3: update projection: kjl or nystrom
         if 'kjl' in self.params.keys() and self.params['kjl']:
             #  Update kjl: self.U_kjl, self.Xrow_kjl.
             # use the X_batch without projection to update kjl_inst
-            if x_std.shape[0] > 1: x_std = x_std[0]
+            if x_std.shape[0] > 1: x_std = x_std[0].reshape(1, -1)
             _, proj_update_time = func_running_time(self.kjl_inst.update, x_std)
         elif 'nystrom' in self.params.keys() and self.params['nystrom']:
             # Update nystrom_inst

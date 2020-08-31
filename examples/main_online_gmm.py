@@ -43,7 +43,7 @@ class BASE_MODEL():
                 self.params['gs'] and self.params['kjl'] and not self.params['quickshift'] and \
                 not self.params['meanshift']:
             params = {}
-            params['n_components'] = [1, 2]
+            params['n_components'] = [2]  # [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
             params['kjl_ns'] = [100]
             params['kjl_ds'] = [10]
             params['kjl_qs'] = [0.1, 0.2]

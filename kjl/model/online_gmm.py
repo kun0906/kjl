@@ -121,19 +121,33 @@ class ONLINE_GMM(GaussianMixture):
             Logarithm of the posterior probabilities (or responsibilities) of
             the point of each sample in X.
         """
-        if np.isnan(log_resp).any() or np.isinf(log_resp).any():
-            print(f'log_resp: {log_resp}')
-            return -1
-        self.means_, self.covariances_ = self.online_means_covaricances(x, n_samples, self.means_, self.covariances_,
-                                                                        log_resp, self.reg_covar)
+        # if np.isnan(log_resp).any() or np.isinf(log_resp).any():
+        #     print(f'log_resp: {log_resp}')
+        #     return -1
+        if x.shape[0] == 1:
+            self.means_, self.covariances_ = self.online_means_covaricances(x, n_samples, self.means_,
+                                                                            self.covariances_,
+                                                                            log_resp, self.reg_covar)
 
-        # not sure if the online update of the weights (of each component of GMM (i.e., $\pi_k$)) is correct.
-        # self.weights_: shape (n_components, )
-        # self.weights_ = (n_samples / (n_samples + 1)) * self.weights_ + (
-        #             1 / (n_samples + 1)) * np.exp(log_resp).flatten()
-        self.weights_ = (n_samples / (n_samples + x.shape[0])) * self.weights_ + (
-                    x.shape[0] / (n_samples + x.shape[0])) * np.exp(
-            log_resp).flatten()
+            # not sure if the online update of the weights (of each component of GMM (i.e., $\pi_k$)) is correct.
+            # self.weights_: shape (n_components, )
+            self.weights_ = (n_samples / (n_samples + 1)) * self.weights_ + (
+                    1 / (n_samples + 1)) * np.exp(log_resp).flatten()
+
+        else:
+            for _log_resp, _x in zip(log_resp, x):
+                _x = _x.reshape(1, -1)
+                self.means_, self.covariances_ = self.online_means_covaricances(_x, n_samples, self.means_,
+                                                                                self.covariances_,
+                                                                                _log_resp, self.reg_covar)
+
+                # not sure if the online update of the weights (of each component of GMM (i.e., $\pi_k$)) is correct.
+                # self.weights_: shape (n_components, )
+                self.weights_ = (n_samples / (n_samples + 1)) * self.weights_ + (
+                        1 / (n_samples + 1)) * np.exp(_log_resp).flatten()
+                # self.weights_ = (n_samples / (n_samples + x.shape[0])) * self.weights_ + (
+                #             x.shape[0] / (n_samples + x.shape[0])) * np.exp(
+                # log_resp).flatten()
 
 
     def online_means_covaricances(self, x, n_samples, means, covariances, log_resp, reg_covar=1e-6):
