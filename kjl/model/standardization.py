@@ -53,10 +53,14 @@ def online_update_mean_variance(x, n, mu, sigma):
         new_mu: array with shape (1, n_feats)
         new_sigma: array with shape (1, n_feats)
     """
-
+    sigma_sq = sigma ** 2
     for _x in x:
         mu_prev = mu
         mu += (_x - mu) / (n + 1)
-        sigma += (_x - mu) * (_x - mu_prev)
-
-    return mu, sigma
+        sigma_sq += (_x - mu) * (_x - mu_prev)
+        n += 1
+    #  mean = M
+    #  std dev = sqrt(S / N) or sqrt(S / N + 1)
+    new_mu = mu
+    new_sigma = np.sqrt(sigma_sq / (n - 1))
+    return new_mu, new_sigma
