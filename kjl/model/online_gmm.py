@@ -80,7 +80,7 @@ class ONLINE_GMM(GaussianMixture):
     #     return np.log(self.weights_)
 
     def _estimate_log_prob(self, X):
-        """Estimate the log-probabilities log P(X | Z).
+        """Estimate the log-probabilities log P(X | theta).
 
         Compute the log-probabilities per each component for each sample.
 
@@ -96,19 +96,19 @@ class ONLINE_GMM(GaussianMixture):
         n_samples, n_feats = X.shape
         n_components = self.n_components
 
-        log_prob = np.zeros((n_samples, n_components))
+        log_dist = np.zeros((n_samples, n_components))
         log_det = np.zeros((n_samples, n_components))
-        for k, (mu, sigma) in enumerate(zip(self.means_, self.covariances_)):
-            diff = (X.T - mu[:, np.newaxis])  # X and mu should be column vectors
-            log_prob[:, k] = np.diag(-0.5 * np.matmul(np.matmul(diff.T, np.linalg.inv(sigma)), diff))
+        for k, (mean, covariance) in enumerate(zip(self.means_, self.covariances_)):
+            diff = (X.T - mean[:, np.newaxis])  # X and mu should be column vectors
+            log_dist[:, k] = np.diag(-0.5 * np.matmul(np.matmul(diff.T, np.linalg.inv(covariance)), diff))
 
-            v = np.log(np.linalg.det(sigma))
+            v = np.log(np.linalg.det(covariance))
             if np.isnan(v) or np.isinf(v):
                 # print(f'np.log(np.linalg.det(sigma)) is inf or nan, so we use 1e-6 as the value.')
                 v = 1e-6
             log_det[:, k] = np.ones((n_samples,)) * v
 
-        return -.5 * (n_feats * np.log(2 * np.pi) + log_det) + log_prob
+        return -.5 * (n_feats * np.log(2 * np.pi) + log_det) + log_dist
 
     def _m_step(self, x, log_resp, n_samples):
         """M step.
@@ -135,11 +135,13 @@ class ONLINE_GMM(GaussianMixture):
                     1 / (n_samples + 1)) * np.exp(log_resp).flatten()
 
         else:
+            # how to rewrite it in vector?
             for _log_resp, _x in zip(log_resp, x):
                 _x = _x.reshape(1, -1)
                 self.means_, self.covariances_ = self.online_means_covaricances(_x, n_samples, self.means_,
                                                                                 self.covariances_,
                                                                                 _log_resp, self.reg_covar)
+                n_samples += 1
 
                 # not sure if the online update of the weights (of each component of GMM (i.e., $\pi_k$)) is correct.
                 # self.weights_: shape (n_components, )

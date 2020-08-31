@@ -21,7 +21,7 @@ from kjl.model.kjl import KJL
 from kjl.model.nystrom import NYSTROM
 from kjl.model.online_gmm import ONLINE_GMM, quickshift_seek_modes, meanshift_seek_modes
 from kjl.model.standardization import STD
-from kjl.utils.data import split_train_test, load_data, extract_data, dump_data, save_result, batch
+from kjl.utils.data import split_train_test, load_data, extract_data, dump_data, save_result, batch, data_info
 from kjl.utils.utils import execute_time, func_running_time
 
 RANDOM_STATE = 42
@@ -381,6 +381,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         y_score, model_predict_time = func_running_time(self.model.decision_function, X_batch_proj)
         # print("i:{}, online model prediction takes {} seconds, y_score: {}".format(0, testing_time, y_score))
         model_train_time += model_predict_time
+        if self.verbose > 5: data_info(y_score.reshape(-1, 1), name='y_score')
         # if self.verbose > 5:
         #     print(f'Total test time: {self.test_time} <= std_test_time: {self.std_test_time}, '
         #           f'seek_test_time: {self.seek_test_time}'
@@ -389,8 +390,12 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
 
         # cond_normal = y_score < self.novelty_thres  # return bool values:  normal index
         normal_idx = np.where((y_score < self.novelty_thres) == True)
-        normal_cnt = len(normal_idx[0])  # normal_idx is a tuple
-        if normal_cnt > 0:
+        # novelty_idx = np.where((self.novelty_thres <= y_score < self.abnormal_thres)==True)
+        novelty_idx = np.where(((self.novelty_thres <= y_score) & (y_score < self.abnormal_thres)) == True)
+        abnormal_idx = np.where((y_score > self.abnormal_thres) == True)
+
+        normal_cnt = 0  # len(normal_idx[0])  # normal_idx is a tuple
+        if len(normal_idx[0]) > 0:
             X_batch_normal, X_batch_std_normal, X_batch_proj_normal, y_score_normal = X_batch[normal_idx], \
                                                                                       X_batch_std[normal_idx], \
                                                                                       X_batch_proj[normal_idx], \
@@ -412,14 +417,9 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
             self._online_train_update(new_model, X_batch_normal, X_batch_std_normal, X_batch_proj_normal
                                       , create_new_component, to_convergent=True)
 
-        # novelty_idx = np.where((self.novelty_thres <= y_score < self.abnormal_thres)==True)
-        novelty_idx = np.where(((self.novelty_thres <= y_score) & (y_score < self.abnormal_thres)) == True)
-        novelty_cnt = len(novelty_idx[0])
-
-        abnormal_idx = np.where((y_score > self.abnormal_thres) == True)
+        novelty_cnt = 0  # len(novelty_idx[0])
         abnormal_cnt = len(abnormal_idx[0])
-
-        if novelty_cnt > 0:
+        if len(novelty_idx[0]) > 0:
             X_batch_novelty, X_batch_std_novelty, X_batch_proj_novelty, y_score_novelty = X_batch[novelty_idx], \
                                                                                           X_batch_std[novelty_idx], \
                                                                                           X_batch_proj[novelty_idx], \
@@ -735,11 +735,11 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         idx = 0
         for i, (mu, sigma) in enumerate(zip(means, covariances)):
             diff = (x - mu).T  # column vector
-            diff /= np.linalg.norm(diff)
-            dist = np.matmul(np.matmul(diff.T, np.linalg.inv(sigma)), diff)
+            diff /= np.linalg.norm(diff)  # normalize vector
+            _dist = np.matmul(np.matmul(diff.T, np.linalg.inv(sigma)), diff)
 
-            if dist > min_dist:
-                min_dist = dist
+            if _dist > min_dist:
+                min_dist = _dist
                 idx = i
 
         diff = (x - means[idx]).T
@@ -749,7 +749,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
 
         if np.linalg.norm(diff) - sigma_1v < 0:
             try:
-                raise ValueError('cannot find a good sigma.')
+                raise ValueError(f'cannot find a good sigma. sigma_1v:{sigma_1v}')
             except:
                 sigma_1v = reg_covar
 

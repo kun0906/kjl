@@ -21,7 +21,7 @@ from kjl.model.kjl import KJL
 from kjl.model.nystrom import NYSTROM
 from kjl.model.online_gmm import ONLINE_GMM, quickshift_seek_modes, meanshift_seek_modes
 from kjl.model.standardization import STD
-from kjl.utils.data import split_train_test, load_data, extract_data, dump_data, save_result, batch
+from kjl.utils.data import split_train_test, load_data, extract_data, dump_data, save_result, batch, data_info
 from kjl.utils.utils import execute_time, func_running_time
 
 RANDOM_STATE = 42
@@ -381,6 +381,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         y_score, model_predict_time = func_running_time(self.model.decision_function, X_batch_proj)
         # print("i:{}, online model prediction takes {} seconds, y_score: {}".format(0, testing_time, y_score))
         model_train_time += model_predict_time
+        if self.verbose > 5: data_info(y_score.reshape(-1, 1), name='y_score')
         # if self.verbose > 5:
         #     print(f'Total test time: {self.test_time} <= std_test_time: {self.std_test_time}, '
         #           f'seek_test_time: {self.seek_test_time}'
@@ -551,7 +552,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
                     change = lower_bound - prev_lower_bound
                     if abs(change) < new_model.tol:
                         self.converged_ = True
-                        print(f'n_iter: {n_iter}')
+                        # print(f'n_iter: {n_iter}')
                         break
 
                     # use m_step to update params: weights (i.e., mixing coefficients), means, and covariances with x and
@@ -606,7 +607,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
                     change = lower_bound - prev_lower_bound
                     if abs(change) < new_model.tol:
                         self.converged_ = True
-                        print(f'n_iter: {n_iter}')
+                        # print(f'n_iter: {n_iter}')
                         break
 
                     # use m_step to update params: weights, means, and covariances with x and the initialized

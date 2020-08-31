@@ -55,7 +55,8 @@ def online_update_mean_variance(x, n, mu, sigma):
     """
 
     for _x in x:
-        new_mu = mu + (_x - mu) / (n + 1)
-        new_sigma = sigma + (_x - new_mu) * (_x - mu)
+        mu_prev = mu
+        mu += (_x - mu) / (n + 1)
+        sigma += (_x - mu) * (_x - mu_prev)
 
-    return new_mu, new_sigma
+    return mu, sigma
