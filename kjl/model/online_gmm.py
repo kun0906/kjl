@@ -7,6 +7,7 @@
 import numpy as np
 from collections import Counter
 
+from sklearn.base import BaseEstimator
 from sklearn.cluster import MeanShift
 from sklearn.metrics import pairwise_distances
 from sklearn.mixture import GaussianMixture
@@ -29,7 +30,7 @@ class ONLINE_GMM(GaussianMixture):
                  reg_covar=1e-6, max_iter=100, n_init=1, init_params='kmeans',
                  weights_init=None, means_init=None, precisions_init=None,
                  random_state=None, warm_start=False, covariances_init=None,
-                 verbose=0, verbose_interval=10):
+                 verbose=0, verbose_interval=10, **kwargs):
         super().__init__(
             n_components=n_components, tol=tol, reg_covar=reg_covar,
             max_iter=max_iter, n_init=n_init, init_params=init_params,
@@ -41,6 +42,7 @@ class ONLINE_GMM(GaussianMixture):
         self.weights_ = weights_init
         self.means_ = means_init
         self.covariances_ = covariances_init
+        # self.covariances_init = covariances_init
 
     def decision_function(self, X):
         # it must be abnormal score because it will be used in grid search
@@ -127,7 +129,10 @@ class ONLINE_GMM(GaussianMixture):
 
         # not sure if the online update of the weights (of each component of GMM (i.e., $\pi_k$)) is correct.
         # self.weights_: shape (n_components, )
-        self.weights_ = (n_samples / (n_samples + 1)) * self.weights_ + (1 / (n_samples + 1)) * np.exp(
+        # self.weights_ = (n_samples / (n_samples + 1)) * self.weights_ + (
+        #             1 / (n_samples + 1)) * np.exp(log_resp).flatten()
+        self.weights_ = (n_samples / (n_samples + x.shape[0])) * self.weights_ + (
+                    x.shape[0] / (n_samples + x.shape[0])) * np.exp(
             log_resp).flatten()
 
 

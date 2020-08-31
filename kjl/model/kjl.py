@@ -220,17 +220,16 @@ class KJL():
             U = np.matmul(A, random_matrix)  # preferred for matrix multiplication
             print("Finished getting the projection matrix")
 
-            # Obtain gram between full data and Xrow (Nxn)
-            K = getGaussianGram(X_train, Xrow, sigma)
+            # # Obtain gram between full data and Xrow (Nxn)
+            # K = getGaussianGram(X_train, Xrow, sigma)
+            #
+            # # projected data (Nxd = NXn * nXd)
+            # KU = np.matmul(K, U)  # preferred for matrix multiplication
+            # X_train = KU
+            # print("Projected data")
 
-            # projected data (Nxd = NXn * nXd)
-            KU = np.matmul(K, U)  # preferred for matrix multiplication
-            print("Projected data")
-
-            X_train = KU
             self.A = A
             self.U = U
-            self.K = K
             self.Xrow = Xrow
             self.random_matrix = random_matrix
             self.sigma_kjl = sigma
@@ -239,7 +238,7 @@ class KJL():
 
             end = datetime.now()
             kjl_train_time = (end - start).total_seconds()
-            print("kjl on train set took {} seconds".format(kjl_train_time))
+            print("Fitting kjl_inst on train set took {} seconds".format(kjl_train_time))
 
         else:
             kjl_train_time = 0

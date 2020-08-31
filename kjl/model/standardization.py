@@ -32,11 +32,10 @@ class STD():
         return self.scaler.transform(X)
 
     def update(self, x):
-        # b) Update self.scaler
+        # Update self.scaler
         self.scaler.mean_, self.scaler.scale_ = online_update_mean_variance(x, self.n_samples, self.scaler.mean_,
                                                                             self.scaler.scale_)
         self.scaler.var_ = np.square(self.scaler.scale_)
-        # pass
 
 
 def online_update_mean_variance(x, n, mu, sigma):
@@ -55,7 +54,8 @@ def online_update_mean_variance(x, n, mu, sigma):
         new_sigma: array with shape (1, n_feats)
     """
 
-    new_mu = mu + (x - mu) / (n + 1)
-    new_sigma = sigma + (x - new_mu) * (x - mu)
+    for _x in x:
+        new_mu = mu + (_x - mu) / (n + 1)
+        new_sigma = sigma + (_x - new_mu) * (_x - mu)
 
     return new_mu, new_sigma
