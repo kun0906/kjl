@@ -43,10 +43,11 @@ class BASE_MODEL():
                 self.params['gs'] and self.params['kjl'] and not self.params['quickshift'] and \
                 not self.params['meanshift']:
             params = {}
-            params['n_components'] = [2]  # [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            params['n_components'] = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45]  # [1,  5, 10, 15, 20, 25, 30, 35, 40, 45]
             params['kjl_ns'] = [100]
             params['kjl_ds'] = [10]
-            params['kjl_qs'] = [0.1, 0.2]
+            params['kjl_qs'] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
+                                0.95]  # [0.1, 0.2,  0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
 
         ##########################################################################################
         # Step 2: find the best parameters
@@ -826,6 +827,7 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         # For inlier, a small value is used; a larger value is for outlier (positive)
         # here the output should be the abnormal score because we use y=1 as abnormal and roc_acu(pos_label=1)
         y_score, model_predict_time = func_running_time(self.model.decision_function, X_batch)
+        if self.verbose > 5: data_info(y_score.reshape(-1, 1), name='y_score')
         # print("i:{}, batch model prediction takes {} seconds, y_score: {}".format(0, testing_time, y_score))
 
         model_train_time += model_predict_time
@@ -963,7 +965,7 @@ def plot_result(result, out_file):
         plt.ylabel(ylabel)
         # plt.xticks(x)
         # plt.yticks(y)
-        plt.legend(loc='lower right')
+        # plt.legend(loc='lower right')
         plt.title(title)
 
         # should use before plt.show()
@@ -987,7 +989,7 @@ def plot_result(result, out_file):
         plt.ylabel(ylabel)
         # plt.xticks(x)
         # plt.yticks(y)
-        plt.legend(loc='lower right')
+        # plt.legend(loc='lower right')
         plt.title(title)
 
         # should use before plt.show()
@@ -997,32 +999,38 @@ def plot_result(result, out_file):
 
     for (in_dir, case_str), (best_results, middle_results) in result.items():
         print(f'\n***{in_dir}, {case_str}')
+        if 'online_False' in case_str:
+            online = False
+        else:
+            online = True
+
+        title = f'online:{online}'
 
         y = best_results['train_times']
-        plot_data(range(len(y)), y, xlabel='batch data', ylabel='Training time (s)', title='',
+        plot_data(range(len(y)), y, xlabel='batch data', ylabel='Training time (s)', title=title,
                   out_file=out_file.replace('.pdf', '-train_times.pdf'))
 
         y = best_results['test_times']
-        plot_data(range(len(y)), y, xlabel='batch data', ylabel='Testing time (s)', title='',
+        plot_data(range(len(y)), y, xlabel='batch data', ylabel='Testing time (s)', title=title,
                   out_file=out_file.replace('.pdf', '-test_times.pdf'))
 
         y = best_results['aucs']
-        plot_data(range(len(y)), y, xlabel='batch data', ylabel='AUC', ylim=[0.0, 1.05], title='',
+        plot_data(range(len(y)), y, xlabel='batch data', ylabel='AUC', ylim=[0.0, 1.05], title=title,
                   out_file=out_file.replace('.pdf', '-aucs.pdf'))
 
         y = best_results['novelty_threses']
-        plot_data(range(len(y)), y, xlabel='batch data', ylabel='novelty threshold', title='',
+        plot_data(range(len(y)), y, xlabel='batch data', ylabel='novelty threshold', title=title,
                   out_file=out_file.replace('.pdf', '-novelty.pdf'))
 
         y = best_results['abnormal_threses']
-        plot_data(range(len(y)), y, xlabel='batch data', ylabel='abnormal threshold', title='',
+        plot_data(range(len(y)), y, xlabel='batch data', ylabel='abnormal threshold', title=title,
                   out_file=out_file.replace('.pdf', '-abnormal.pdf'))
 
         y1 = best_results['novelty_threses']
         y2 = best_results['abnormal_threses']
         xs = [range(len(y1)), range(len(y2))]
         ys = [y1, y2]
-        plot_data2(xs, ys, xlabel='batch data', ylabel='Threshold', title='',
+        plot_data2(xs, ys, xlabel='batch data', ylabel='Threshold', title=title,
                    out_file=out_file.replace('.pdf', '-threshold.pdf'))
 
 
@@ -1082,11 +1090,27 @@ def split_train_arrival_test(normal_arr, abnormal_arr, random_state=42):
 
 
 @execute_time
-def main(random_state, n_jobs=-1, n_repeats=1):
+def main(random_state, n_jobs=-1, n_repeats=1, online=True):
+    """
+
+    Parameters
+    ----------
+    random_state
+    n_jobs
+    n_repeats
+    online: bool
+        each case includes online and batch
+        online = True  # online: True, otherwise, batch
+
+    Returns
+    -------
+
+    """
     datasets = [
         #     # # # 'DS10_UNB_IDS/DS11-srcIP_192.168.10.5',
         'DS10_UNB_IDS/DS12-srcIP_192.168.10.8',
-        'DS10_UNB_IDS/DS13-srcIP_192.168.10.9',
+        'DS10_UNB_IDS/DS12-srcIP_192.168.10.8',
+        # 'DS10_UNB_IDS/DS13-srcIP_192.168.10.9',
         #     # 'DS10_UNB_IDS/DS14-srcIP_192.168.10.14',
         #     # 'DS10_UNB_IDS/DS15-srcIP_192.168.10.15',
         #     # # # # #
@@ -1148,8 +1172,6 @@ def main(random_state, n_jobs=-1, n_repeats=1):
         # {'detector_name': 'GMM', 'covariance_type': 'full', 'gs': gs, 'kjl': True, 'meanshift': True},
         # {'detector_name': 'GMM', 'covariance_type': 'diag', 'gs': gs, 'kjl': True, 'meanshift': True},
     ]
-    # each case includes online and batch
-    online = True  # online: True, otherwise, batch
 
     # All the results will be stored in the 'results'
     results = {}
@@ -1230,4 +1252,4 @@ def main(random_state, n_jobs=-1, n_repeats=1):
 
 
 if __name__ == '__main__':
-    main(random_state=RANDOM_STATE, n_jobs=1, n_repeats=1)
+    main(random_state=RANDOM_STATE, n_jobs=1, n_repeats=1, online=False)

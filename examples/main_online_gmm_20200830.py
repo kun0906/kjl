@@ -1147,7 +1147,7 @@ def split_train_arrival_test(normal_arr, abnormal_arr, random_state=42):
     print(
         f'X_test: {X_test.shape},in which, X_test1/X_test2 {Fraction(X_test1.shape[0], X_test2.shape[0], _normalize=False)}')
 
-    return X_train, y_train, X_arrival, y_arrival, X_test, y_test
+    return (X_train, y_train, X_test1, y_test1), X_arrival, y_arrival, X_test2, y_test2
 
 
 @execute_time
