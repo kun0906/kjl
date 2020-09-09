@@ -310,4 +310,59 @@ def save_result(result, out_file):
 def batch(X, y, *, step=1):
     size = len(X)
     for i in range(0, size, step):
-        yield X[i:min(i + step, size)], y[i:min(i + step, size)]
+        if step == 1:
+            yield X[i:min(i + step, size)].reshape(1, -1), y[i:min(i + step, size)]
+        else:
+            yield X[i:min(i + step, size)], y[i:min(i + step, size)]
+
+
+def get_batch_mean_varaince():
+    pass
+
+
+def get_batch_mean_covariance(x, n_samples, mean, M2):
+    """
+    https://stackoverflow.com/questions/56402955/whats-the-formula-for-welfords-algorithm-for-variance-std-with-batch-updates
+    Parameters
+    ----------
+    x
+    n_samples
+    mean
+    M2: it's not variance or covariance
+        M2= np.sum(np.subtract(x, [mean] * count)**2)
+
+    Returns
+    -------
+
+    """
+
+    # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+    def update(existingAggregate, newValues):
+        if isinstance(newValues, (int, float, complex)):
+            # Handle single digits.
+            newValues = [newValues]
+
+        (count, mean, M2) = existingAggregate
+        count += len(newValues)
+        # newvalues - oldMean
+        delta = np.subtract(newValues, [mean] * len(newValues))
+        mean += np.sum(delta / count)
+        # newvalues - newMeant
+        delta2 = np.subtract(newValues, [mean] * len(newValues))
+        M2 += np.sum(delta * delta2)
+
+        return (count, mean, M2)
+
+    def finalize(existingAggregate):
+        (count, mean, M2) = existingAggregate
+        (mean, variance, sampleVariance) = (mean, M2 / count, M2 / (count - 1))
+        if count < 2:
+            return float('nan')
+        else:
+            return (mean, variance, sampleVariance)
+
+    a = (n_samples, mean, M2)
+
+    mean, variance, sampleVariance = finalize(update(a, x))
+
+    return mean, sampleVariance

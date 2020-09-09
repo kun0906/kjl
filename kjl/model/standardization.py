@@ -36,6 +36,7 @@ class STD():
         self.scaler.mean_, self.scaler.scale_ = online_update_mean_variance(x, self.n_samples, self.scaler.mean_,
                                                                             self.scaler.scale_)
         self.scaler.var_ = np.square(self.scaler.scale_)
+        self.n_samples += x.shape[0]
 
 
 def online_update_mean_variance(x, n, mu, sigma):
@@ -56,14 +57,21 @@ def online_update_mean_variance(x, n, mu, sigma):
         new_mu: array with shape (1, n_feats)
         new_sigma: array with shape (1, n_feats)
     """
-    sigma_sq = sigma ** 2
-    for _x in x:
-        mu_prev = mu
-        mu += (_x - mu) / (n + 1)
-        sigma_sq += (_x - mu) * (_x - mu_prev)
-        n += 1
+    # sigma_sq = sigma ** 2
+    # for _x in x:
+    #     mu_prev = mu
+    #     mu += (_x - mu) / (n + 1)
+    #     sigma_sq += (_x - mu) * (_x - mu_prev)
+    #     n += 1
+    #
+    # new_mu = mu
+    # new_sigma = np.sqrt(sigma_sq / (n - 1))
 
-    new_mu = mu
-    new_sigma = np.sqrt(sigma_sq / (n - 1))
+    m = x.shape[0]
+    new_mu = mu + np.sum(x - mu, axis=0) / (n + m)
+
+    # *: element product
+    C = np.sum((x - new_mu) * (x - mu), axis=0)
+    new_sigma = np.sqrt((sigma ** 2 * (n - 1) + C) / (n + m - 1))
 
     return new_mu, new_sigma

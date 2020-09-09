@@ -39,15 +39,23 @@ class BASE_MODEL():
         ##########################################################################################
         # Step 1: configure case
         # case = 'GMM_full-gs_True-kjl_True-nystrom_False-quickshift_False-meanshift_False'
-        if self.params['detector_name'] == 'GMM' and self.params['covariance_type'] == 'full' and \
+        if self.params['detector_name'] == 'GMM' and self.params['covariance_type'] == 'diag' and \
                 self.params['gs'] and self.params['kjl'] and not self.params['quickshift'] and \
                 not self.params['meanshift']:
             params = {}
-            params['n_components'] = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45]  # [1,  5, 10, 15, 20, 25, 30, 35, 40, 45]
+            # best params for the combination of UNB1 and UNB2
+            params['n_components'] = [15]
+            params['kjl_qs'] = [0.6]
+
+            # # grid search
+            # params['n_components'] =  [1,  5, 10, 15, 20, 25, 30, 35, 40, 45]
+            # params['kjl_qs'] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
+
             params['kjl_ns'] = [100]
             params['kjl_ds'] = [10]
-            params['kjl_qs'] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-                                0.95]  # [0.1, 0.2,  0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
+
+        else:
+            raise ValueError(self.params)
 
         ##########################################################################################
         # Step 2: find the best parameters
@@ -74,10 +82,13 @@ class BASE_MODEL():
                 best_params = copy.deepcopy(self.params)
 
         ##########################################################################################
+        print('\n\n******best model')
         # Step 3: get the best model with best_params
         self.params = best_params
         self.model = GMM()
         self.model.set_params(**best_model_params)
+        print(f'params: {self.params}')
+        print(f'model_params: {self.model.get_params()}')
 
         # Fit a model on the init set
         self._init_train(X_train, y_train)  # fit self.model
@@ -89,7 +100,8 @@ class BASE_MODEL():
         # store all important results
         self.init_info = {'train_time': self.train_time, 'test_time': self.test_time, 'auc': self.auc,
                           'novelty_thres': self.novelty_thres, 'abnormal_thres': self.abnormal_thres,
-                          'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape, 'params': best_params}
+                          'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape, 'params': best_params,
+                          'model_params': self.model.get_params()}
         return self.model
 
     def _init_train(self, X_train, y_train=None):
@@ -174,12 +186,15 @@ class BASE_MODEL():
         # Step 3: get the threshold used to decide if a new flow is normal
         # the following values will be used in the online update phase
         y_score, _ = func_running_time(self.model.decision_function, X_train)
-        self.abnormal_thres = np.quantile(y_score, q=0.95)  # abnormal threshold
+        self.abnormal_thres = np.quantile(y_score, q=self.params['q_abnormal_thres'])  # abnormal threshold
         self.novelty_thres = np.quantile(y_score, q=0.85)  # normal threshold
         print(f'novelty_thres: {self.novelty_thres}, abnormal_thres: {self.abnormal_thres}')
         _, self.model.log_resp = self.model._e_step(X_train)
         self.model.n_samples = X_train.shape[0]
-        self.model.X_train = X_train
+        # self.model.X_train_proj = X_train  # X_train:  after standardization and projection
+        self.model.sum_resp = np.sum(np.exp(self.model.log_resp), axis=0)
+        self.model.y_score = y_score
+        self.X_train_proj = X_train  # self.model.X_train_proj = X_train
 
         return self
 
@@ -286,21 +301,33 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
 
         ##########################################################################################
         # Step 2. Online train and evaluate model
-        online_train_times = [self.init_info['train_time']]
-        online_test_times = [self.init_info['test_time']]
+        online_train_times = [{'train_time': self.init_info['train_time'],
+                               'preprocessing': 0,
+                               'first_train': 0,
+                               'iteration_train': 0,
+                               'rescore': 0}]
+        online_test_times = [{'test_time': self.init_info['test_time'],
+                              'std_time': 0,
+                              'proj_time': 0,
+                              'predict_time': 0,
+                              'auc_time': 0}]
+
         online_aucs = [self.init_info['auc']]
         online_novelty_threses = [self.init_info['novelty_thres']]
         online_abnormal_threses = [self.init_info['abnormal_thres']]
-        for i, (X_batch, Y_batch) in enumerate(batch(X_arrival, y_arrival, step=100)):
+        online_model_params = [self.init_info['model_params']]
+        for i, (X_batch, Y_batch) in enumerate(batch(X_arrival, y_arrival, step=self.params['batch_size'])):
             print(f'\n***batch: {i + 1}')
             if i == 0:
                 self.model = copy.deepcopy(self.init_model)
+                self.acculumated_X_train_proj = self.X_train_proj
 
             # online train model (update GMM model values, such as, means, covariances, kjl_U, and n_components)
             self._online_train(X_batch, Y_batch)  # update self.model
             online_train_times.append(self.train_time)
             online_novelty_threses.append(self.novelty_thres)
             online_abnormal_threses.append(self.abnormal_thres)
+            online_model_params.append(self.model.get_params())
 
             # online test model
             self._online_test(X_test, y_test)
@@ -316,7 +343,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         self.info['aucs'] = online_aucs
         self.info['novelty_threses'] = online_novelty_threses
         self.info['abnormal_threses'] = online_abnormal_threses
-
+        self.info['model_params'] = online_model_params
         self.info['params'] = {}
 
         return self
@@ -350,6 +377,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         # Use the model to predict X_batch first, and according to the result,
         # only the normal data will be used to train a new model instead of the current one.
 
+        start_1 = datetime.now()
         ### Step 1: Preprocessing
         # Step 1.1: standardization
         # transform x
@@ -382,55 +410,192 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         y_score, model_predict_time = func_running_time(self.model.decision_function, X_batch_proj)
         # print("i:{}, online model prediction takes {} seconds, y_score: {}".format(0, testing_time, y_score))
         model_train_time += model_predict_time
-        if self.verbose > 5: data_info(y_score.reshape(-1, 1), name='y_score')
+        if self.verbose > 8: data_info(y_score.reshape(-1, 1), name='y_score')
         # if self.verbose > 5:
         #     print(f'Total test time: {self.test_time} <= std_test_time: {self.std_test_time}, '
         #           f'seek_test_time: {self.seek_test_time}'
         #     f', proj_test_time: {self.proj_test_time}, '
         #     f'model_test_time: {self.model_test_time}')
 
-        normal_cnt = 0
-        novelty_cnt = 0
-        abnormal_cnt = 0
+        # Step 2.2: update std
+        # update the mean and scaler of self.std_inst with 'x'
+        _, std_update_time = func_running_time(self.std_inst.update,
+                                               X_batch)  # use the original X_batch to update std_inst
+        X_batch_std, std_transform_time = func_running_time(self.std_inst.transform, X_batch)
+        # Step 2.3: update projection: kjl or nystrom
+        if 'kjl' in self.params.keys() and self.params['kjl']:
+            #  Update kjl: self.U_kjl, self.Xrow_kjl.
+            # use the X_batch without projection to update kjl_inst
+            _, proj_update_time = func_running_time(self.kjl_inst.update, X_batch_std)
+            X_batch_proj, proj_transform_time = func_running_time(self.kjl_inst.transform, X_batch_std)
 
-        for i, (x, x_std, x_proj, y) in enumerate(zip(X_batch, X_batch_std, X_batch_proj, y_score)):
-            ##########################################################################################
-            # Step 3. online train a GMM based on the current GMM parameters (such as means, covariances)
-            # and use it to replace the current one.
-            if y < self.abnormal_thres:
-                new_model = ONLINE_GMM(n_components=self.model.n_components,
-                                       covariance_type=self.model.covariance_type,
-                                       weights_init=self.model.weights_,
-                                       means_init=self.model.means_,
-                                       covariances_init=self.model.covariances_,
-                                       warm_start=True)
-                new_model.n_samples = self.model.n_samples
-                # online update the model: self.model = new_model
+        elif 'nystrom' in self.params.keys() and self.params['nystrom']:
+            # Update nystrom_inst
+            _, proj_update_time = func_running_time(self.nystrom_inst.update, X_batch_std)
+            X_batch_proj, proj_transform_time = func_running_time(self.nystrom_inst.transform, X_batch_std)
+        else:
+            proj_update_time = 0
 
-                # According to y, x is predicted as a normal datapoint.
-                # two sub-scenarios:
-                # 1): just update the previous components
-                # 2): create a new component for the new x
-                if y < self.novelty_thres:
-                    normal_cnt += 1
-                    create_new_component = False
-                else:
-                    novelty_cnt += 1
-                    create_new_component = True
-                self._online_train_update(new_model, x, x_std, x_proj, create_new_component, to_convergent=True)
+        end_1 = datetime.now()
+        online_preprocessing_time = (end_1 - start_1).total_seconds()
+
+        start_2 = datetime.now()
+        # Step 2.4: train a copied model on the batch data
+        # 1) train on the normal data first (without needing to create any new component)
+        # 2) train on the abnormal data (create new components)
+        # cond_normal = y_score < self.novelty_thres  # return bool values:  normal index
+        normal_idx = np.where((y_score <= self.abnormal_thres) == True)
+        abnormal_idx = np.where((y_score > self.abnormal_thres) == True)
+        X_batch_proj_normal = X_batch_proj[normal_idx] if len(normal_idx[0]) > 0 else []
+        X_batch_proj_abnormal = X_batch_proj[abnormal_idx] if len(abnormal_idx[0]) > 0 else []
+
+        new_model = ONLINE_GMM(n_components=self.model.n_components,
+                               covariance_type=self.model.covariance_type,
+                               weights_init=self.model.weights_,
+                               means_init=self.model.means_,
+                               covariances_init=self.model.covariances_,
+                               verbose=self.verbose,
+                               warm_start=True)
+        new_model.n_samples = self.model.n_samples
+        new_model.sum_resp = self.model.sum_resp  # shape (1, d): sum of exp(log_resp)
+        # self.acculumated_X_train_proj = self.model.X_train_proj
+        if self.verbose > 5: print(f'X_batch.shape: {X_batch.shape}')
+        while (len(X_batch_proj_normal) > 0) or (len(X_batch_proj_abnormal) > 0):
+
+            if len(X_batch_proj_normal) > 0:
+                # 1) train on the normal data first (without needing to create any new component)
+                _st = datetime.now()
+                log_prob_norm, log_resp = new_model._e_step_online(X_batch_proj_normal)
+                new_model._m_step_online(X_batch_proj_normal, np.exp(log_resp), sum_resp_pre=new_model.sum_resp,
+                                         n_samples_pre=self.acculumated_X_train_proj.shape[0])
+
+                self.acculumated_X_train_proj = np.concatenate([self.acculumated_X_train_proj, X_batch_proj_normal],
+                                                               axis=0)
+                self.abnormal_thres = self.update_abnormal_thres(new_model, self.acculumated_X_train_proj)
+                _end = datetime.now()
+                _tot = (_end - _st).total_seconds()
+                print(f'processing {len(X_batch_proj_normal)} normal flows takes {_tot} seconds.')
+                X_batch_proj_normal = []
+            elif len(X_batch_proj_abnormal) > 0:
+                # 2) train on the abnormal data (create new components)
+                # each time only focuses on one abnormal datapoint
+                _st = datetime.now()
+                idx = 0
+                x_proj = X_batch_proj_abnormal[idx].reshape(1, -1)
+                X_batch_proj_abnormal = np.delete(X_batch_proj_abnormal, idx, axis=0)
+
+                self.acculumated_X_train_proj = np.concatenate([self.acculumated_X_train_proj, x_proj], axis=0)
+                new_model.add_new_component(x_proj, self.params['q_abnormal_thres'], self.acculumated_X_train_proj)
+                _end = datetime.now()
+                _tot = (_end - _st).total_seconds()
+                print(f'processing 1 abnormal flow takes {_tot} seconds.')
             else:
-                # if _y_score >= self.abnormal_thres, the x is predicted as a abnormal flow, so we should drop it.
-                abnormal_cnt += 1
-                # print(f'this flow (x, y_score:{y}) is an abnormal flow, so we drop it.')
-        print(f'normal: {normal_cnt}, novelty: {novelty_cnt}, abnormal: {abnormal_cnt}')
+                break
+
+            if len(X_batch_proj_abnormal) > 0:
+                y_score = new_model.decision_function(X_batch_proj_abnormal)
+                # cond_normal = y_score < self.novelty_thres  # return bool values:  normal index
+                normal_idx = np.where((y_score <= self.abnormal_thres) == True)
+                abnormal_idx = np.where((y_score > self.abnormal_thres) == True)
+
+                X_batch_proj_normal = X_batch_proj_abnormal[normal_idx] if len(normal_idx[0]) > 0 else []
+                X_batch_proj_abnormal = X_batch_proj_abnormal[abnormal_idx] if len(abnormal_idx[0]) > 0 else []
+
+        end_2 = datetime.now()
+        online_frist_train_time = (end_2 - start_2).total_seconds()
+
+        start_3 = datetime.now()
+        # train the new model until it converges
+        i = 0
+        new_model.converged_ = False
+        if not new_model.converged_:  new_model.max_iter = 100
+        prev_lower_bound = -np.infty
+        if self.verbose > 5: print(f'acculumated_X_train_proj: {self.acculumated_X_train_proj.shape}')
+        while (i < new_model.max_iter) and (not new_model.converged_):
+            _st = datetime.now()
+            # log_prob_norm, log_resp = new_model._e_step(self.acculumated_X_train_proj)
+            (log_prob_norm, log_resp), e_time = func_running_time(new_model._e_step, self.acculumated_X_train_proj)
+            log_prob_norm = np.mean(log_prob_norm)
+
+            # get the difference
+            lower_bound = new_model._compute_lower_bound(log_resp, log_prob_norm)
+            change = lower_bound - prev_lower_bound
+            if abs(change) < new_model.tol:
+                new_model.converged_ = True
+                print(f'n_iter: {i}')
+                # break
+            prev_lower_bound = lower_bound
+            # # use m_step to update params: weights (i.e., mixing coefficients), means, and covariances with x and
+            # # the previous params: log_resp (the log probability of each component), means and covariances
+            # new_model._m_step(x_proj, new_model.log_resp,
+            #                   new_model.n_samples)  # update mean, covariance and weight
+            # sum_resp_pre = np.zeros((1,new_model.n_components)).reshape(new_model.sum_resp.shape)
+            # new_model._m_step(new_model.X_train_proj, np.exp(log_resp), sum_resp_pre)
+            _, m_time = func_running_time(new_model._m_step, self.acculumated_X_train_proj, np.exp(log_resp))
+            _end = datetime.now()
+            _tot = (_end - _st).total_seconds()
+            if self.verbose > 5: print(f'{i + 1}th iterations takes {_tot} seconds, in which e_time: {e_time}, '
+                                       f'and m_time: {m_time}')
+            i += 1
+
+        end_3 = datetime.now()
+        online_iterations_train_time = (end_3 - start_3).total_seconds()
+
+        start_4 = datetime.now()
+
+        # Step 3:  update the abnormal threshold with all accumulated data
+        self.model = new_model
+        y_score, model_predict_time = func_running_time(self.model.decision_function, self.acculumated_X_train_proj)
+        if self.verbose > 5: print(
+            f'model_predict_time: {model_predict_time}, X_train_proj: {self.acculumated_X_train_proj.shape}')
+        self.abnormal_thres = np.quantile(y_score, q=self.params['q_abnormal_thres'])  # abnormal threshold
+
+        end_4 = datetime.now()
+        online_recalculate_score_time = (end_4 - start_4).total_seconds()
 
         end_0 = datetime.now()
         model_online_train_time = (end_0 - start_0).total_seconds()
-        print(f'Total batch time: {model_online_train_time}')
+        print(f'Total batch time: {model_online_train_time} <=: preprocessing: {online_preprocessing_time},'
+              f'first_train: {online_frist_train_time}, iterations_train: {online_iterations_train_time},'
+              f'new_score: {online_recalculate_score_time}')
 
-        self.train_time = model_online_train_time
+        self.train_time = {'train_time': model_online_train_time,
+                           'preprocessing': online_preprocessing_time,
+                           'first_train': online_frist_train_time,
+                           'iteration_train': online_iterations_train_time,
+                           'rescore': online_recalculate_score_time}
 
         return self
+
+    def update_abnormal_thres(self, model, X_normal_proj):
+        """Only use abnormal_score to update the abnormal_thres, in which,
+            abnormal_score = y_score[y_score > abnormal_thres]
+
+        Parameters
+        ----------
+        model
+        abnormal_thres
+        X_normal_proj
+
+        Returns
+        -------
+
+        """
+
+        y_score, model_predict_time = func_running_time(model.decision_function, X_normal_proj)
+        abnormal_thres = np.quantile(y_score, q=self.params['q_abnormal_thres'])  # abnormal threshold
+        model.y_score = y_score
+        # abnormal_idx = np.where((y_score > abnormal_thres) == True)
+        # y_score = y_score[abnormal_idx] if len(abnormal_idx[0]) > 0 else []
+        #
+        # n = model.n_samples
+        # m = X_normal_proj.shape[0]
+        #
+        # if len(y_score) > 0:
+        #     abnormal_thres = abnormal_thres + np.sum(y_score - abnormal_thres) / (n + m)
+        # return abnormal_thres
+
+        return abnormal_thres
 
     def _online_test(self, X_test, y_test):
         """Evaluate model on the test set
@@ -465,7 +630,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
             X_test, proj_test_time = func_running_time(self.kjl_inst.transform, X_test)
 
         elif 'nystrom' in self.params.keys() and self.params['nystrom']:
-            X_tesX_test, proj_test_time = func_running_time(self.nystrom_inst.transform, X_test)
+            X_test, proj_test_time = func_running_time(self.nystrom_inst.transform, X_test)
         else:
             proj_test_time = 0
         self.test_time += proj_test_time
@@ -474,222 +639,19 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         # Step 2: evaluate GMM on the test set
         # print(X_test) # for dubeg
         y_score, model_test_time = func_running_time(self.model.decision_function, X_test)
-        self.auc, _ = func_running_time(self.get_score, y_test, y_score)
-        self.test_time += model_test_time
+        self.auc, model_auc_time = func_running_time(self.get_score, y_test, y_score)
+        self.test_time += model_test_time + model_auc_time
         print(
             f'Total test time: {self.test_time} <= std_test_time: {std_test_time},'
             f', proj_test_time: {proj_test_time}, '
-            f'model_test_time: {model_test_time}')
+            f'model_test_time: {model_test_time}, model.paramters: {self.model.get_params()}')
+        self.test_time = {'test_time': self.test_time,
+                          'std_time': std_test_time,
+                          'proj_time': proj_test_time,
+                          'predict_time': model_test_time,
+                          'auc_time': model_auc_time}
 
         return self
-
-    def _online_train_update(self, new_model, x, x_std, x_proj, create_new_component=False, to_convergent=False):
-        """Online train and update model
-
-        Parameters
-        ----------
-        new_model: model instance
-            Use the previous model's values (such as means, covariances, and weights) to initialize new_model
-
-        x:
-            the original data
-
-        x_std:
-            after standardization
-
-        x_proj:
-            after projection
-
-        create_new_component: bool
-            If create a new component or not
-
-        to_convergent: bool
-            If training the new model until convergence or not
-
-        Returns
-        -------
-            self
-
-        """
-
-        start_0 = datetime.now()
-
-        ##########################################################################################
-        # Step 1: online train GMM
-        # two sub-scenarios:
-        # 1): just update the previous components
-        # 2): create a new component for the new x
-
-        lower_bound = -np.infty
-        x = x.reshape(1, -1)
-        x_std = x_std.reshape(1, -1)
-        x_proj = x_proj.reshape(1, -1)
-
-        if not create_new_component:
-            ##########################################################################################
-            # sub-scenario 1.1:  just update the previous components
-            # the x is predicted as a normal point, and  we just need to update the previous components
-            if not to_convergent:
-                # get log_prob and resp
-                log_prob_norm, log_resp = new_model._e_step(x_proj)
-                new_model.log_resp = log_resp
-                # use m_step to update params: weights (i.e., mixing coefficients), means, and covariances with x and
-                # the previous params: log_resp (the log probability of each component), means and covariances
-                new_model._m_step(x_proj, new_model.log_resp,
-                                  new_model.n_samples)  # update mean, covariance and weight
-
-            else:
-                for n_iter in range(1, new_model.max_iter + 1):
-                    prev_lower_bound = lower_bound
-
-                    # get log_prob and resp
-                    log_prob_norm, log_resp = new_model._e_step(x_proj)
-                    new_model.log_resp = log_resp
-                    # print(f'n_iter: {n_iter}, log_resp: {log_resp}, x_proj: {x_proj}')
-
-                    # should be reconsidered again?
-                    # get the difference
-                    lower_bound = new_model._compute_lower_bound(log_resp, log_prob_norm)
-                    change = lower_bound - prev_lower_bound
-                    if abs(change) < new_model.tol:
-                        self.converged_ = True
-                        # print(f'n_iter: {n_iter}')
-                        break
-
-                    # use m_step to update params: weights (i.e., mixing coefficients), means, and covariances with x and
-                    # the previous params: log_resp (the log probability of each component), means and covariances
-                    new_model._m_step(x_proj, new_model.log_resp,
-                                      new_model.n_samples)  # update mean, covariance and weight
-
-        else:  # _y_score >= self.novelty_thres:
-            ##########################################################################################
-            # sub-scenario 1.2:  create a new component for the new x
-            # self.novelty_thres < _y_score < self.abnormal_thres
-            # x is predicted as a novelty datapoint (but still is a normal datapoint), so we create a new
-            # component and update GMM.
-
-            new_model.n_components += 1
-            # # # assign the x to a new class and expand the previous "log_resp", which is used to obtain
-            # # # the "weights" of each component.
-            # # new_model.log_resp = np.concatenate([model.log_resp, np.zeros((model.n_samples, 1))], axis=1)
-            # log_resp = np.zeros((1, new_model.n_components))
-            # log_resp[-1] = 1
-            # new_model.log_resp = np.concatenate([new_model.log_resp, log_resp], axis=0)
-            # # new_model.log_resp = log_resp
-            new_model.weights_ = np.concatenate([new_model.weights_, np.zeros((1,)) + 1e-6], axis=0)
-
-            # compute the mean and covariance of the new components
-            # For the mean, we use the x value as the mean of the new component
-            # (because the new component only has one point (i.e., x)), and append it to the previous means.
-            new_mean = x_proj
-            new_covar = self.generate_new_covariance(x_proj, new_model.means_, new_model.covariances_)
-            new_model.means_ = np.concatenate([new_model.means_, new_mean], axis=0)
-            _, dim = new_mean.shape
-            new_model.covariances_ = np.concatenate([new_model.covariances_,
-                                                     new_covar.reshape(1, dim, dim)], axis=0)
-
-            print(f'new_model.params: {new_model.get_params()}')
-
-            if not to_convergent:
-                pass
-            else:
-                # train the new model on x, update params, and use the new model to update the previous model
-                for n_iter in range(1, new_model.max_iter + 1):
-                    # for n_iter in range(1, self.max_iter ):
-                    # convergence conditions: check if self.max_iter or self.tol exceeds the preset value.
-                    prev_lower_bound = lower_bound
-
-                    # get log_prob and resp
-                    log_prob_norm, log_resp = new_model._e_step(x_proj)
-                    new_model.log_resp = log_resp
-
-                    # get the difference
-                    lower_bound = new_model._compute_lower_bound(log_resp, log_prob_norm)
-                    change = lower_bound - prev_lower_bound
-                    if abs(change) < new_model.tol:
-                        self.converged_ = True
-                        # print(f'n_iter: {n_iter}')
-                        break
-
-                    # use m_step to update params: weights, means, and covariances with x and the initialized
-                    # params: log_resp, means and covariances
-                    new_model._m_step(x_proj, new_model.log_resp,
-                                      new_model.n_samples)  # update weight, means, covariances
-
-        # n_samples add the current one
-        new_model.n_samples += 1
-        ##########################################################################################
-        # Step 2: Update model, std, and projection
-        # Step 2.1: update the current model with the new_model
-        self.model = new_model
-
-        # Step 2.2: update std
-        # update the mean and scaler of self.std_inst with 'x'
-        self.std_inst.n_samples += 1
-        _, std_update_time = func_running_time(self.std_inst.update, x)  # use the original X_batch to update std_inst
-
-        # Step 2.3: update projection: kjl or nystrom
-        if 'kjl' in self.params.keys() and self.params['kjl']:
-            #  Update kjl: self.U_kjl, self.Xrow_kjl.
-            # use the X_batch without projection to update kjl_inst
-            _, proj_update_time = func_running_time(self.kjl_inst.update, x_std)
-        elif 'nystrom' in self.params.keys() and self.params['nystrom']:
-            # Update nystrom_inst
-            _, proj_update_time = func_running_time(self.nystrom_inst.update, x_std)
-        else:
-            proj_update_time = 0
-
-        end_0 = datetime.now()
-        self.train_time = (end_0 - start_0).total_seconds()
-
-        return self
-
-    def generate_new_covariance(self, x, means, covariances, reg_covar=1e-6):
-        """ get a initial covariance matrix of the new component.
-
-        Parameters
-        ----------
-        x : array-like, shape (1, n_feats)
-
-        means: array with shape (n_components, n_feats)
-
-        covariances: array with shape (n_components, n_feats, n_feats)
-
-        reg_covar:
-            To avoid that the new covariance matrix is invalid.
-
-        Returns
-        -------
-            new_covariance: a matrix with shape (1, n_feats, n_feats)
-        """
-
-        min_dist = -1
-        idx = 0
-        for i, (mu, sigma) in enumerate(zip(means, covariances)):
-            diff = (x - mu).T  # column vector
-            diff /= np.linalg.norm(diff)
-            dist = np.matmul(np.matmul(diff.T, np.linalg.inv(sigma)), diff)
-
-            if dist > min_dist:
-                min_dist = dist
-                idx = i
-
-        diff = (x - means[idx]).T
-        diff /= np.linalg.norm(diff)
-        sigma = covariances[idx]
-        sigma_1v = np.sqrt(np.matmul(np.matmul(diff.T, np.linalg.inv(sigma)), diff)).item()  # a scale
-
-        if np.linalg.norm(diff) - sigma_1v < 0:
-            try:
-                raise ValueError('cannot find a good sigma.')
-            except:
-                sigma_1v = reg_covar
-
-        n_feats = x.shape[-1]
-        new_covariance = np.zeros((n_feats, n_feats))
-        new_covariance.flat[::n_feats + 1] += sigma_1v  # x[startAt:endBefore:step], diagonal items
-
-        return new_covariance
 
 
 class BATCH_GMM_MAIN(BASE_MODEL):
@@ -746,7 +708,7 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         batch_aucs = [self.init_info['auc']]
         batch_novelty_threses = [self.init_info['novelty_thres']]
         batch_abnormal_threses = [self.init_info['abnormal_thres']]
-        for i, (X_batch, Y_batch) in enumerate(batch(X_arrival, y_arrival, step=1000)):
+        for i, (X_batch, Y_batch) in enumerate(batch(X_arrival, y_arrival, step=self.params['batch_size'])):
             print(f'\n***batch: {i + 1}')
             if i == 0:
                 self.model = copy.deepcopy(self.init_model)
@@ -851,6 +813,7 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         new_x = np.asarray(new_x)
         self.init_X_train = np.concatenate([self.init_X_train, new_x], axis=0)
         self.init_y_train = np.zeros((self.init_X_train.shape[0],))  # normal is '0'
+        print(f'X_train: {self.init_X_train.shape}, drop {abnormal_cnt} abnormal flows.')
 
         # Step 3.2: train a new model and use it to instead of the current one.
         # we use model.n_compoents to initialize n_components or the value found by quickhsift++ or meanshift
@@ -951,8 +914,10 @@ def save_result(result, out_file):
 
 
 def plot_result(result, out_file):
+    import matplotlib.pyplot as plt
+
     def plot_data(x, y, xlabel='range', ylabel='auc', ylim=[], title='', out_file=''):
-        import matplotlib.pyplot as plt
+
         # with plt.style.context(('ggplot')):
         fig, ax = plt.subplots()
         ax.plot(x, y, '*-', alpha=0.9)
@@ -974,7 +939,7 @@ def plot_result(result, out_file):
         plt.show()
 
     def plot_data2(xs, ys, xlabel='range', ylabel='auc', ylim=[], title='', out_file=''):
-        import matplotlib.pyplot as plt
+
         # with plt.style.context(('ggplot')):
         fig, ax = plt.subplots()
         for (x, y) in zip(xs, ys):
@@ -997,6 +962,32 @@ def plot_result(result, out_file):
 
         plt.show()
 
+    def plot_times(ys, xlabel='range', ylabel='auc', ylim=[], title='', out_file=''):
+
+        fig, ax = plt.subplots()
+        names = ys[-1].keys()
+        for name in names:
+            y = [v[name] for v in ys]
+            x = range(len(y))
+            # with plt.style.context(('ggplot')):
+            ax.plot(x, y, '*-', alpha=0.9, label=name)
+            # ax.plot([0, 1], [0, 1], 'k--', label='', alpha=0.9)
+
+        # plt.xlim([0.0, 1.0])
+        if len(ylim) == 2:
+            plt.ylim(ylim)  # [0.0, 1.05]
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        # plt.xticks(x)
+        # plt.yticks(y)
+        plt.legend(loc='lower right')
+        plt.title(title)
+
+        # should use before plt.show()
+        plt.savefig(out_file)
+
+        plt.show()
+
     for (in_dir, case_str), (best_results, middle_results) in result.items():
         print(f'\n***{in_dir}, {case_str}')
         if 'online_False' in case_str:
@@ -1006,13 +997,26 @@ def plot_result(result, out_file):
 
         title = f'online:{online}'
 
-        y = best_results['train_times']
-        plot_data(range(len(y)), y, xlabel='batch data', ylabel='Training time (s)', title=title,
-                  out_file=out_file.replace('.pdf', '-train_times.pdf'))
+        if not online:
+            y = best_results['train_times']
+            plot_data(range(len(y)), y, xlabel='batch data', ylabel='Training time (s)', title=title,
+                      out_file=out_file.replace('.pdf', '-train_times.pdf'))
+            y = best_results['test_times']
+            plot_data(range(len(y)), y, xlabel='batch data', ylabel='Testing time (s)', title=title,
+                      out_file=out_file.replace('.pdf', '-test_times.pdf'))
 
-        y = best_results['test_times']
-        plot_data(range(len(y)), y, xlabel='batch data', ylabel='Testing time (s)', title=title,
-                  out_file=out_file.replace('.pdf', '-test_times.pdf'))
+        else:
+            ys = best_results['train_times']
+            plot_times(ys, xlabel='batch data', ylabel='Training time (s)', title=title,
+                       out_file=out_file.replace('.pdf', '-train_times.pdf'))
+
+            ys = best_results['test_times']
+            plot_times(ys, xlabel='batch data', ylabel='Testing time (s)', title=title,
+                       out_file=out_file.replace('.pdf', '-test_times.pdf'))
+
+            y = [v['n_components'] for v in best_results['model_params']]
+            plot_data(range(len(y)), y, xlabel='batch data', ylabel='n_components time', title=title,
+                      out_file=out_file.replace('.pdf', '-n_components.pdf'))
 
         y = best_results['aucs']
         plot_data(range(len(y)), y, xlabel='batch data', ylabel='AUC', ylim=[0.0, 1.05], title=title,
@@ -1109,8 +1113,8 @@ def main(random_state, n_jobs=-1, n_repeats=1, online=True):
     datasets = [
         #     # # # 'DS10_UNB_IDS/DS11-srcIP_192.168.10.5',
         'DS10_UNB_IDS/DS12-srcIP_192.168.10.8',
-        'DS10_UNB_IDS/DS12-srcIP_192.168.10.8',
-        # 'DS10_UNB_IDS/DS13-srcIP_192.168.10.9',
+        # 'DS10_UNB_IDS/DS12-srcIP_192.168.10.8',
+        'DS10_UNB_IDS/DS13-srcIP_192.168.10.9',
         #     # 'DS10_UNB_IDS/DS14-srcIP_192.168.10.14',
         #     # 'DS10_UNB_IDS/DS15-srcIP_192.168.10.15',
         #     # # # # #
@@ -1157,8 +1161,8 @@ def main(random_state, n_jobs=-1, n_repeats=1, online=True):
         # {'detector_name': 'GMM', 'covariance_type': 'diag', 'gs': gs},
         #
         # # # GMM-gs:True-kjl:True
-        {'detector_name': 'GMM', 'covariance_type': 'full', 'gs': gs, 'kjl': True},
-        # {'detector_name': 'GMM', 'covariance_type': 'diag', 'gs': gs, 'kjl': True},
+        # {'detector_name': 'GMM', 'covariance_type': 'full', 'gs': gs, 'kjl': True},
+        {'detector_name': 'GMM', 'covariance_type': 'diag', 'gs': gs, 'kjl': True},
         # #
         # # GMM-gs:True-kjl:True-nystrom:True   # nystrom will take more time than kjl
         # {'detector_name': 'GMM', 'covariance_type': 'full', 'gs': gs, 'kjl': False, 'nystrom': True},
@@ -1194,8 +1198,10 @@ def main(random_state, n_jobs=-1, n_repeats=1, online=True):
     # Step 2: conduct experiments for each case
     for case in cases:
         case['random_state'] = random_state
-        case['verbose'] = 10
+        case['verbose'] = 5
         case['online'] = online  # online: True, otherwise, batch
+        case['q_abnormal_thres'] = 1  # default 0.95
+        case['batch_size'] = 1000  #
 
         keys = ['detector_name', 'covariance_type', 'gs', 'kjl', 'nystrom', 'quickshift',
                 'meanshift', 'online']
@@ -1252,4 +1258,4 @@ def main(random_state, n_jobs=-1, n_repeats=1, online=True):
 
 
 if __name__ == '__main__':
-    main(random_state=RANDOM_STATE, n_jobs=1, n_repeats=1, online=False)
+    main(random_state=RANDOM_STATE, n_jobs=1, n_repeats=1, online=True)
