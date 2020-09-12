@@ -291,73 +291,38 @@ class KJL():
         return X
 
     def update(self, x):
+
+        if x.shape[0] <= 10:
+            t = x.shape[0]
+        else:  # m > 10
+            t = 10
+            x = sklearn.utils.shuffle(x, random_state=self.random_state)[:t, :]  # random select t rows
+
+
         fix_U = True
         if fix_U:  # U: nxn
             # (what about self.sigma_kjl? (should we update it? ))
 
-            # # case 1: x.shape[0] = m > 1
-            # m = x.shape[0]
-            # if m >=2 :
-            #     if m <= 10:
-            #         t = x.shape[0]
-            #     else: # m > 10
-            #         t = 10
-            #         x = sklearn.utils.shuffle(x, random_state = self.random_state)[:t, :] # random select t rows
-            #     self.Xrow[-t:] = x # replace the last t rows.
-            #
-            #     A1 = getGaussianGram(self.Xrow, x, self.sigma_kjl)  # nxt
-            #     self.A[:, -t:] = A1
-            #     A2 = getGaussianGram(x, x, self.sigma_kjl)  # kernel(x, x) = txt
-            #     A1[-t:, -t:] = A2   # t*n
-            #     self.A[-t:] = A1.T  # n*n
-            #
-            # else: # m == 1
-            #     self.Xrow[-1] = x
-            #     A1 = getGaussianGram(self.Xrow[:-1, :], x, self.sigma_kjl)
-            #     A1 = A1.reshape(-1, 1)
-            #     _v = np.asarray([1.0])  # kernel(A1, A1) = 1
-            #     A1 = np.concatenate([A1, _v.reshape(-1, 1)], axis=0).reshape(-1, )
-            #     self.A[-1, :] = A1
-            #     self.A[:, -1] = A1.transpose()
-
-            if x.shape[0] <= 10:
-                t = x.shape[0]
-            else:  # m > 10
-                t = 10
-                x = sklearn.utils.shuffle(x, random_state=self.random_state)[:t, :]  # random select t rows
-            self.Xrow[-t:] = x  # replace the last t rows.
-
-            A1 = getGaussianGram(self.Xrow, x, self.sigma_kjl)  # nxt
-            self.A[:, -t:] = A1
+            A1 = getGaussianGram(self.Xrow[:-t, :], x, self.sigma_kjl)   # (n-t) x t
+            self.A[:-t, -t:] = A1   # (n-t) x t
+            self.A[-t:, :-t] = A1.T # t x (n-t)
             A2 = getGaussianGram(x, x, self.sigma_kjl)  # kernel(x, x) = txt
             A1[-t:, -t:] = A2  # t*n
-            self.A[-t:] = A1.T  # n*n
 
             centering = True
             if centering:
                 # subtract the mean of col from each element in a col
                 self.A = self.A - np.mean(self.A, axis=0)
 
+            self.Xrow[-t:] = x  # replace the last t rows.
             self.U = np.matmul(self.A, self.random_matrix)  # preferred for matrix multiplication
 
         else:  # the size of U : n <- n+1
-            self.Xrow = np.concatenate([self.Xrow, x], axis=0)
             # # only one column and one row will change comparing with the previous one, so we need to optimize it.
-            # # To be modified?
-            # A = getGaussianGram(self.Xrow, self.Xrow, self.sigma_kjl)
-
-            # # case 1: x.shape[0] == 1
-            # A1 = getGaussianGram(self.Xrow, x, self.sigma_kjl)
-            # self.A = np.concatenate([self.A, A1], axis=1)
-            # _v = np.asarray([1.0])  # kernel(A1, A1) = 1
-            # A1 = np.concatenate([A1, _v.reshape(-1, 1)], axis=0).reshape(1, -1)
-            # self.A = np.concatenate([self.A, A1], axis=0)
-
-            # case 2: x.shape[0]=m > 1
-            A1 = getGaussianGram(self.Xrow, x, self.sigma_kjl)
-            self.A = np.concatenate([self.A, A1], axis=1)
-            A2 = getGaussianGram(x, x, self.sigma_kjl)  # kernel(x, x) = mxm
-            A1 = np.concatenate([A1.T, A2], axis=1)  # m*(m+n)
+            A1 = getGaussianGram(self.Xrow, x, self.sigma_kjl)     # n x t
+            self.A = np.concatenate([self.A, A1], axis=1)       #
+            A2 = getGaussianGram(x, x, self.sigma_kjl)  # kernel(x, x) = t x t
+            A1 = np.concatenate([A1.T, A2], axis=1)  # t*(t+n)
             self.A = np.concatenate([self.A, A1], axis=0)  # (m+n)*(m+n)
 
             centering = True

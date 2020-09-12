@@ -1065,7 +1065,7 @@ def split_train_arrival_test(normal_X, normal_y, abnormal_X, abnormal_y, random_
                                                                                                abnormal_y_1, n=90,
                                                                                                random_state=random_state)
 
-    # arrival set: data1/data2 = 1:9
+    # arrival set: data1/data2 = 1:9  
     arrival_train_normal_X_1, arrival_train_normal_y_1, normal_X_1, normal_y_1 = random_select(normal_X_1, normal_y_1,
                                                                                                n=500,
                                                                                                random_state=random_state)

@@ -59,11 +59,6 @@ class ONLINE_GMM(GaussianMixture):
         # so y_score also should be abnormal score
         return -1 * self.score_samples(X)
 
-    # def _estimate_log_weights(self):
-    #     print(np.log(self.weights_))
-    #     v = np.log(self.weights_)
-    #     v[np.isnan(v)] = 0
-    #     return v
 
     def _e_step_online(self, X):
         """E step.
@@ -122,15 +117,10 @@ class ONLINE_GMM(GaussianMixture):
                 v = np.log(np.linalg.det(covariance))
                 if np.isnan(v) or np.isinf(v):
                     print(
-                        f'np.log(np.linalg.det(covariance)): {v}, {np.linalg.det(covariance)},  is inf or nan, so we use 1e-6 as the value.')
+                        f'np.log(np.linalg.det(covariance)): {v}, {np.linalg.det(covariance)}, '
+                        f'is inf or nan, so we use 1e-6 as the value.')
                     v = 1e-6
                 log_det[:, k] = v
-
-        # elif covariance_type == 'diag':
-        # precisions = precisions_chol ** 2
-        # log_prob = (np.sum((means ** 2 * precisions), 1) -
-        #             2. * np.dot(X, (means * precisions).T) +
-        #             np.dot(X ** 2, precisions.T))
 
         return -.5 * (n_feats * np.log(2 * np.pi) + log_det) + log_dist
 
@@ -234,86 +224,10 @@ class ONLINE_GMM(GaussianMixture):
         self.weights_ = self.weights_ + np.sum(resp - self.weights_, axis=0) / (n_samples_pre + X.shape[0])
         print('m_step:', self.weights_)
 
-    #
-    #
-    # def online_means_covaricances(self, x, n_samples, means, covariances, log_resp, reg_covar=1e-6):
-    #     """
-    #     https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online
-    #     https://stackoverflow.com/questions/1346824/is-there-any-way-to-find-arithmetic-mean-better-than-sum-n
-    #
-    #     Parameters
-    #     ----------
-    #     x : array-like, shape (1, n_feats)
-    #
-    #     n_samples: int
-    #         the number of datapoints used to fitted  the model until now.
-    #
-    #     means: array with shape (n_components, n_feats)
-    #
-    #     covariances: array with shape (n_components, n_feats, n_feats)
-    #
-    #     log_resp: vector with shape (1, n_components):  the weights
-    #
-    #     reg_covar:
-    #         To avoid that the new covariance matrix is invalid.
-    #
-    #     Returns
-    #     -------
-    #         new_means:
-    #         new_covariances:
-    #
-    #     """
-    #
-    #     def _online_covaricane(x, one_new_mu, one_covariances, n_samples):
-    #         """ get the updated covariance.
-    #         https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online
-    #
-    #         Parameters
-    #         ----------
-    #         x : array-like, shape (1, n_feats)
-    #
-    #         one_new_mu: array-like, shape (n_feats, )
-    #             the updated means of one component
-    #
-    #         one_covariances: array-like, shape (n_feats, n_feats)
-    #             the covariances of one component
-    #
-    #         Returns
-    #         -------
-    #             new_covariance:
-    #         """
-    #
-    #         x = x.flatten()
-    #
-    #         rows, cols = one_covariances.shape  # a "n_feats by n_feats" matrix: symmetric matrix
-    #         for i in range(rows):
-    #             for j in range(cols):
-    #                 if i <= j:
-    #                     # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online
-    #                     #  COV(X,Y) = (C_n)/(n), C_n = C_(n-1) + N/(N-1)(x_n-x_mean_(n))*(y_n-y_mean_(n))
-    #                     #
-    #                     one_covariances[i][j] = (one_covariances[i][j] * n_samples + (n_samples + 1) / (n_samples) *
-    #                                              (x[i] - one_new_mu[i]) * (x[j] - one_new_mu[j])) / (n_samples + 1)
-    #                 else:  # j < i
-    #                     one_covariances[i][j] = one_covariances[j][i]
-    #
-    #         return one_covariances
-    #
-    #     n_components, n_feats = means.shape
-    #     new_means = np.zeros((n_components, n_feats))
-    #     new_covariances = np.zeros((n_components, n_feats, n_feats))
-    #     resp = np.exp(log_resp).flatten()
-    #     for k in range(n_components):
-    #         new_means[k] = resp[k] * (means[k] + (x - means[k]) / (n_samples + 1))
-    #         # here would be overflow in add
-    #         new_covariances[k] = resp[k] * _online_covaricane(x, new_means[k], covariances[k], n_samples)
-    #         new_covariances[k].flat[::n_feats + 1] += reg_covar  # x[startAt:endBefore:step], diagonal items
-    #
-    #     return new_means, new_covariances
 
     def add_new_component(self, x_proj, q_abnormal_thres=0.95, acculumated_X_train_proj=None):
         ##########################################################################################
-        # sub-scenario 1.2:  create a new component for the new x
+        # sub-scenario:  create a new component for the new x
         # self.novelty_thres < _y_score < self.abnormal_thres
         # x is predicted as a novelty datapoint (but still is a normal datapoint), so we create a new
         # component and update GMM.
@@ -333,12 +247,8 @@ class ONLINE_GMM(GaussianMixture):
         n = acculumated_X_train_proj.shape[0]
         self.weights_ = np.asarray([n / (n + 1) * v for v in self.weights_])
         self.weights_ = np.concatenate([self.weights_, np.ones((1,)) * (1 / (n + 1))], axis=0)
-        #
-        # self.sum_resp = np.asarray([n / (n + 1) * v for v in self.sum_resp])
-        # self.sum_resp = np.concatenate([self.sum_resp, np.ones((1,)) * (1 / (n + 1))], axis=0)
 
         self.sum_resp = np.concatenate([self.sum_resp, np.ones((1,))], axis=0)
-        self.n_samples += x_proj.shape[0]
         # f_(k+1): the new component of GMM
         n_feats = self.n_components
         # get log probabliity

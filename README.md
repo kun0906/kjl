@@ -1,6 +1,7 @@
 # kjl
 
-# architecture:
+
+# Architecture:
 - examples
     - data: all input data 
     - out: output data and log 
