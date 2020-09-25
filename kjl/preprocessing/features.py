@@ -1,7 +1,7 @@
 """
 
 """
-from kjl.utils.utils import execute_time
+from kjl.utils.tool import execute_time
 
 RANDOM_STATE = 42
 

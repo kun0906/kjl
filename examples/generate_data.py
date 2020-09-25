@@ -5,10 +5,13 @@ import os
 import os.path as pth
 import traceback
 import numpy as np
+from sklearn.datasets import make_blobs
+from sklearn.mixture import GaussianMixture
 
 from kjl.utils.data import load_data, dump_data
-from kjl.utils.utils import execute_time, func_running_time
+from kjl.utils.tool import execute_time, func_running_time
 from odet.pparser.parser import _pcap2flows, PCAP, _get_flow_duration, _get_split_interval, _flows2subflows
+from matplotlib import pyplot as plt, cm
 from collections import Counter
 
 RANDOM_STATE = 42
@@ -513,5 +516,92 @@ def main(random_state, n_jobs=-1, single=False, verbose=10):
         data, Xy_file = pf.data, pf.Xy_file
 
 
+def plot_data(X, y):
+    plt.figure()
+    y_unique = np.unique(y)
+    colors = cm.rainbow(np.linspace(0.0, 1.0, y_unique.size))
+    for this_y, color in zip(y_unique, colors):
+        this_X = X[y == this_y]
+        plt.scatter(this_X[:, 0], this_X[:, 1], s= 50,
+                    c=color[np.newaxis, :],
+                    alpha=0.5, edgecolor='k',
+                    label="Class %s" % this_y)
+    plt.legend(loc="best")
+    plt.title("Data")
+    plt.show()
+
+
+def mimic_data(name='', random_state=43, single_device=False):
+    # two classes: one has 1000 and another has 200 datapoints
+    
+    if single_device:
+        # if 'GMM' in name:
+        #     gmm16 = GaussianMixture(n_components=3, covariance_type='diag', random_state=random_state)
+        #     X, y  = gmm16.sample(400)
+        # else:
+        X, y = make_blobs(n_samples=[12000, 200],
+                          centers = [(-1, -2), (0, 0)], cluster_std=[(1, 1), (1,1)],    # cluster_std=[(2, 10), (1,1), (2,3)
+                          n_features=2,
+        random_state = random_state)    # generate data from multi-variables normal distribution
+    
+        # plt.scatter(X[:, 0], X[:, 1])
+        plot_data(X, y)
+    
+        idx = y==0
+        X_normal = X[idx]
+        y_normal = ['normal_0'] * X_normal.shape[0]
+    
+        abnormal_idx = y!=0
+        X_abnormal =  X[abnormal_idx]
+        y_abnormal = [ 'abnormal_0' if v == 1 else 'abnormal_1' for v in y[abnormal_idx]]
+        data = {'normal': (X_normal, y_normal), 'abnormal': (X_abnormal, y_abnormal)}
+    else:
+        X, y = make_blobs(n_samples=[12000, 200, 12000, 200],
+                          centers=[(-1, -2), (0, 0), (5, 5), (7.5, 7.5)], cluster_std=[(1, 1), (1, 1), (1, 1), (1, 1)],
+                          # cluster_std=[(2, 10), (1,1), (2,3)
+                          n_features=2,
+                          random_state=random_state)  # generate data from multi-variables normal distribution
+        # plt.scatter(X[:, 0], X[:, 1])
+        plot_data(X, y)
+
+        idx = y == 0
+        X_normal_0 = X[idx]
+        y_normal_0 = ['normal_0'] * X_normal_0.shape[0]
+        
+        idx = y == 2
+        X_normal_1 = X[idx]
+        y_normal_1 = ['normal_1'] * X_normal_1.shape[0]
+        X_normal = np.concatenate([X_normal_0, X_normal_1], axis=0)
+        y_normal = y_normal_0 + y_normal_1
+
+        idx = y == 1
+        X_abnormal_0 = X[idx]
+        y_abnormal_0 = ['abnormal_0'] * X_abnormal_0.shape[0]
+
+        idx = y == 3
+        X_abnormal_1 = X[idx]
+        y_abnormal_1 = ['abnormal_1'] * X_abnormal_0.shape[0]
+        X_abnormal = np.concatenate([X_abnormal_0, X_abnormal_1], axis=0)
+        y_abnormal = y_abnormal_0 + y_abnormal_1
+
+        data = {'normal': (X_normal, y_normal), 'abnormal': (X_abnormal, y_abnormal)}
+        
+    Xy_file = f'out/data/data_reprst/pcaps/{name}/Xy-normal-abnormal.dat'
+    print(Xy_file)
+    dump_data(data, out_file=Xy_file)
+
+    return data, Xy_file
+
+def artifical_data():
+    datasets = ['mimic_GMM_dataset',
+                ]
+
+    for dataset in datasets:
+
+        data = mimic_data(dataset, random_state=100)
+
+
 if __name__ == '__main__':
-    main(random_state=RANDOM_STATE, n_jobs=1, single=False)
+    # main(random_state=RANDOM_STATE, n_jobs=1, single=False)
+
+    artifical_data()

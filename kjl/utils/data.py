@@ -175,6 +175,10 @@ def dump_data(data, out_file='data.dat'):
     -------
 
     """
+    out_dir = os.path.dirname(out_file)
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
     with open(out_file, 'wb') as f:
         pickle.dump(data, f)
 

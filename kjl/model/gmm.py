@@ -23,7 +23,7 @@ from QuickshiftPP import QuickshiftPP
 from sklearn.preprocessing import StandardScaler
 
 # from loguru import logger as lg
-from kjl.utils.utils import execute_time
+from kjl.utils.tool import execute_time
 
 
 class GMM(GaussianMixture):

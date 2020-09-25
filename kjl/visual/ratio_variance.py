@@ -7,7 +7,7 @@ import traceback
 import numpy as np
 import pandas as pd
 from pandas import ExcelWriter
-from utils.data import load_data
+from kjl.utils.data import load_data
 
 
 #

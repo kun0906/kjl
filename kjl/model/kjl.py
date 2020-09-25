@@ -2,6 +2,7 @@
 """
 
 # 1. standard libraries
+import copy
 import multiprocessing
 import warnings
 
@@ -21,6 +22,8 @@ from kjl.utils.data import data_info
 
 warnings.simplefilter('always', FitFailedWarning)
 multiprocessing.set_start_method('spawn', True)
+
+np.random.seed(100)
 
 
 # __all__= ['_grow_tree'] # allow private functions (start with _) can be imported by using "import *"
@@ -135,6 +138,9 @@ class KJL():
         self.kjl_params = kjl_params
         self.debug = debug
         self.random_state = self.kjl_params['random_state']
+        self.i = 0
+        self.t = 1
+        self.fixed_U = True
 
     def fit(self, X_train):
         """Get KJL related data, such as, U, X_row, random matrix, and A
@@ -210,6 +216,8 @@ class KJL():
             # print(Xrow, Xcol)
             A = getGaussianGram(Xrow, Xcol, sigma)  # nXm
             # print(A)
+            self.uncenter_A = A
+
             centering = 1
             if centering:
                 # subtract the mean of col from each element in a col
@@ -292,38 +300,66 @@ class KJL():
 
     def update(self, x):
 
+        # return x
+
         if x.shape[0] <= 10:
             t = x.shape[0]
         else:  # m > 10
-            t = 10
-            x = sklearn.utils.shuffle(x, random_state=self.random_state)[:t, :]  # random select t rows
+            t = 1
+            x = sklearn.utils.shuffle(x, random_state=self.random_state)
+            x = x[:t, :]  # random select t rows
+        self.t = t
 
-
-        fix_U = True
-        if fix_U:  # U: nxn
+        self.fixed_U = True
+        if self.fixed_U:  # U: nxn
             # (what about self.sigma_kjl? (should we update it? ))
-
-            A1 = getGaussianGram(self.Xrow[:-t, :], x, self.sigma_kjl)   # (n-t) x t
-            self.A[:-t, -t:] = A1   # (n-t) x t
-            self.A[-t:, :-t] = A1.T # t x (n-t)
-            A2 = getGaussianGram(x, x, self.sigma_kjl)  # kernel(x, x) = txt
-            A1[-t:, -t:] = A2  # t*n
+            #
+            # self.Xrow = sklearn.utils.shuffle(self.Xrow, random_state = self.random_state)
+            if self.i + t > self.Xrow.shape[0]:
+                d = self.Xrow.shape[0] - self.i
+                self.Xrow[self.i: d, :] = x[:d, :]
+                self.i = t-d
+                self.Xrow[0:self.i, :] = x[d:, :]
+            else:
+                self.Xrow[self.i: self.i + t, :] = x
+                self.i += t
+            self.A = getGaussianGram(self.Xrow, self.Xrow, self.sigma_kjl)
+            # A1 = getGaussianGram(self.Xrow[:-t, :], x, self.sigma_kjl)   # A1: (n-t) x t
+            # self.uncenter_A[:-t, -t:] = A1   # (n-t) x t
+            # self.uncenter_A[-t:, :-t] = A1.T # t x (n-t)
+            # A2 = getGaussianGram(x, x, self.sigma_kjl)  # kernel(x, x) = txt
+            # self.uncenter_A[-t:, -t:] = A2  # t*n
+            #
+            # self.A = self.uncenter_A
 
             centering = True
             if centering:
                 # subtract the mean of col from each element in a col
                 self.A = self.A - np.mean(self.A, axis=0)
-
-            self.Xrow[-t:] = x  # replace the last t rows.
+            #
+            # self.Xrow[-t:] = x  # replace the last t rows.
             self.U = np.matmul(self.A, self.random_matrix)  # preferred for matrix multiplication
 
-        else:  # the size of U : n <- n+1
+
+            # self.Xrow[-t:] = x  # replace the last t rows.
+            # self.A = getGaussianGram(self.Xrow, self.Xrow, self.sigma_kjl)  # kernel(x, x) = txt
+            # centering = True
+            # if centering:
+            #     # subtract the mean of col from each element in a col
+            #     self.A = self.A - np.mean(self.A, axis=0)
+            #
+            # self.U = np.matmul(self.A, self.random_matrix)  # preferred for matrix multiplication
+
+        else:  # the size of U : n <- n+10
+
             # # only one column and one row will change comparing with the previous one, so we need to optimize it.
             A1 = getGaussianGram(self.Xrow, x, self.sigma_kjl)     # n x t
-            self.A = np.concatenate([self.A, A1], axis=1)       #
-            A2 = getGaussianGram(x, x, self.sigma_kjl)  # kernel(x, x) = t x t
-            A1 = np.concatenate([A1.T, A2], axis=1)  # t*(t+n)
-            self.A = np.concatenate([self.A, A1], axis=0)  # (m+n)*(m+n)
+            A = np.concatenate([self.uncenter_A, A1], axis=1)       # A: nxn, A1 nxt => nx(n+t)
+            A2 = getGaussianGram(x, x, self.sigma_kjl)  # kernel(x, x) = t x t  # A2: txt
+            A1 = np.concatenate([A1.T, A2], axis=1)  # A1: tx(t+n)
+            self.A = np.concatenate([A, A1], axis=0)  # (n+t)x(n+t)
+
+            self.uncenter_A = self.A
 
             centering = True
             if centering:
@@ -333,6 +369,24 @@ class KJL():
             self.Xrow = np.concatenate([self.Xrow, x], axis=0)
             d = self.kjl_params['kjl_d']
             n = self.Xrow.shape[0]  # n <= n+1
-            self.random_matrix = np.random.multivariate_normal([0] * d, np.diag([1] * d), n)
 
-            self.U = np.matmul(self.A, self.random_matrix)  # preferred for matrix multiplication
+            # Todo: modify this part
+            # random_matrix = np.random.multivariate_normal([0] * d, np.diag([1] * d), m)   # mxd
+            M1 = np.random.multivariate_normal([0] * d, np.diag([1] * d), t)  # means, cov, size : nxt
+            # print(f'M1: {M1}')
+            self.new_random_matrix = np.concatenate([self.random_matrix, M1], axis=0)   # (n+t)xd
+
+
+            # # preferred for matrix multiplication
+            # U11 = self.A@self.random_matrix + A1@M1.T
+            # U12 = self.A@M1 + self.A1@M2
+            # U21 = A1.T@self.random_matrix + A2@M1.T
+            # U22 = A1.T@M1 + A2@M2
+            #
+            # self.U = np.concatenate([U11, U12], axis=1)
+            # U2 = np.concatenate([U21, U22], axis=1)
+            # self.U = np.concatenate([self.U, U2], axis=0)
+
+            self.random_matrix = self.new_random_matrix
+
+            self.U = np.matmul(self.A, self.random_matrix)

@@ -26,7 +26,7 @@ from kjl.model.online_gmm import ONLINE_GMM, quickshift_seek_modes, meanshift_se
 from kjl.model.standardization import STD
 
 from kjl.utils.data import split_train_test, load_data, extract_data, dump_data, save_result, batch, data_info
-from kjl.utils.utils import execute_time, func_running_time
+from kjl.utils.tool import execute_time, func_running_time
 from fractions import Fraction
 from collections import Counter
 

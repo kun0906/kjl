@@ -9,6 +9,7 @@ import numpy as np
 from collections import Counter
 
 import sklearn
+from scipy import linalg
 from sklearn.base import BaseEstimator
 from sklearn.cluster import MeanShift
 from sklearn.metrics import pairwise_distances
@@ -24,6 +25,7 @@ from datetime import datetime
 # *** Base on that, just use the following command to install quickshift++
 # "python3 setup build; python3 setup install" to install "quickshift++"
 from QuickshiftPP import QuickshiftPP
+from sklearn.mixture._gaussian_mixture import _compute_precision_cholesky
 
 
 class ONLINE_GMM(GaussianMixture):
@@ -43,15 +45,19 @@ class ONLINE_GMM(GaussianMixture):
         self.covariance_type = covariance_type
         self.weights_ = weights_init
         self.means_ = means_init
+        self.random_state = random_state
 
-        if covariance_type == 'diag' and len(covariances_init.shape) < 3:
-            n_feats = covariances_init.shape[1]
-            self.covariances_ = np.zeros((n_components, n_feats, n_feats))
-            for i in range(n_components):
-                np.fill_diagonal(self.covariances_[i], covariances_init[i])
-        else:
-            self.covariances_ = covariances_init
-        # self.covariances_init = covariances_init
+        # if covariance_type == 'diag' and len(covariances_init.shape) < 3:
+        #     n_feats = covariances_init.shape[1]
+        #     self.covariances_ = np.zeros((n_components, n_feats, n_feats))
+        #     for i in range(n_components):
+        #         np.fill_diagonal(self.covariances_[i], covariances_init[i])
+        # else:
+        #     self.covariances_ = covariances_init
+        if covariance_type == 'diag':
+            self.covariances_ = covariances_init    # (n_components, n_features)
+        elif covariance_type =='full':
+            self.covariances_ = covariances_init  # (n_components, n_features, n_features)
 
     def decision_function(self, X):
         # it must be abnormal score because it will be used in grid search
@@ -60,7 +66,34 @@ class ONLINE_GMM(GaussianMixture):
         return -1 * self.score_samples(X)
 
 
-    def _e_step_online(self, X):
+    def _initialize(self):
+
+        # n_samples, _ = X.shape
+        # weights, means, covariances = _estimate_gaussian_parameters(
+        #     X, resp, self.reg_covar, self.covariance_type)
+        # weights /= n_samples
+
+        # self.weights_ = (weights if self.weights_init is None
+        #                  else self.weights_init)
+        # self.means_ = means if self.means_init is None else self.means_init
+
+
+        if self.precisions_init is None:
+            # self.covariances_ = covariances
+            self.precisions_cholesky_ = _compute_precision_cholesky(
+                self.covariances_, self.covariance_type)
+        elif self.covariance_type == 'full':
+            self.precisions_cholesky_ = np.array(
+                [linalg.cholesky(prec_init, lower=True)
+                 for prec_init in self.precisions_init])
+        elif self.covariance_type == 'tied':
+            self.precisions_cholesky_ = linalg.cholesky(self.precisions_init,
+                                                        lower=True)
+        else:
+            self.precisions_cholesky_ = self.precisions_init
+
+
+    def _e_step(self, X):
         """E step.
 
         Parameters
@@ -80,100 +113,105 @@ class ONLINE_GMM(GaussianMixture):
         # return np.mean(log_prob_norm), log_resp
         return log_prob_norm, log_resp
 
-    def _estimate_log_prob(self, X):
-        """Estimate the log-probabilities log P(X | theta).
+    # def _estimate_log_prob(self, X):
+    #     """Estimate the log-probabilities log P(X | theta).
+    #
+    #     Compute the log-probabilities per each component for each sample.
+    #
+    #     Parameters
+    #     ----------
+    #     X : array-like, shape (n_samples, n_feats)
+    #
+    #     Returns
+    #     -------
+    #     log_prob : array, shape (n_samples, n_component)
+    #     """
+    #
+    #
+    #
+    #     n_samples, n_feats = X.shape
+    #     n_components = self.n_components
+    #
+    #     log_dist = np.zeros((n_samples, n_components))
+    #     log_det = np.zeros((1, n_components))
+    #     for k, (mean, covariance) in enumerate(zip(self.means_, self.covariances_)):
+    #         diff = (X.T - mean[:, np.newaxis])  # X and mu should be column vectors
+    #         if self.covariance_type == 'diag':
+    #             _st = datetime.now()
+    #             diagonal = covariance.flat[::n_feats + 1][:, np.newaxis]
+    #             log_det[:, k] = np.log(np.prod(diagonal))
+    #             # covariance.flat[::n_feats + 1]  = 1/ covariance.flat[::n_feats+1]
+    #             # log_dist[:, k] = np.diag(-0.5 * np.matmul(np.matmul(diff.T, covariance), diff))   # way1 X@ diagonal @X
+    #             # log_dist[:, k] = np.diag(-0.5 * (diff.T * 1/(diagonal.T)) @ diff) # way2: X/diagonal @ X
+    #             log_dist[:, k] = -0.5 * ((diff.T ** 2) @ (1 / diagonal)).flatten()  # way 3: X**2 / diagonal
+    #             # print(way1-way2, way1-log_dist[:, k]) # these are not exact same, due to the float precision.
+    #             _end = datetime.now()
+    #             # if self.verbose > 5: print(f'{k+1}th covariance time: {(_end-_st).total_seconds()}s')
+    #         else:  # full
+    #             log_dist[:, k] = np.diag(-0.5 * np.matmul(np.matmul(diff.T, np.linalg.inv(covariance)), diff))
+    #             v = np.log(np.linalg.det(covariance))
+    #             if np.isnan(v) or np.isinf(v):
+    #                 print(
+    #                     f'np.log(np.linalg.det(covariance)): {v}, {np.linalg.det(covariance)}, '
+    #                     f'is inf or nan, so we use 1e-6 as the value.')
+    #                 v = 1e-6
+    #             log_det[:, k] = v
+    #
+    #     return -.5 * (n_feats * np.log(2 * np.pi) + log_det) + log_dist
 
-        Compute the log-probabilities per each component for each sample.
+    # def _m_step(self, X, resp):
+    #     """M step.
+    #
+    #     Parameters
+    #     ----------
+    #     x : array-like, shape (n_samples, n_feats)
+    #
+    #     resp : array-like, shape (1, n_components)
+    #         np.exp(log_resp), in which, log_resp is Logarithm of the posterior probabilities (or responsibilities) of
+    #         the point of each sample in X.
+    #
+    #     sum_resp_pre : array-like, shape (1, n_components)
+    #         np.sum(np.exp(log_resp_pre), axis=0)
+    #     """
+    #     # reg_covar = 1e-6
+    #
+    #     n_components, n_feats = self.means_.shape
+    #     new_means = np.zeros((n_components, n_feats))
+    #     new_covariances = np.zeros((n_components, n_feats, n_feats))
+    #
+    #     # element product
+    #     nk = resp.sum(axis=0) + 10 * np.finfo(resp.dtype).eps  # avoid 0
+    #     new_means = (resp.T @ X) / nk[:, np.newaxis]
+    #
+    #     for k in range(n_components):
+    #         # # element product
+    #         _resp = (resp[:, k][:, np.newaxis])
+    #         # nk = _resp.sum(axis=0) + 10 * np.finfo(resp.dtype).eps  # avoid 0
+    #         # new_means[k] = (_resp * X).sum(axis=0) / nk
+    #         new_covariances[k] = (np.matmul((_resp * (X - new_means[k])).T, X - new_means[k])) / nk[k]
+    #         new_covariances[k].flat[::n_feats + 1] += self.reg_covar  # x[startAt:endBefore:step], diagonal items
+    #         # print(f'k: {k}, {np.any(new_covariances[k] < 0)}')
+    #
+    #     self.means_ = new_means
+    #     self.covariances_ = new_covariances
+    #     self.weights_ = nk / X.shape[0]
 
-        Parameters
-        ----------
-        X : array-like, shape (n_samples, n_feats)
-
-        Returns
-        -------
-        log_prob : array, shape (n_samples, n_component)
-        """
-
-        n_samples, n_feats = X.shape
-        n_components = self.n_components
-
-        log_dist = np.zeros((n_samples, n_components))
-        log_det = np.zeros((1, n_components))
-        for k, (mean, covariance) in enumerate(zip(self.means_, self.covariances_)):
-            diff = (X.T - mean[:, np.newaxis])  # X and mu should be column vectors
-            if self.covariance_type == 'diag':
-                _st = datetime.now()
-                diagonal = covariance.flat[::n_feats + 1][:, np.newaxis]
-                log_det[:, k] = np.log(np.prod(diagonal))
-                # covariance.flat[::n_feats + 1]  = 1/ covariance.flat[::n_feats+1]
-                # way1 = np.diag(-0.5 * np.matmul(np.matmul(diff.T, covariance), diff))   # way1 X@ diagonal @X
-                # way2 = np.diag(-0.5 * (diff.T * 1/(diagonal.T)) @ diff) # way2: X/diagonal @ X
-                log_dist[:, k] = -0.5 * ((diff.T ** 2) @ (1 / diagonal)).flatten()  # way 3: X**2 / diagonal
-                # print(way1-way2, way1-log_dist[:, k]) # these are not exact same, due to the float precision.
-                _end = datetime.now()
-                # if self.verbose > 5: print(f'{k+1}th covariance time: {(_end-_st).total_seconds()}s')
-            else:  # full
-                log_dist[:, k] = np.diag(-0.5 * np.matmul(np.matmul(diff.T, np.linalg.inv(covariance)), diff))
-                v = np.log(np.linalg.det(covariance))
-                if np.isnan(v) or np.isinf(v):
-                    print(
-                        f'np.log(np.linalg.det(covariance)): {v}, {np.linalg.det(covariance)}, '
-                        f'is inf or nan, so we use 1e-6 as the value.')
-                    v = 1e-6
-                log_det[:, k] = v
-
-        return -.5 * (n_feats * np.log(2 * np.pi) + log_det) + log_dist
-
-    def _m_step(self, X, resp):
+    def _m_step_online(self, X, log_resp, sum_resp_pre=None, n_samples_pre=None):
         """M step.
 
         Parameters
         ----------
         x : array-like, shape (n_samples, n_feats)
 
-        resp : array-like, shape (1, n_components)
+        log_resp : array-like, shape (1, n_components)
             np.exp(log_resp), in which, log_resp is Logarithm of the posterior probabilities (or responsibilities) of
             the point of each sample in X.
 
         sum_resp_pre : array-like, shape (1, n_components)
             np.sum(np.exp(log_resp_pre), axis=0)
         """
-        # reg_covar = 1e-6
 
-        n_components, n_feats = self.means_.shape
-        new_means = np.zeros((n_components, n_feats))
-        new_covariances = np.zeros((n_components, n_feats, n_feats))
-
-        # element product
-        nk = resp.sum(axis=0) + 10 * np.finfo(resp.dtype).eps  # avoid 0
-        new_means = (resp.T @ X) / nk[:, np.newaxis]
-
-        for k in range(n_components):
-            # # element product
-            _resp = (resp[:, k][:, np.newaxis])
-            # nk = _resp.sum(axis=0) + 10 * np.finfo(resp.dtype).eps  # avoid 0
-            # new_means[k] = (_resp * X).sum(axis=0) / nk
-            new_covariances[k] = (np.matmul((_resp * (X - new_means[k])).T, X - new_means[k])) / nk[k]
-            new_covariances[k].flat[::n_feats + 1] += self.reg_covar  # x[startAt:endBefore:step], diagonal items
-
-        self.means_ = new_means
-        self.covariances_ = new_covariances
-        self.weights_ = nk / X.shape[0]
-
-    def _m_step_online(self, X, resp, sum_resp_pre=None, n_samples_pre=None):
-        """M step.
-
-        Parameters
-        ----------
-        x : array-like, shape (n_samples, n_feats)
-
-        resp : array-like, shape (1, n_components)
-            np.exp(log_resp), in which, log_resp is Logarithm of the posterior probabilities (or responsibilities) of
-            the point of each sample in X.
-
-        sum_resp_pre : array-like, shape (1, n_components)
-            np.sum(np.exp(log_resp_pre), axis=0)
-        """
+        resp = np.exp(log_resp)
 
         def batch_mean_covariance(X, means_k, covariances_k, resp_k, sum_resp_pre_k):
             sum_weights = sum_resp_pre_k + np.sum(resp_k, axis=0).item()
@@ -198,31 +236,46 @@ class ONLINE_GMM(GaussianMixture):
             #
             # # assert  np.all(new_covariances == new_covariances.T)
             # # element product
-            new_covariances1 = (sum_resp_pre_k * covariances_k + (resp_k * (X - new_means)).T @ (
-                        X - means_k)) / sum_weights.T
+            # new_covariances1= covariances_k # for test
+            # new_covariances1 = (sum_resp_pre_k * covariances_k + (resp_k * (X - new_means)).T @ (
+            #             X - means_k)) / sum_weights.T
             # # assert np.all(new_covariances1 == new_covariances1.T)    # the error is very small due to the float precision
             # # print('1:', np.max(new_covariances- new_covariances1))
-            # new_covariances2 = (sum_resp_pre_k * covariances_k + (resp_k* X).T @ X)/sum_weights - \
-            #                   new_means[:, np.newaxis] @ new_means[:, np.newaxis].T
-            #
+
+            if self.covariance_type == 'diag':  # (n_feats, )
+                # new_covariances1 = (sum_resp_pre_k * covariances_k + np.diagonal((resp_k * (X - new_means)).T @ (
+                #             X - means_k))) / sum_weights.T   # (n_feat, )
+                new_covariances1 = (sum_resp_pre_k * covariances_k + np.diagonal((resp_k* X).T @ X))/sum_weights - new_means**2+ \
+                                   (sum_resp_pre_k/sum_weights) * means_k**2   # (n_feat, )
+                # new_covariances1 = (sum_resp_pre_k * covariances_k + np.sum(resp_k * X ** 2,
+                #                                                             axis=0).T) / sum_weights - new_means ** 2  # (n_feat, )
+                # if np.any(new_covariances1 <= 0):
+                #     new_covariances1 = np.asarray([ self.reg_covar if v <=0 else v for v in new_covariances1])
+                new_covariances1 = new_covariances1.flatten()
+            elif self.covariance_type=='full':   # n_featsxn_feats
+                new_covariances1 = (sum_resp_pre_k * covariances_k + (resp_k * X).T @ X) / sum_weights - \
+                                   new_means[:, np.newaxis] @ new_means[:, np.newaxis].T
             # print('2:', np.max(new_covariances - new_covariances2))
 
             return new_means, new_covariances1
 
         n_components, n_feats = self.means_.shape
         new_means = np.zeros((n_components, n_feats))
-        new_covariances = np.zeros((n_components, n_feats, n_feats))
+        if self.covariance_type == 'diag':
+            new_covariances = np.zeros((n_components, n_feats))
+        elif self.covariance_type =='full':
+            new_covariances = np.zeros((n_components, n_feats, n_feats))
 
         for k in range(n_components):
             new_means[k], new_covariances[k] = batch_mean_covariance(X, self.means_[k], self.covariances_[k],
                                                                      resp[:, k].reshape(-1, 1), sum_resp_pre[k])
-            new_covariances[k].flat[::n_feats + 1] += self.reg_covar  # x[startAt:endBefore:step], diagonal items
-
+            new_covariances[k].flat[::n_feats + 1] +=self.reg_covar # x[startAt:endBefore:step], diagonal items
+            # print(f'k: {k}, {np.any(new_covariances < 0)}')
         self.means_ = new_means
         self.covariances_ = new_covariances
         # self.weights_ = self.weights_ + np.sum(resp-self.weights_, axis=0)/ (sum_resp_pre + np.sum(resp, axis=0)) # will generate negative value
         self.weights_ = self.weights_ + np.sum(resp - self.weights_, axis=0) / (n_samples_pre + X.shape[0])
-        print('m_step:', self.weights_)
+        # print('m_step:', self.weights_)
 
 
     def add_new_component(self, x_proj, q_abnormal_thres=0.95, acculumated_X_train_proj=None):
@@ -240,7 +293,11 @@ class ONLINE_GMM(GaussianMixture):
         new_covar = self.generate_new_covariance(x_proj, self.means_, self.covariances_)
         self.means_ = np.concatenate([self.means_, new_mean], axis=0)
         _, dim = new_mean.shape
-        self.covariances_ = np.concatenate([self.covariances_,
+        if self.covariance_type == 'diag':
+            self.covariances_ = np.concatenate([self.covariances_,
+                                                new_covar.reshape(1, dim)], axis=0)
+        else:
+            self.covariances_ = np.concatenate([self.covariances_,
                                             new_covar.reshape(1, dim, dim)], axis=0)
 
         # print(f'new_model.params: {self.get_params()}')
@@ -251,12 +308,21 @@ class ONLINE_GMM(GaussianMixture):
         self.sum_resp = np.concatenate([self.sum_resp, np.ones((1,))], axis=0)
         # f_(k+1): the new component of GMM
         n_feats = self.n_components
-        # get log probabliity
+        # get log probabliity of acculumated data to update the threshold.
         diff = (acculumated_X_train_proj - new_mean).T  # X and mu should be column vectors
-        log_dist = np.diag(-0.5 * np.matmul(np.matmul(diff.T, np.linalg.inv(new_covar)), diff))
-        log_det = np.log(np.linalg.det(new_covar))
+        if self.covariance_type =='diag':
+            log_dist = -0.5 * diff.T**2 @ (1/new_covar)
+            log_det = np.product(new_covar)
+        else:
+            log_dist = np.diag(-0.5 * np.matmul(np.matmul(diff.T, np.linalg.inv(new_covar)), diff))
+            log_det = np.log(np.linalg.det(new_covar))
         log_det = 1e-6 if np.isnan(log_det) or np.isinf(log_det) else log_det
         f_k_1 = -.5 * (n_feats * np.log(2 * np.pi) + log_det) + log_dist
+
+
+        # update self.self.precisions_cholesky_,
+        self.precisions_cholesky_ = _compute_precision_cholesky(
+            self.covariances_, self.covariance_type)
 
         self.y_score = n / (n + 1) * self.decision_function(acculumated_X_train_proj) + 1 / (n + 1) * f_k_1
         self.abnormal_thres = np.quantile(self.y_score, q=q_abnormal_thres)  # abnormal threshold
@@ -286,8 +352,11 @@ class ONLINE_GMM(GaussianMixture):
             diff = (x - mu).T  # column vector
             diff /= np.linalg.norm(diff)
             diff[np.isnan(diff)] = 0
-            dist = np.matmul(np.matmul(diff.T, np.linalg.inv(sigma)), diff)
-
+            if self.covariance_type == 'diag':
+                dist =  diff.T**2 @ (1/sigma)
+            elif self.covariance_type =='full':
+                dist = np.matmul(np.matmul(diff.T, np.linalg.inv(sigma)), diff)
+            dist = dist.flatten()
             if dist > min_dist:
                 min_dist = dist
                 idx = i
@@ -295,7 +364,11 @@ class ONLINE_GMM(GaussianMixture):
         diff = (x - means[idx]).T
         diff /= np.linalg.norm(diff)
         sigma = covariances[idx]
-        sigma_1v = np.sqrt(np.matmul(np.matmul(diff.T, np.linalg.inv(sigma)), diff)).item()  # a scale
+
+        if self.covariance_type =='diag':
+            sigma_1v = np.sqrt(diff.T**2 @ (1/sigma)).item()
+        else:
+            sigma_1v = np.sqrt(np.matmul(np.matmul(diff.T, np.linalg.inv(sigma)), diff)).item()  # a scale
 
         if np.linalg.norm(diff) - sigma_1v < 0:
             try:
@@ -304,8 +377,11 @@ class ONLINE_GMM(GaussianMixture):
                 sigma_1v = reg_covar
 
         n_feats = x.shape[-1]
-        new_covariance = np.zeros((n_feats, n_feats))
-        new_covariance.flat[::n_feats + 1] += sigma_1v  # x[startAt:endBefore:step], diagonal items
+        if self.covariance_type =='diag':
+            new_covariance = np.asarray([sigma_1v] * n_feats)
+        else:
+            new_covariance = np.zeros((n_feats, n_feats))
+            new_covariance.flat[::n_feats + 1] += sigma_1v  # x[startAt:endBefore:step], diagonal items
 
         return new_covariance
 
