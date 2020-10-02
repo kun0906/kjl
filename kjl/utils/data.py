@@ -5,8 +5,9 @@ import traceback
 import pandas as pd
 import numpy as np
 from numpy import genfromtxt
+from sklearn.model_selection import train_test_split
 from sklearn.utils import resample
-
+import os.path as pth
 
 def split_train_test(normal_data, abnormal_data, train_size=0.8, test_size=150 * 2, random_state=42, debug=False):
     """Split train and test set
@@ -311,62 +312,124 @@ def save_result(result, out_file):
             f.write('\n')
 
 
-def batch(X, y, *, step=1):
-    size = len(X)
-    for i in range(0, size, step):
-        if step == 1:
-            yield X[i:min(i + step, size)].reshape(1, -1), y[i:min(i + step, size)]
-        else:
-            yield X[i:min(i + step, size)], y[i:min(i + step, size)]
+def batch(X, y, *, step=1, stratify=True):
+    if stratify:
+        # keep that each batch has the same ratio of different labels
+        # https://stackoverflow.com/questions/36997619/sklearn-stratified-sampling-based-on-a-column
+        while len(y) > 0:
+            if len(y) <= step:
+                yield X, y
+                X=[]
+                y = []
+            else:
+                X, X_test, y, y_test = train_test_split(X, y, test_size=step, shuffle=True,
+                                                             random_state=42, stratify=y)
+                yield X_test, y_test
+
+    else:
+        # cannot make sure that each batch has the same ratio of different labels
+        size = len(X)
+        for i in range(0, size, step):
+            if step == 1:
+                yield X[i:min(i + step, size)].reshape(1, -1), y[i:min(i + step, size)]
+            else:
+                yield X[i:min(i + step, size)], y[i:min(i + step, size)]
+
+#
+# def get_batch_mean_varaince():
+#     pass
+#
+#
+# def get_batch_mean_covariance(x, n_samples, mean, M2):
+#     """
+#     https://stackoverflow.com/questions/56402955/whats-the-formula-for-welfords-algorithm-for-variance-std-with-batch-updates
+#     Parameters
+#     ----------
+#     x
+#     n_samples
+#     mean
+#     M2: it's not variance or covariance
+#         M2= np.sum(np.subtract(x, [mean] * count)**2)
+#
+#     Returns
+#     -------
+#
+#     """
+#
+#     # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+#     def update(existingAggregate, newValues):
+#         if isinstance(newValues, (int, float, complex)):
+#             # Handle single digits.
+#             newValues = [newValues]
+#
+#         (count, mean, M2) = existingAggregate
+#         count += len(newValues)
+#         # newvalues - oldMean
+#         delta = np.subtract(newValues, [mean] * len(newValues))
+#         mean += np.sum(delta / count)
+#         # newvalues - newMeant
+#         delta2 = np.subtract(newValues, [mean] * len(newValues))
+#         M2 += np.sum(delta * delta2)
+#
+#         return (count, mean, M2)
+#
+#     def finalize(existingAggregate):
+#         (count, mean, M2) = existingAggregate
+#         (mean, variance, sampleVariance) = (mean, M2 / count, M2 / (count - 1))
+#         if count < 2:
+#             return float('nan')
+#         else:
+#             return (mean, variance, sampleVariance)
+#
+#     a = (n_samples, mean, M2)
+#
+#     mean, variance, sampleVariance = finalize(update(a, x))
+#
+#     return mean, sampleVariance
+#
 
 
-def get_batch_mean_varaince():
-    pass
 
+def save_result(result, out_file):
+    dump_data(result, pth.splitext(out_file)[0] + '.dat')
 
-def get_batch_mean_covariance(x, n_samples, mean, M2):
-    """
-    https://stackoverflow.com/questions/56402955/whats-the-formula-for-welfords-algorithm-for-variance-std-with-batch-updates
-    Parameters
-    ----------
-    x
-    n_samples
-    mean
-    M2: it's not variance or covariance
-        M2= np.sum(np.subtract(x, [mean] * count)**2)
-
-    Returns
-    -------
-
-    """
-
-    # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
-    def update(existingAggregate, newValues):
-        if isinstance(newValues, (int, float, complex)):
-            # Handle single digits.
-            newValues = [newValues]
-
-        (count, mean, M2) = existingAggregate
-        count += len(newValues)
-        # newvalues - oldMean
-        delta = np.subtract(newValues, [mean] * len(newValues))
-        mean += np.sum(delta / count)
-        # newvalues - newMeant
-        delta2 = np.subtract(newValues, [mean] * len(newValues))
-        M2 += np.sum(delta * delta2)
-
-        return (count, mean, M2)
-
-    def finalize(existingAggregate):
-        (count, mean, M2) = existingAggregate
-        (mean, variance, sampleVariance) = (mean, M2 / count, M2 / (count - 1))
-        if count < 2:
-            return float('nan')
-        else:
-            return (mean, variance, sampleVariance)
-
-    a = (n_samples, mean, M2)
-
-    mean, variance, sampleVariance = finalize(update(a, x))
-
-    return mean, sampleVariance
+    # with open(out_file, 'w') as f:
+    #     keys = []
+    #     for (in_dir, case_str), (best_results, middle_results) in result.items():
+    #         if case_str not in keys:
+    #             keys.append(case_str)
+    #     mprint(keys)
+    #
+    #     for key in keys:
+    #         mprint('\n\n')
+    #         for (in_dir, case_str), (best_results, middle_results) in result.items():
+    #             # mprint(case_str, key)
+    #             if case_str != key:
+    #                 continue
+    #             data = best_results
+    #             try:
+    #                 aucs = data['aucs']
+    #                 # params = data['params']
+    #                 train_times = data['train_times']
+    #                 test_times = data['test_times']
+    #
+    #                 # _prefix, _line, _suffex = _get_line(data, feat_set='iat_size')
+    #                 # line = f'{in_dir}, {case_str}, {_prefix}, {_line}, => aucs: {aucs} with best_params: {params}: {_suffex}'
+    #                 _prefix = ''
+    #                 _line = ''
+    #                 params = ''
+    #                 _suffex = ''
+    #
+    #                 aucs_str = "-".join([str(v) for v in aucs])
+    #                 train_times_str = "-".join([str(v) for v in train_times])
+    #                 test_times_str = "-".join([str(v) for v in test_times])
+    #
+    #                 line = f'{in_dir}, {case_str}, {_prefix}, {_line}, => aucs:{aucs_str}, train_times:' \
+    #                        f'{train_times_str}, test_times:{test_times_str}, with params: {params}: {_suffex}'
+    #
+    #             except Exception as e:
+    #                 traceback.mprint_exc()
+    #                 line = ''
+    #             f.write(line + '\n')
+    #             mprint(line)
+    #         f.write('\n')

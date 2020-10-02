@@ -20,7 +20,7 @@ import time
 from functools import wraps
 from datetime import datetime
 import pandas as pd
-
+import subprocess
 
 import os
 import pickle
@@ -199,7 +199,7 @@ def execute_time(func):
     return wrapper
 
 
-def func_running_time(func, *args, **kwargs):
+def time_func(func, *args, **kwargs):
     start = datetime.now()
 
     result = func(*args, **kwargs)
@@ -211,6 +211,40 @@ def func_running_time(func, *args, **kwargs):
     return result, total_time
 
 
-def mprint(msg, verbose=1, level=3):
+def mprint(msg, verbose=10, level=1):
     if verbose >= level:
         print(msg)
+
+
+
+def run(in_file, out_file):
+    """Save output to file by subprocess
+
+        https://janakiev.com/blog/python-shell-commands/
+        https://stackoverflow.com/questions/18421757/live-output-from-subprocess-command
+        https://stackoverflow.com/questions/4417546/constantly-print-subprocess-output-while-process-is-running
+
+    Parameters
+    ----------
+    in_file
+    out_file
+
+    Returns
+    -------
+
+    """
+    # cmd = f"python3.7 {in_file} > {out_file} 2>&1"
+    cmd = f"python3.7 {in_file}"
+    print(cmd)
+    with open(out_file, 'wb') as f:
+        # buffsize: 0 = unbuffered (default value); 1 = line buffered; N = approximate buffer size, ...
+        # p = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        #                      bufsize=0, universal_newlines=True)
+        p = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                             bufsize=1, universal_newlines=True)
+        for line in p.stdout:
+            # sys.stdout.write(line) # output to console
+            f.write(line.encode())  # save to file
+            print(line, end='')  # output to console
+
+    return 0

@@ -4,35 +4,38 @@ Run the below command under "examples/"
     PYTHONPATH=../:./ python3.7 main_online_gmm.py > out/main_online_gmm.txt 2>&1 &
 """
 
+
+
 import copy
 import itertools
 import os
 import os.path as pth
 import traceback
-from datetime import datetime
 
 import numpy as np
+
+from datetime import datetime
+
+from config import *
+
 from sklearn import metrics
 from sklearn.metrics import pairwise_distances, roc_curve
 from sklearn.model_selection import train_test_split
 
 from sklearn.utils import shuffle
 
-from generate_data import PCAP2FEATURES
+from generate_data import PCAP2FEATURES, artifical_data, mimic_data
 from kjl.model.gmm import GMM, quickshift_seek_modes, meanshift_seek_modes
 from kjl.model.kjl import KJL
 from kjl.model.nystrom import NYSTROM
 from kjl.model.online_gmm import ONLINE_GMM, quickshift_seek_modes, meanshift_seek_modes
-from kjl.model.standardization import STD
+from kjl.preprocessing.standardization import STD
 
 from kjl.utils.data import split_train_test, load_data, extract_data, dump_data, save_result, batch, data_info
-from kjl.utils.tool import execute_time, func_running_time
+from kjl.utils.tool import execute_time, time_func, mprint
 from fractions import Fraction
 from collections import Counter
-
-
-RANDOM_STATE = 42
-print('PYTHONPATH: ', os.environ['PYTHONPATH'])
+from report import plot_result
 
 
 class BASE_MODEL():
@@ -46,16 +49,19 @@ class BASE_MODEL():
         # Step 1: configure case
         # case = 'GMM_full-gs_True-kjl_True-nystrom_False-quickshift_False-meanshift_False'
         if self.params['detector_name'] == 'GMM' and self.params['covariance_type'] == 'diag' and \
-                self.params['gs'] and self.params['kjl'] and not self.params['quickshift'] and \
-                not self.params['meanshift']:
+                self.params['gs'] and not self.params['quickshift'] and \
+                not self.params['meanshift']:  # self.params['kjl']  and
             params = {}
             # best params for the combination of UNB1 and UNB2
-            params['n_components'] = [15]
-            params['kjl_qs'] = [0.6]
+            params['n_components'] = [5]  # UNB2
+            params['kjl_qs'] = [0.7]
 
-            # # grid search
-            # params['n_components'] =  [1,  5, 10, 15, 20, 25, 30, 35, 40, 45]
-            # params['kjl_qs'] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
+            params['n_components'] = [2]  # mimic_GMM_dataset
+            params['kjl_qs'] = [0.3]
+
+            # # # # # grid search
+            params['n_components'] =  [1,  5, 10, 15, 20, 25, 30, 35, 40, 45]
+            params['kjl_qs'] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
 
             params['kjl_ns'] = [100]
             params['kjl_ds'] = [10]
@@ -74,15 +80,16 @@ class BASE_MODEL():
             self.params['kjl_d'] = kjl_d
             self.params['kjl_n'] = kjl_n
             self.params['kjl_q'] = kjl_q
-            self.model = GMM(n_components=n_components)
+            self.model = GMM(n_components=n_components, random_state=self.params['random_state'],
+                             covariance_type=self.params['covariance_type'])
 
             # Fit a model on the train set
             self._init_train(X_train, y_train)  # fit self.model with self.params on train set
             # Evaluate the model on the test set
             self._init_test(X_test, y_test)  # get self.auc
-            print(f'auc: {self.auc}')
+            print(f'auc: {self.auc}, {self.model.get_params()}, self.kjl_q: {kjl_q}')
             # for out in outs:
-            if best_auc <= self.auc:
+            if best_auc < self.auc:  # here should be <, not <=
                 best_auc = self.auc
                 best_model_params = copy.deepcopy(self.model.get_params())
                 best_params = copy.deepcopy(self.params)
@@ -91,7 +98,7 @@ class BASE_MODEL():
         print('\n\n******best model')
         # Step 3: get the best model with best_params
         self.params = best_params
-        self.model = GMM()
+        self.model = GMM(random_state=self.params['random_state'], covariance_type=self.params['covariance_type'])
         self.model.set_params(**best_model_params)
         print(f'params: {self.params}')
         print(f'model_params: {self.model.get_params()}')
@@ -132,14 +139,18 @@ class BASE_MODEL():
 
         self.train_time = 0
 
-        ##########################################################################################
-        # Step 1: Preprocessing the data, which includes standarization, mode seeking, and kernel projection.
-        # Step 1.1: Standardize the data first
-        self.std_inst = STD()
-        _, std_train_time = func_running_time(self.std_inst.fit, X_train)
-        self.train_time += std_train_time
-        X_train, std_train_time = func_running_time(self.std_inst.transform, X_train)
-        self.train_time += std_train_time
+        if self.params['std_flg']:
+            ##########################################################################################
+            # Step 1: Preprocessing the data, which includes standarization, mode seeking, and kernel projection.
+            # Step 1.1: Standardize the data first
+            self.std_inst = STD()
+            _, std_train_time = time_func(self.std_inst.fit, X_train)
+            self.train_time += std_train_time
+            X_train, std_train_time = time_func(self.std_inst.transform, X_train)
+            self.train_time += std_train_time
+            print(self.std_inst.scaler.mean_, self.std_inst.scaler.scale_)
+        else:
+            std_train_time = 0
 
         # # Step 1.2: Seek modes of the data by quickshift++ or meanshift
         # self.thres_n = 100  # used to filter clusters which have less than 100 datapoints
@@ -162,20 +173,21 @@ class BASE_MODEL():
         proj_train_time = 0.0
         if 'kjl' in self.params.keys() and self.params['kjl']:
             self.kjl_inst = KJL(self.params)
-            _, kjl_train_time = func_running_time(self.kjl_inst.fit, X_train)
+            _, kjl_train_time = time_func(self.kjl_inst.fit, X_train)
             proj_train_time += kjl_train_time
-            X_train, kjl_train_time = func_running_time(self.kjl_inst.transform, X_train)
+            X_train, kjl_train_time = time_func(self.kjl_inst.transform, X_train)
             proj_train_time += kjl_train_time
         elif 'nystrom' in self.params.keys() and self.params['nystrom']:
             self.nystrom_inst = NYSTROM(self.params)
-            _, nystrom_train_time = func_running_time(self.nystrom_inst.fit, X_train)
+            _, nystrom_train_time = time_func(self.nystrom_inst.fit, X_train)
             proj_train_time += nystrom_train_time
-            X_train, nystrom_train_time = func_running_time(self.nystrom_inst.transform, X_train)
+            X_train, nystrom_train_time = time_func(self.nystrom_inst.transform, X_train)
             proj_train_time += nystrom_train_time
         else:
             proj_train_time = 0.0
         self.train_time += proj_train_time
 
+        data_info(X_train, name='without updating X_proj')
         ##########################################################################################
         # Step 2: fit a model
         model_params = {'n_components': self.params['n_components'],
@@ -185,13 +197,13 @@ class BASE_MODEL():
         self.model.set_params(**model_params)
         if self.verbose > 5: print(self.model.get_params())
         # train model
-        _, model_fit_time = func_running_time(self.model.fit, X_train)
+        _, model_fit_time = time_func(self.model.fit, X_train)
         self.train_time += model_fit_time
 
         ##########################################################################################
         # Step 3: get the threshold used to decide if a new flow is normal
         # the following values will be used in the online update phase
-        y_score, _ = func_running_time(self.model.decision_function, X_train)
+        y_score, _ = time_func(self.model.decision_function, X_train)
         self.abnormal_thres = np.quantile(y_score, q=self.params['q_abnormal_thres'])  # abnormal threshold
         self.novelty_thres = np.quantile(y_score, q=0.85)  # normal threshold
         print(f'novelty_thres: {self.novelty_thres}, abnormal_thres: {self.abnormal_thres}')
@@ -201,6 +213,12 @@ class BASE_MODEL():
         self.model.sum_resp = np.sum(np.exp(self.model.log_resp), axis=0)
         self.model.y_score = y_score
         self.init_X_train_proj = X_train  # self.model.X_train_proj = X_train
+
+        self.train_time = {'train_time': self.train_time,
+                           'preprocessing': proj_train_time,
+                           'first_train': 0,
+                           'iteration_train': model_fit_time,
+                           'rescore': 0}
 
         return self
 
@@ -226,30 +244,39 @@ class BASE_MODEL():
 
         self.test_time = 0
 
-        ##########################################################################################
-        # Step 1: Preprocessing
-        # Step 1.1: standardize the data first
-        X_test, std_test_time = func_running_time(self.std_inst.transform, X_test)
-        self.test_time += std_test_time
+        if self.params['std_flg']:
+            ##########################################################################################
+            # Step 1: Preprocessing
+            # Step 1.1: standardize the data first
+            X_test, std_test_time = time_func(self.std_inst.transform, X_test)
+            self.test_time += std_test_time
+        else:
+            std_test_time = 0
 
         # Step 1.2: project the data onto a lower space with KJL or Nystrom
         if 'kjl' in self.params.keys() and self.params['kjl']:
-            X_test, proj_test_time = func_running_time(self.kjl_inst.transform, X_test)
+            X_test, proj_test_time = time_func(self.kjl_inst.transform, X_test)
         elif 'nystrom' in self.params.keys() and self.params['nystrom']:
-            X_test, proj_test_time = func_running_time(self.nystrom_inst.transform, X_test)
+            X_test, proj_test_time = time_func(self.nystrom_inst.transform, X_test)
         else:
             proj_test_time = 0
         self.test_time += proj_test_time
 
         ##########################################################################################
         # Step 2: Evaluate GMM on the test set
-        y_score, model_test_time = func_running_time(self.model.decision_function, X_test)
+        y_score, model_test_time = time_func(self.model.decision_function, X_test)
         self.test_time += model_test_time
-        self.auc, _ = func_running_time(self.get_score, y_test, y_score)
+        self.auc, model_auc_time = time_func(self.get_score, y_test, y_score)
 
         print(f'Total test time: {self.test_time} <= std_test_time: {std_test_time}, '
               f'proj_test_time: {proj_test_time}, '
               f'model_test_time: {model_test_time}')
+
+        self.test_time = {'test_time': self.test_time,
+                          'std_time': std_test_time,
+                          'proj_time': proj_test_time,
+                          'predict_time': model_test_time,
+                          'auc_time': model_auc_time}
 
         return self
 
@@ -308,16 +335,18 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
 
         ##########################################################################################
         # Step 2. Online train and evaluate model
-        online_train_times = [{'train_time': self.init_info['train_time'],
-                               'preprocessing': 0,
-                               'first_train': 0,
-                               'iteration_train': 0,
-                               'rescore': 0}]
-        online_test_times = [{'test_time': self.init_info['test_time'],
-                              'std_time': 0,
-                              'proj_time': 0,
-                              'predict_time': 0,
-                              'auc_time': 0}]
+        # online_train_times = [{'train_time': self.init_info['train_time'],
+        #                        'preprocessing': 0,
+        #                        'first_train': 0,
+        #                        'iteration_train': 0,
+        #                        'rescore': 0}]
+        # online_test_times = [{'test_time': self.init_info['test_time'],
+        #                       'std_time': 0,
+        #                       'proj_time': 0,
+        #                       'predict_time': 0,
+        #                       'auc_time': 0}]
+        online_train_times = [self.init_info['train_time']]
+        online_test_times = [self.init_info['test_time']]
 
         online_aucs = [self.init_info['auc']]
         online_novelty_threses = [self.init_info['novelty_thres']]
@@ -328,6 +357,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
             if i == 0:
                 self.model = copy.deepcopy(self.init_model)
                 self.acculumated_X_train_proj = self.init_X_train_proj
+                # self.acculumated_X_train = self.init_X_train
 
             # online train model (update GMM model values, such as, means, covariances, kjl_U, and n_components)
             self._online_train(X_batch, Y_batch)  # update self.model
@@ -351,7 +381,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         self.info['novelty_threses'] = online_novelty_threses
         self.info['abnormal_threses'] = online_abnormal_threses
         self.info['model_params'] = online_model_params
-        self.info['params'] = {}
+        self.info['params'] = self.params
 
         return self
 
@@ -382,15 +412,17 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
 
         start_1 = datetime.now()
         # Step 1.1: Preprocessing: std and projection
-        X_batch_proj, info = self._preprocessing(X_batch)
-        # Step 1.2: Obtain the abnormal score (note that a larger value is for outlier (positive))
-        y_score, model_predict_time = func_running_time(self.model.decision_function, X_batch_proj)
-        if self.verbose >= 8:
-            print(f"online model prediction takes {model_predict_time} seconds.")
-            data_info(y_score.reshape(-1, 1), name='y_score')
+        X_batch_proj, info = self._preprocessing(X_batch, update=False)
         end_1 = datetime.now()
         online_preprocessing_time = (end_1 - start_1).total_seconds()
 
+        # Step 1.2: Obtain the abnormal score (note that a larger value is for outlier (positive))
+        y_score, model_predict_time = time_func(self.model.decision_function, X_batch_proj)
+        if self.verbose >= 8:
+            print(f"online model prediction takes {model_predict_time} seconds.")
+            data_info(y_score.reshape(-1, 1), name='y_score')
+
+        # data_info(X_batch_proj, name ='before updating X_proj')
         ##########################################################################################
         # Step 2: online train a new model on the batch data
         # 1) train on the normal data first (without needing to create any new component)
@@ -398,7 +430,36 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         start_2 = datetime.now()
 
         # Step 2.1:  update std and proj, and get the new X_data
-        X_batch_proj, info = self._preprocessing(X_batch, update=True)  # here must be X_batch, not X_batch_proj
+        if not self.params['fixed_kjl']:
+            X_batch_proj, info = self._preprocessing(X_batch, update=True)  # here must be X_batch, not X_batch_proj
+            data_info(X_batch_proj, name='after updating X_proj')
+        else:
+            # if self.params['std_flg']:
+            #     # update the mean and scaler of self.std_inst with 'x'
+            #     _, std_update_time = time_func(self.std_inst.update,
+            #                                            X_batch)  # use the original X_batch to update std_inst
+            #     X_test_std, std_transform_time = time_func(self.std_inst.transform, X_batch)
+            # else:
+            #     X_batch_proj = X_batch
+            # # Step 1.2: project time
+            # if 'kjl' in self.params.keys() and self.params['kjl']:
+            #     X_batch_proj, proj_test_time = time_func(self.kjl_inst.transform, X_test_std)
+            #
+            # elif 'nystrom' in self.params.keys() and self.params['nystrom']:
+            #     X_batch_proj, proj_test_time = time_func(self.nystrom_inst.transform, X_test_std)
+            # else:
+            #     X_batch_proj = X_test_std
+            #     proj_test_time = 0
+            pass
+
+        if not self.params['kjl']:
+            self.params['incorporated_points'] = 0
+            self.params['fixed_U_size'] = False
+        else:
+            self.params['incorporated_points'] = self.kjl_inst.t
+            self.params['fixed_U_size'] = self.kjl_inst.fixed_U_size
+
+        # self.abnormal_thres = np.infty  # for debug
 
         normal_idx = np.where((y_score <= self.abnormal_thres) == True)
         abnormal_idx = np.where((y_score > self.abnormal_thres) == True)
@@ -411,29 +472,36 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
                                means_init=self.model.means_,
                                covariances_init=self.model.covariances_,
                                verbose=self.verbose,
+                               random_state=self.params['random_state'],
                                warm_start=True)
+
+        # print('self.model.weights_', self.model.weights_)
+        # print('self.model.means_', self.model.means_)
+        # print('self.model.covariances_', self.model.covariances_)
         # new_model.n_samples = self.model.n_samples
         new_model.sum_resp = self.model.sum_resp  # shape (1, d): sum of exp(log_resp)
-        if self.verbose > 5: print(f'X_batch.shape: {X_batch.shape}')
+        new_model._initialize()  # set up cholesky
 
+        if self.verbose > 5: print(f'X_batch.shape: {X_batch.shape}')
+        update_flg = False
         # The first update of GMM
         while (len(X_batch_proj_normal) > 0) or (len(X_batch_proj_abnormal) > 0):
 
             if len(X_batch_proj_normal) > 0:
                 # 1) train on the normal data first (without needing to create any new component)
                 _st = datetime.now()
-                log_prob_norm, log_resp = new_model._e_step_online(X_batch_proj_normal)
-                new_model._m_step_online(X_batch_proj_normal, np.exp(log_resp), sum_resp_pre=new_model.sum_resp,
+                _, log_resp = new_model._e_step(X_batch_proj_normal)
+                # data_info(np.exp(log_resp), name='resp')
+                new_model._m_step_online(X_batch_proj_normal, log_resp, sum_resp_pre=new_model.sum_resp,
                                          n_samples_pre=self.acculumated_X_train_proj.shape[0])
-
                 self.acculumated_X_train_proj = np.concatenate([self.acculumated_X_train_proj, X_batch_proj_normal],
                                                                axis=0)
-                self.abnormal_thres = self.update_abnormal_thres(new_model, self.acculumated_X_train_proj)
                 _end = datetime.now()
                 _tot = (_end - _st).total_seconds()
                 print(f'processing {len(X_batch_proj_normal)} normal flows takes {_tot} seconds.')
                 X_batch_proj_normal = []
             elif len(X_batch_proj_abnormal) > 0:
+                update_flg = True
                 # 2) train on the abnormal data (create new components)
                 # each time only focuses on one abnormal datapoint
                 _st = datetime.now()
@@ -446,10 +514,14 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
                 _end = datetime.now()
                 _tot = (_end - _st).total_seconds()
                 print(f'processing 1 abnormal flow takes {_tot} seconds.')
+                print(new_model.get_params())
             else:
                 break
 
             if len(X_batch_proj_abnormal) > 0:
+                if not update_flg:
+                    self.abnormal_thres = self.update_abnormal_thres(new_model, self.acculumated_X_train_proj)
+
                 y_score = new_model.decision_function(X_batch_proj_abnormal)
                 # cond_normal = y_score < self.novelty_thres  # return bool values:  normal index
                 normal_idx = np.where((y_score <= self.abnormal_thres) == True)
@@ -467,15 +539,14 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         new_model.converged_ = False
         if not new_model.converged_:  new_model.max_iter = 100
         prev_lower_bound = -np.infty
-        if self.verbose > 5: print(f'acculumated_X_train_proj: {self.acculumated_X_train_proj.shape}')
+        if self.verbose > 1: print(f'acculumated_X_train_proj: {self.acculumated_X_train_proj.shape}')
         while (i < new_model.max_iter) and (not new_model.converged_):
             _st = datetime.now()
             # log_prob_norm, log_resp = new_model._e_step(self.acculumated_X_train_proj)
-            (log_prob_norm, log_resp), e_time = func_running_time(new_model._e_step, self.acculumated_X_train_proj)
-            log_prob_norm = np.mean(log_prob_norm)
+            (log_prob_norm, log_resp), e_time = time_func(new_model._e_step, self.acculumated_X_train_proj)
 
             # get the difference
-            lower_bound = new_model._compute_lower_bound(log_resp, log_prob_norm)
+            lower_bound = new_model._compute_lower_bound(log_resp, np.mean(log_prob_norm))
             change = lower_bound - prev_lower_bound
             if abs(change) < new_model.tol:
                 new_model.converged_ = True
@@ -483,7 +554,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
                 # break
             prev_lower_bound = lower_bound
 
-            _, m_time = func_running_time(new_model._m_step, self.acculumated_X_train_proj, np.exp(log_resp))
+            _, m_time = time_func(new_model._m_step, self.acculumated_X_train_proj, log_resp)
 
             _end = datetime.now()
             _tot = (_end - _st).total_seconds()
@@ -497,9 +568,16 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         ##########################################################################################
         # Step 3:  update the abnormal threshold with all accumulated data
         self.model = new_model
-        self.abnormal_thres, online_recalculate_score_time = func_running_time(self.update_abnormal_thres,
-                                                                               self.model,
-                                                                               self.acculumated_X_train_proj)
+        print(new_model.get_params())
+        if not new_model.converged_:
+            self.abnormal_thres, online_recalculate_score_time = time_func(self.update_abnormal_thres,
+                                                                                   self.model,
+                                                                                   self.acculumated_X_train_proj)
+        else:
+            y_score = - log_prob_norm  # override the _e_step(), so  here is not mean(log_prob_norm)    #  return -1 * self.score_samples(X)
+            # self.abnormal_thres = np.quantile(y_score, q=self.params['q_abnormal_thres'])  # abnormal threshold
+            self.abnormal_thres, online_recalculate_score_time = time_func(np.quantile, y_score,
+                                                                                   q=self.params['q_abnormal_thres'])
 
         end_0 = datetime.now()
         model_online_train_time = (end_0 - start_0).total_seconds()
@@ -530,7 +608,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
 
         """
 
-        y_score, model_predict_time = func_running_time(model.decision_function, X_normal_proj)
+        y_score, model_predict_time = time_func(model.decision_function, X_normal_proj)
         abnormal_thres = np.quantile(y_score, q=self.params['q_abnormal_thres'])  # abnormal threshold
         # model.y_score = y_score
 
@@ -540,41 +618,51 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
 
         info = {}
         if not update:
-            ##########################################################################################
-            # Step 1: preprocessing, which includes standardization, mode seeking and projection
-            # Step 1.1: standardization
-            std_X_test, std_test_time = func_running_time(self.std_inst.transform, X_test)
+            if self.params['std_flg']:
+                ##########################################################################################
+                # Step 1: preprocessing, which includes standardization, mode seeking and projection
+                # Step 1.1: standardization
+                X_test_std, std_test_time = time_func(self.std_inst.transform, X_test)
+            else:
+                X_test_std = X_test
+                std_test_time = 0.0
 
             # Step 1.2: project time
             if 'kjl' in self.params.keys() and self.params['kjl']:
-                proj_X_test, proj_test_time = func_running_time(self.kjl_inst.transform, std_X_test)
+                X_test_proj, proj_test_time = time_func(self.kjl_inst.transform, X_test_std)
 
             elif 'nystrom' in self.params.keys() and self.params['nystrom']:
-                proj_X_test, proj_test_time = func_running_time(self.nystrom_inst.transform, std_X_test)
+                X_test_proj, proj_test_time = time_func(self.nystrom_inst.transform, X_test_std)
             else:
+                X_test_proj = X_test_std
                 proj_test_time = 0
-
-            info = {'std_transform_time': std_test_time, 'proj_transform_time': proj_test_time}
         else:
-            # update the mean and scaler of self.std_inst with 'x'
-            _, std_update_time = func_running_time(self.std_inst.update,
-                                                   X_test)  # use the original X_batch to update std_inst
-            X_test_std, std_transform_time = func_running_time(self.std_inst.transform, X_test)
+            if self.params['std_flg']:
+                # update the mean and scaler of self.std_inst with 'x'
+                _, std_update_time = time_func(self.std_inst.update,
+                                                       X_test)  # use the original X_batch to update std_inst
+                X_test_std, std_test_time = time_func(self.std_inst.transform, X_test)
+            else:
+                X_test_std = X_test
+                std_test_time = 0.0
             # Step 2.3: update projection: kjl or nystrom
             if 'kjl' in self.params.keys() and self.params['kjl']:
                 #  Update kjl: self.U_kjl, self.Xrow_kjl.
                 # use the X_batch without projection to update kjl_inst
-                _, proj_update_time = func_running_time(self.kjl_inst.update, X_test_std)
-                proj_X_test, proj_transform_time = func_running_time(self.kjl_inst.transform, X_test_std)
+                _, proj_update_time = time_func(self.kjl_inst.update, X_test_std)
+                X_test_proj, proj_test_time = time_func(self.kjl_inst.transform, X_test_std)
 
             elif 'nystrom' in self.params.keys() and self.params['nystrom']:
                 # Update nystrom_inst
-                _, proj_update_time = func_running_time(self.nystrom_inst.update, X_test_std)
-                proj_X_test, proj_transform_time = func_running_time(self.nystrom_inst.transform, X_test_std)
+                _, proj_update_time = time_func(self.nystrom_inst.update, X_test_std)
+                X_test_proj, proj_test_time = time_func(self.nystrom_inst.transform, X_test_std)
             else:
+                X_test_proj = X_test_std
                 proj_update_time = 0
+                proj_test_time = 0
 
-        return proj_X_test, info
+        info = {'std_transform_time': std_test_time, 'proj_transform_time': proj_test_time}
+        return X_test_proj, info
 
     def _online_test(self, X_test, y_test):
         """Evaluate model on the test set
@@ -599,21 +687,25 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         self.test_time = 0
         ##########################################################################################
         # Step 1: preprocessing, which includes standardization, mode seeking and projection
-        X_test, info = self._preprocessing(X_test)
+        X_test, info = self._preprocessing(X_test, update=False)
         std_test_time = info['std_transform_time']
         proj_test_time = info['proj_transform_time']
         self.test_time += std_test_time + proj_test_time
+        # data_info(X_test, name='X_test')
 
         ##########################################################################################
         # Step 2: evaluate GMM on the test set
         # print(X_test) # for dubeg
-        y_score, model_test_time = func_running_time(self.model.decision_function, X_test)
-        self.auc, model_auc_time = func_running_time(self.get_score, y_test, y_score)
+        # print('self.model.weights_', self.model.weights_)
+        # print('self.model.means_', self.model.means_)
+        # print('self.model.covariances_', self.model.covariances_)
+        y_score, model_test_time = time_func(self.model.decision_function, X_test)
+        self.auc, model_auc_time = time_func(self.get_score, y_test, y_score)
         self.test_time += model_test_time + model_auc_time
         print(
             f'Total test time: {self.test_time} <= std_test_time: {std_test_time},'
             f', proj_test_time: {proj_test_time}, '
-            f'model_test_time: {model_test_time}, model.paramters: {self.model.get_params()}')
+            f'model_test_time: {model_test_time}, model.paramters: {self.model.get_params()}, auc: {self.auc}')
         self.test_time = {'test_time': self.test_time,
                           'std_time': std_test_time,
                           'proj_time': proj_test_time,
@@ -678,6 +770,7 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         batch_aucs = [self.init_info['auc']]
         batch_novelty_threses = [self.init_info['novelty_thres']]
         batch_abnormal_threses = [self.init_info['abnormal_thres']]
+        batch_model_params = [self.init_info['model_params']]
         for i, (X_batch, Y_batch) in enumerate(batch(X_arrival, y_arrival, step=self.params['batch_size'])):
             print(f'\n***batch: {i + 1}')
             if i == 0:
@@ -687,6 +780,7 @@ class BATCH_GMM_MAIN(BASE_MODEL):
             batch_train_times.append(self.train_time)
             batch_novelty_threses.append(self.init_info['novelty_thres'])
             batch_abnormal_threses.append(self.init_info['abnormal_thres'])
+            batch_model_params.append(self.init_info['model_params'])
 
             # batch test model
             self._batch_test(X_test, y_test)
@@ -701,6 +795,8 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         self.info['aucs'] = batch_aucs
         self.info['novelty_threses'] = batch_novelty_threses
         self.info['abnormal_threses'] = batch_abnormal_threses
+        self.info['model_params'] = batch_model_params
+        self.info['params'] = self.params
 
         return self
 
@@ -735,9 +831,10 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         # only the normal data will be incorporated with previous data to train a new model instead of the current one.
 
         ### Step 1: Preprocessing
-        # Step 1.1: standardization
-        # a) transform X_batch
-        X_batch = self.std_inst.transform(X_batch)
+        if self.params['std_flg']:
+            # Step 1.1: standardization
+            # a) transform X_batch
+            X_batch = self.std_inst.transform(X_batch)
 
         # Step 1.2: Seek the modes by quickshift++ or meanshift
         seek_train_time = 0
@@ -746,10 +843,10 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         # Step 3: Project the data onto a lower space with kjl or nystrom
         if 'kjl' in self.params.keys() and self.params['kjl']:
             # Project the data
-            X_batch, proj_train_time = func_running_time(self.kjl_inst.transform, X_batch)
+            X_batch, proj_train_time = time_func(self.kjl_inst.transform, X_batch)
         elif 'nystrom' in self.params.keys() and self.params['nystrom']:
             # Project the data
-            X_batch, proj_train_time = func_running_time(self.nystrom_inst.transform, X_batch)
+            X_batch, proj_train_time = time_func(self.nystrom_inst.transform, X_batch)
         else:
             proj_train_time = 0
         model_train_time += proj_train_time
@@ -758,7 +855,7 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         # Step 2: Obtain the abnormal score
         # For inlier, a small value is used; a larger value is for outlier (positive)
         # here the output should be the abnormal score because we use y=1 as abnormal and roc_acu(pos_label=1)
-        y_score, model_predict_time = func_running_time(self.model.decision_function, X_batch)
+        y_score, model_predict_time = time_func(self.model.decision_function, X_batch)
         if self.verbose > 5: data_info(y_score.reshape(-1, 1), name='y_score')
         # print("i:{}, batch model prediction takes {} seconds, y_score: {}".format(0, testing_time, y_score))
 
@@ -773,24 +870,85 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         # Step 3. Batch train a GMM from scratch
         # and use it to replace the previous one.
         # Step 3.1: concatenate previous data and X_batch (only normal data)
-        new_x = []
-        abnormal_cnt = 0
-        for x, y in zip(X_batch_copy, y_score):
-            if y < self.abnormal_thres:
-                new_x.append(x)
-            else:
-                abnormal_cnt += 1
-        new_x = np.asarray(new_x)
-        self.init_X_train = np.concatenate([self.init_X_train, new_x], axis=0)
-        self.init_y_train = np.zeros((self.init_X_train.shape[0],))  # normal is '0'
-        print(f'X_train: {self.init_X_train.shape}, drop {abnormal_cnt} abnormal flows.')
+        # new_x = []
+        # abnormal_cnt = 0
+        # self.abnormal_thres = np.infty      # for debug
+
+        # for x, y in zip(X_batch_copy, y_score):
+        #     if y < self.abnormal_thres:
+        #         new_x.append(x)
+        #     else:
+        #         abnormal_cnt += 1
+        # new_x = np.asarray(new_x)
+        # if len(new_x) > 0:
+        #     self.init_X_train = np.concatenate([self.init_X_train, new_x], axis=0)
+        #     self.init_y_train = np.zeros((self.init_X_train.shape[0],))  # normal is '0'
+        #
+        normal_idx = np.where((y_score <= self.abnormal_thres) == True)
+        abnormal_idx = np.where((y_score > self.abnormal_thres) == True)
+        if len(normal_idx[0]) > 0:
+            X_normal = X_batch_copy[normal_idx]
+            # X_abnormal = X_batch_copy[abnormal_idx] if len(abnormal_idx[0]) > 0 else []
+            self.init_X_train = np.concatenate([self.init_X_train, X_normal], axis=0)
+            # self.init_y_train = np.zeros((self.init_X_train.shape[0],))  # normal is '0'
+            abnormal_cnt = len(abnormal_idx[0])
+            print(f'X_train: {self.init_X_train.shape}, drop {abnormal_cnt} abnormal flows.')
+        else:
+            abnormal_cnt = 0
 
         # Step 3.2: train a new model and use it to instead of the current one.
         # we use model.n_compoents to initialize n_components or the value found by quickhsift++ or meanshift
         self.model_copy = copy.deepcopy(self.model)
-        self.model = GMM(n_components=self.model.n_components)
+        self.model = GMM(n_components=self.model.n_components, covariance_type=self.params['covariance_type'],
+                         random_state=self.params['random_state'])
         # update self.model: replace the current model with new_model
-        self._init_train(self.init_X_train, self.init_y_train)  # self.train_time
+        if not self.params['fixed_kjl']:
+            self._init_train(self.init_X_train, self.init_y_train)  # self.train_time
+        else:
+            train_time = 0
+            # self.std_inst = STD()
+            # _, std_train_time = time_func(self.std_inst.fit, self.init_X_train)
+            X_train = self.std_inst.transform(self.init_X_train)
+
+            # Step 1.2: Seek the modes by quickshift++ or meanshift
+            seek_train_time = 0
+            model_train_time += seek_train_time
+
+            # Step 3: Project the data onto a lower space with kjl or nystrom
+            if 'kjl' in self.params.keys() and self.params['kjl']:
+                # Project the data
+                X_train, proj_train_time = time_func(self.kjl_inst.transform, X_train)
+            elif 'nystrom' in self.params.keys() and self.params['nystrom']:
+                # Project the data
+                X_train, proj_train_time = time_func(self.nystrom_inst.transform, X_train)
+            else:
+                proj_train_time = 0
+            model_train_time += proj_train_time
+
+            # # Step 2: fit a model
+            # model_params = {'n_components':self.model.n_components,
+            #                 'covariance_type': self.params['covariance_type'],
+            #                 'means_init': None, 'random_state': self.random_state}
+            # # set model default parameters
+            # self.model.set_params(**model_params)
+            if self.verbose > 5: print(self.model.get_params())
+            # train model
+            _, model_fit_time = time_func(self.model.fit, X_train)
+            train_time += model_fit_time
+
+            ##########################################################################################
+            # Step 3: get the threshold used to decide if a new flow is normal
+            # the following values will be used in the online update phase
+            y_score, _ = time_func(self.model.decision_function, X_train)
+            self.abnormal_thres = np.quantile(y_score, q=self.params['q_abnormal_thres'])  # abnormal threshold
+            self.novelty_thres = np.quantile(y_score, q=0.85)  # normal threshold
+            print(f'novelty_thres: {self.novelty_thres}, abnormal_thres: {self.abnormal_thres}')
+
+            self.train_time = {'train_time': train_time,
+                               'preprocessing': proj_train_time,
+                               'first_train': 0,
+                               'iteration_train': model_fit_time,
+                               'rescore': 0}
 
         # the datapoint is predicted as a abnormal flow, so we should drop it.
         print(f'{abnormal_cnt} flows are predicted as abnormal, so we drop them.')
@@ -841,174 +999,50 @@ def get_normal_abnormal(normal_file, abnormal_file, random_state=42):
 def save_result(result, out_file):
     dump_data(result, pth.splitext(out_file)[0] + '.dat')
 
-    with open(out_file, 'w') as f:
-        keys = []
-        for (in_dir, case_str), (best_results, middle_results) in result.items():
-            if case_str not in keys:
-                keys.append(case_str)
-        print(keys)
-
-        for key in keys:
-            print('\n\n')
-            for (in_dir, case_str), (best_results, middle_results) in result.items():
-                # print(case_str, key)
-                if case_str != key:
-                    continue
-                data = best_results
-                try:
-                    aucs = data['aucs']
-                    # params = data['params']
-                    train_times = data['train_times']
-                    test_times = data['test_times']
-
-                    # _prefix, _line, _suffex = _get_line(data, feat_set='iat_size')
-                    # line = f'{in_dir}, {case_str}, {_prefix}, {_line}, => aucs: {aucs} with best_params: {params}: {_suffex}'
-                    _prefix = ''
-                    _line = ''
-                    params = ''
-                    _suffex = ''
-
-                    aucs_str = "-".join([str(v) for v in aucs])
-                    train_times_str = "-".join([str(v) for v in train_times])
-                    test_times_str = "-".join([str(v) for v in test_times])
-
-                    line = f'{in_dir}, {case_str}, {_prefix}, {_line}, => aucs:{aucs_str}, train_times:' \
-                           f'{train_times_str}, test_times:{test_times_str}, with params: {params}: {_suffex}'
-
-                except Exception as e:
-                    traceback.print_exc()
-                    line = ''
-                f.write(line + '\n')
-                print(line)
-            f.write('\n')
-
-
-def plot_result(result, out_file):
-    import matplotlib.pyplot as plt
-
-    def plot_data(x, y, xlabel='range', ylabel='auc', ylim=[], title='', out_file=''):
-
-        # with plt.style.context(('ggplot')):
-        fig, ax = plt.subplots()
-        ax.plot(x, y, '*-', alpha=0.9)
-        # ax.plot([0, 1], [0, 1], 'k--', label='', alpha=0.9)
-
-        # plt.xlim([0.0, 1.0])
-        if len(ylim) == 2:
-            plt.ylim(ylim)  # [0.0, 1.05]
-        plt.xlabel(xlabel)
-        plt.ylabel(ylabel)
-        # plt.xticks(x)
-        # plt.yticks(y)
-        # plt.legend(loc='lower right')
-        plt.title(title)
-
-        # should use before plt.show()
-        plt.savefig(out_file)
-
-        plt.show()
-
-    def plot_data2(xs, ys, xlabel='range', ylabel='auc', ylim=[], title='', out_file=''):
-
-        # with plt.style.context(('ggplot')):
-        fig, ax = plt.subplots()
-        for (x, y) in zip(xs, ys):
-            ax.plot(x, y, '*-', alpha=0.9)
-        # ax.plot(x, y, '*-', alpha=0.9)
-        # ax.plot([0, 1], [0, 1], 'k--', label='', alpha=0.9)
-
-        # plt.xlim([0.0, 1.0])
-        if len(ylim) == 2:
-            plt.ylim(ylim)  # [0.0, 1.05]
-        plt.xlabel(xlabel)
-        plt.ylabel(ylabel)
-        # plt.xticks(x)
-        # plt.yticks(y)
-        # plt.legend(loc='lower right')
-        plt.title(title)
-
-        # should use before plt.show()
-        plt.savefig(out_file)
-
-        plt.show()
-
-    def plot_times(ys, xlabel='range', ylabel='auc', ylim=[], title='', out_file=''):
-
-        fig, ax = plt.subplots()
-        names = ys[-1].keys()
-        for name in names:
-            y = [v[name] for v in ys]
-            x = range(len(y))
-            # with plt.style.context(('ggplot')):
-            ax.plot(x, y, '*-', alpha=0.9, label=name)
-            # ax.plot([0, 1], [0, 1], 'k--', label='', alpha=0.9)
-
-        # plt.xlim([0.0, 1.0])
-        if len(ylim) == 2:
-            plt.ylim(ylim)  # [0.0, 1.05]
-        plt.xlabel(xlabel)
-        plt.ylabel(ylabel)
-        # plt.xticks(x)
-        # plt.yticks(y)
-        plt.legend(loc='lower right')
-        plt.title(title)
-
-        # should use before plt.show()
-        plt.savefig(out_file)
-
-        plt.show()
-
-    for (in_dir, case_str), (best_results, middle_results) in result.items():
-        print(f'\n***{in_dir}, {case_str}')
-        if 'online_False' in case_str:
-            online = False
-        else:
-            online = True
-
-        title = f'online:{online}'
-
-        if not online:
-            y = best_results['train_times']
-            plot_data(range(len(y)), y, xlabel='batch data', ylabel='Training time (s)', title=title,
-                      out_file=out_file.replace('.pdf', '-train_times.pdf'))
-            y = best_results['test_times']
-            plot_data(range(len(y)), y, xlabel='batch data', ylabel='Testing time (s)', title=title,
-                      out_file=out_file.replace('.pdf', '-test_times.pdf'))
-
-        else:
-            ys = best_results['train_times']
-            plot_times(ys, xlabel='batch data', ylabel='Training time (s)', title=title,
-                       out_file=out_file.replace('.pdf', '-train_times.pdf'))
-
-            ys = best_results['test_times']
-            plot_times(ys, xlabel='batch data', ylabel='Testing time (s)', title=title,
-                       out_file=out_file.replace('.pdf', '-test_times.pdf'))
-
-            y = [v['n_components'] for v in best_results['model_params']]
-            plot_data(range(len(y)), y, xlabel='batch data', ylabel='n_components time', title=title,
-                      out_file=out_file.replace('.pdf', '-n_components.pdf'))
-
-        y = best_results['aucs']
-        plot_data(range(len(y)), y, xlabel='batch data', ylabel='AUC', ylim=[0.0, 1.05], title=title,
-                  out_file=out_file.replace('.pdf', '-aucs.pdf'))
-
-        y = best_results['novelty_threses']
-        plot_data(range(len(y)), y, xlabel='batch data', ylabel='novelty threshold', title=title,
-                  out_file=out_file.replace('.pdf', '-novelty.pdf'))
-
-        y = best_results['abnormal_threses']
-        plot_data(range(len(y)), y, xlabel='batch data', ylabel='abnormal threshold', title=title,
-                  out_file=out_file.replace('.pdf', '-abnormal.pdf'))
-
-        y1 = best_results['novelty_threses']
-        y2 = best_results['abnormal_threses']
-        xs = [range(len(y1)), range(len(y2))]
-        ys = [y1, y2]
-        plot_data2(xs, ys, xlabel='batch data', ylabel='Threshold', title=title,
-                   out_file=out_file.replace('.pdf', '-threshold.pdf'))
+    # with open(out_file, 'w') as f:
+    #     keys = []
+    #     for (in_dir, case_str), (best_results, middle_results) in result.items():
+    #         if case_str not in keys:
+    #             keys.append(case_str)
+    #     print(keys)
+    #
+    #     for key in keys:
+    #         print('\n\n')
+    #         for (in_dir, case_str), (best_results, middle_results) in result.items():
+    #             # print(case_str, key)
+    #             if case_str != key:
+    #                 continue
+    #             data = best_results
+    #             try:
+    #                 aucs = data['aucs']
+    #                 # params = data['params']
+    #                 train_times = data['train_times']
+    #                 test_times = data['test_times']
+    #
+    #                 # _prefix, _line, _suffex = _get_line(data, feat_set='iat_size')
+    #                 # line = f'{in_dir}, {case_str}, {_prefix}, {_line}, => aucs: {aucs} with best_params: {params}: {_suffex}'
+    #                 _prefix = ''
+    #                 _line = ''
+    #                 params = ''
+    #                 _suffex = ''
+    #
+    #                 aucs_str = "-".join([str(v) for v in aucs])
+    #                 train_times_str = "-".join([str(v) for v in train_times])
+    #                 test_times_str = "-".join([str(v) for v in test_times])
+    #
+    #                 line = f'{in_dir}, {case_str}, {_prefix}, {_line}, => aucs:{aucs_str}, train_times:' \
+    #                        f'{train_times_str}, test_times:{test_times_str}, with params: {params}: {_suffex}'
+    #
+    #             except Exception as e:
+    #                 traceback.print_exc()
+    #                 line = ''
+    #             f.write(line + '\n')
+    #             print(line)
+    #         f.write('\n')
 
 
-def split_train_arrival_test(normal_X, normal_y, abnormal_X, abnormal_y, random_state=42):
+def split_train_arrival_test(normal_X, normal_y, abnormal_X, abnormal_y, one_data_flg=False, init_percent=0.95,
+                             random_state=42):
     """
 
     Parameters
@@ -1021,15 +1055,16 @@ def split_train_arrival_test(normal_X, normal_y, abnormal_X, abnormal_y, random_
     -------
 
     """
+    X = np.concatenate([normal_X, abnormal_X], axis=0)
+    data_info(X, name='X')
     init_train_n = 5000
     init_test_n = 100
 
     arrival_n = 5000
-    test_n = 5000
+    # test_n = 5000
 
     normal_y = np.asarray(normal_y)
     abnormal_y = np.asarray(abnormal_y)
-
 
     def random_select(X, y, n=100, random_state=100):
         X, y = shuffle(X, y, random_state=random_state)
@@ -1041,8 +1076,7 @@ def split_train_arrival_test(normal_X, normal_y, abnormal_X, abnormal_y, random_
         rest_y = y[n:]
         return X0, y0, rest_X, rest_y
 
-
-    normal_X, normal_y = shuffle(normal_X, normal_y, replace=True, random_state=random_state)
+    normal_X, normal_y = shuffle(normal_X, normal_y, random_state=random_state)
 
     ##################################################################################################################
     # dataset 1
@@ -1053,59 +1087,83 @@ def split_train_arrival_test(normal_X, normal_y, abnormal_X, abnormal_y, random_
     abnormal_X_1 = abnormal_X[idx]
     abnormal_y_1 = abnormal_y[idx]
 
+    # init_percent = 1     # 0.9, 0.95, 1.00
     # init_set: train and test set
     # init_train_set: data1/data2=9:1
     # init_test_set: data1/data=9:1
-    init_train_normal_X_1, init_train_normal_y_1, normal_X_1, normal_y_1 = random_select(normal_X_1, normal_y_1, n=4500,
+    init_test_abnormal1_size = 50
+    test_abnormal1_size = 50
+    init_train_normal_X_1, init_train_normal_y_1, normal_X_1, normal_y_1 = random_select(normal_X_1, normal_y_1,
+                                                                                         n=int(round(
+                                                                                             init_train_n * init_percent, 0)),
                                                                                          random_state=random_state)
 
-    init_test_normal_X_1, init_test_normal_y_1, normal_X_1, normal_y_1 = random_select(normal_X_1, normal_y_1, n=90,
+    init_test_normal_X_1, init_test_normal_y_1, normal_X_1, normal_y_1 = random_select(normal_X_1, normal_y_1,
+                                                                                       n=init_test_abnormal1_size,
                                                                                        random_state=random_state)
     init_test_abnormal_X_1, init_test_abnormal_y_1, abnormal_X_1, abnormal_y_1 = random_select(abnormal_X_1,
-                                                                                               abnormal_y_1, n=90,
+                                                                                               abnormal_y_1,
+                                                                                               n=init_test_abnormal1_size,
                                                                                                random_state=random_state)
 
-    # arrival set: data1/data2 = 1:9  
-    arrival_train_normal_X_1, arrival_train_normal_y_1, normal_X_1, normal_y_1 = random_select(normal_X_1, normal_y_1,
-                                                                                               n=500,
+    # arrival set: data1/data2 = 1:9
+    arrival_train_normal_X_1, arrival_train_normal_y_1, normal_X_1, normal_y_1 = random_select(normal_X_1,
+                                                                                               normal_y_1,
+                                                                                               n=int(round(init_train_n * (
+                                                                                                           1.0 - init_percent), 0)),
                                                                                                random_state=random_state)
 
     # test set: data1/data2 = 1:1
-    test_normal_X_1, test_normal_y_1, normal_X_1, normal_y_1 = random_select(normal_X_1, normal_y_1, n=100,
+    test_normal_X_1, test_normal_y_1, normal_X_1, normal_y_1 = random_select(normal_X_1, normal_y_1,
+                                                                             n=test_abnormal1_size,
                                                                              random_state=random_state)
 
-    test_abnormal_X_1, test_abnormal_y_1, abnormal_X_1, abnormal_y_1 = random_select(abnormal_X_1, abnormal_y_1, n=100,
+    test_abnormal_X_1, test_abnormal_y_1, abnormal_X_1, abnormal_y_1 = random_select(abnormal_X_1, abnormal_y_1,
+                                                                                     n=test_abnormal1_size,
                                                                                      random_state=random_state)
 
     ##################################################################################################################
     # dataset 2
     # arrival set: data1/data2 = 1:9
-    idx = normal_y == 'normal_1'
-    normal_X_2 = normal_X[idx]
-    normal_y_2 = normal_y[idx]
-    idx = abnormal_y == 'abnormal_1'
-    abnormal_X_2 = abnormal_X[idx]
-    abnormal_y_2 = abnormal_y[idx]
+    if one_data_flg:  # use the same dataset
+        normal_X_2 = normal_X_1
+        normal_y_2 = normal_y_1
+        abnormal_X_2 = abnormal_X_1
+        abnormal_y_2 = abnormal_y_1
+
+    else:
+        idx = normal_y == 'normal_1'
+        normal_X_2 = normal_X[idx]
+        normal_y_2 = normal_y[idx]
+        idx = abnormal_y == 'abnormal_1'
+        abnormal_X_2 = abnormal_X[idx]
+        abnormal_y_2 = abnormal_y[idx]
 
     # init_set: train and test set
     init_train_normal_X_2, init_train_normal_y_2, normal_X_2, normal_y_2 = random_select(normal_X_2, normal_y_2,
-                                                                                         n=init_train_n - 4500,
+                                                                                         n=int(round(init_train_n * (
+                                                                                                 1 - init_percent), 0)),
                                                                                          random_state=random_state)
 
-    init_test_normal_X_2, init_test_normal_y_2, normal_X_2, normal_y_2 = random_select(normal_X_2, normal_y_2, n=50,
+    init_test_normal_X_2, init_test_normal_y_2, normal_X_2, normal_y_2 = random_select(normal_X_2, normal_y_2,
+                                                                                       n=init_test_abnormal1_size,
                                                                                        random_state=random_state)
     init_test_abnormal_X_2, init_test_abnormal_y_2, abnormal_X_2, abnormal_y_2 = random_select(abnormal_X_2,
-                                                                                               abnormal_y_2, n=50,
+                                                                                               abnormal_y_2,
+                                                                                               n=init_test_abnormal1_size,
                                                                                                random_state=random_state)
 
     arrival_train_normal_X_2, arrival_train_normal_y_2, normal_X_2, normal_y_2 = random_select(normal_X_2, normal_y_2,
-                                                                                               n=arrival_n - 500,
+                                                                                               n=int(round(
+                                                                                                   init_train_n * init_percent, 0)),
                                                                                                random_state=random_state)
 
-    test_normal_X_2, test_normal_y_2, normal_X_2, normal_y_2 = random_select(normal_X_2, normal_y_2, n=100,
+    test_normal_X_2, test_normal_y_2, normal_X_2, normal_y_2 = random_select(normal_X_2, normal_y_2,
+                                                                             n=test_abnormal1_size,
                                                                              random_state=random_state)
 
-    test_abnormal_X_2, test_abnormal_y_2, abnormal_X_2, abnormal_y_2 = random_select(abnormal_X_2, abnormal_y_2, n=100,
+    test_abnormal_X_2, test_abnormal_y_2, abnormal_X_2, abnormal_y_2 = random_select(abnormal_X_2, abnormal_y_2,
+                                                                                     n=test_abnormal1_size,
                                                                                      random_state=random_state)
 
     # init_set: train and test set
@@ -1130,7 +1188,13 @@ def split_train_arrival_test(normal_X, normal_y, abnormal_X, abnormal_y, random_
     print(f'X_arrival_train: {X_arrival.shape}, in which, y_arrival is {Counter(y_arrival)}')
     print(f'X_test: {X_test.shape}, in which, y_test is {Counter(y_test)}')
 
+    X_init_train, y_init_train = shuffle(X_init_train, y_init_train, random_state=random_state)
+    X_init_test, y_init_test = shuffle(X_init_test, y_init_test, random_state=random_state)
+    X_arrival, y_arrival = shuffle(X_arrival, y_arrival, random_state=random_state)
+    X_test, y_test = shuffle(X_test, y_test, random_state=random_state)
+
     return X_init_train, y_init_train, X_init_test, y_init_test, X_arrival, y_arrival, X_test, y_test
+
 
 #
 # def _get_feats(subdatasets, out_dir, random_state=100):
@@ -1147,6 +1211,8 @@ def split_train_arrival_test(normal_X, normal_y, abnormal_X, abnormal_y, random_
 def get_path(subdatasets, in_dir='', name='Xy-normal-abnormal.dat'):
     if type(subdatasets) == tuple:
         data_name = '-'.join(subdatasets).replace('/', '-')
+    else:
+        data_name = subdatasets
 
     if 'DS10_UNB' in data_name:
         data_name += '/AGMT-WorkingHours'
@@ -1154,8 +1220,22 @@ def get_path(subdatasets, in_dir='', name='Xy-normal-abnormal.dat'):
     return os.path.join(in_dir, data_name, name)
 
 
+class PARAM():
+
+    def __init__(self, **kwargs):
+
+        for k, v in kwargs.items():
+            self.k = v
+
+
+    def add_param(self, **kwargs):
+        for k, v in kwargs.items():
+            self.k = v
+
+
+
 @execute_time
-def main(random_state, n_jobs=-1, n_repeats=1, online=True):
+def main(random_state, n_jobs=-1, n_repeats=1, online=True, verbose = 1, print_level=INFO):
     """
 
     Parameters
@@ -1171,10 +1251,15 @@ def main(random_state, n_jobs=-1, n_repeats=1, online=True):
     -------
 
     """
+
+    mprint('PYTHONPATH: ' + os.environ['PYTHONPATH'], verbose=verbose, level=print_level)
+    np.random.seed(RANDOM_STATE)
+
     datasets = [  # 'DEMO_IDS/DS-srcIP_192.168.10.5',
+        'mimic_GMM_dataset',
         # 'DS10_UNB_IDS/DS11-srcIP_192.168.10.5',  # data_name is unique
         # ('DS10_UNB_IDS/DS13-srcIP_192.168.10.8', 'DS10_UNB_IDS/DS14-srcIP_192.168.10.9'),   # demo
-        ('DS10_UNB_IDS/DS12-srcIP_192.168.10.8', 'DS10_UNB_IDS/DS13-srcIP_192.168.10.9'),
+        # ('DS10_UNB_IDS/DS12-srcIP_192.168.10.8', 'DS10_UNB_IDS/DS13-srcIP_192.168.10.9'),
         # ('DS10_UNB_IDS/DS13-srcIP_192.168.10.9', 'DS10_UNB_IDS/DS13-srcIP_192.168.10.9'),
         # # 'DS10_UNB_IDS/DS14-srcIP_192.168.10.14',
         # 'DS10_UNB_IDS/DS15-srcIP_192.168.10.15',
@@ -1232,7 +1317,7 @@ def main(random_state, n_jobs=-1, n_repeats=1, online=True):
         # {'detector_name': 'GMM', 'covariance_type': 'diag', 'gs': gs, 'kjl': True, 'meanshift': True},
     ]
 
-    overwrite = 0
+    overwrite = 1
     # All the results will be stored in the 'results'
     results = {}
     for i, subdatasets in enumerate(datasets):
@@ -1240,22 +1325,28 @@ def main(random_state, n_jobs=-1, n_repeats=1, online=True):
         in_dir = os.path.dirname(Xy_file)
         out_dir = os.path.dirname(Xy_file)
         print(f'\n***i:{i}, {Xy_file}')
+        single_device = False
         if overwrite:
             if os.path.exists(Xy_file): os.remove(Xy_file)
         if not os.path.exists(Xy_file):
-            # pcaps and flows directory
-            in_dir = f'../../IoT_feature_sets_comparison_20190822/examples/data/data_reprst/pcaps'
-            pf = PCAP2FEATURES(out_dir=os.path.dirname(Xy_file), random_state=random_state)
-            normal_files, abnormal_files = pf.get_path(subdatasets, in_dir)
-            pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
-            data, Xy_file = pf.data, pf.Xy_file
+            if type(subdatasets) != tuple and 'mimic' in subdatasets:
+                data, Xy_file = mimic_data(name=subdatasets, single_device=single_device, random_state=random_state)
+            else:
+                # pcaps and flows directory
+                in_dir = f'../../IoT_feature_sets_comparison_20190822/examples/data/data_reprst/pcaps'
+                pf = PCAP2FEATURES(out_dir=os.path.dirname(Xy_file), random_state=random_state)
+                normal_files, abnormal_files = pf.get_path(subdatasets, in_dir)
+                pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+                data, Xy_file = pf.data, pf.Xy_file
         else:
             print('load data')
-            data, load_time = func_running_time(load_data, Xy_file)
+            data, load_time = time_func(load_data, Xy_file)
             print(f'load {Xy_file} takes {load_time} s.')
 
         normal_X, normal_y = data['normal']
         abnormal_X, abnormal_y = data['abnormal']
+        data_info(normal_X, name='normal')
+        data_info(abnormal_X, name='abnormal')
 
         print(f'normal_X: {normal_X.shape}, normal_y: {Counter(normal_y)}')
         print(f'abnormal_X: {abnormal_X.shape}, abnormal_y: {Counter(abnormal_y)}')
@@ -1264,10 +1355,13 @@ def main(random_state, n_jobs=-1, n_repeats=1, online=True):
         # Step 2: conduct experiments for each case
         for case in cases:
             case['random_state'] = random_state
+            case['n_repeats'] = n_repeats
             case['verbose'] = 5
             case['online'] = online  # online: True, otherwise, batch
             case['q_abnormal_thres'] = 1  # default 0.95
-            case['batch_size'] = 1000  #
+            case['batch_size'] = 100  #
+            case['fixed_kjl'] = True
+            case['std_flg'] = True
 
             keys = ['detector_name', 'covariance_type', 'gs', 'kjl', 'nystrom', 'quickshift',
                     'meanshift', 'online']
@@ -1284,33 +1378,43 @@ def main(random_state, n_jobs=-1, n_repeats=1, online=True):
                 X_init_train, y_init_train, X_init_test, y_init_test, X_arrival, y_arrival, X_test, y_test = split_train_arrival_test(
                     normal_X, normal_y,
                     abnormal_X, abnormal_y,
-                    random_state)
+                    one_data_flg=single_device, init_percent=0.9, random_state=random_state)  # init_percent = [0,1]
+                data_info(X_init_train, name='X_init_train')
+                data_info(X_init_test, name='X_init_test')
+                data_info(X_arrival, name='X_arrival')
+                data_info(X_test, name='X_test')
                 # change multi-labels to binary (normal_i -> normal(0), abnormal_i-> abnormal(1))
                 y_init_train = [0 if v.startswith('normal') else 1 for v in y_init_train]
-                y_init_test = [ 0 if v.startswith('normal') else 1 for v in y_init_test]
+                y_init_test = [0 if v.startswith('normal') else 1 for v in y_init_test]
                 y_arrival = [0 if v.startswith('normal') else 1 for v in y_arrival]
                 y_test = [0 if v.startswith('normal') else 1 for v in y_test]
 
-                if 'GMM' == case['detector_name']:
-                    if case['online']:
-                        model = ONLINE_GMM_MAIN(case)
-                    else:  # 'batch', i.e., batch_GMM
-                        model = BATCH_GMM_MAIN(case)
-                else:
-                    raise NotImplementedError()
-                model.train_test_model(X_init_train, y_init_train, X_init_test, y_init_test, X_arrival, y_arrival,
-                                       X_test, y_test)
-                _best_results = model.info  # model.info['train_times']
-                _middle_results = {}
+                _best_results_arr = []
+                _middle_results_arr = []
+                for i_repeat in range(n_repeats):
+                    case['random_state'] = random_state * (i_repeat + 1)
+                    if 'GMM' == case['detector_name']:
+                        if case['online']:
+                            model = ONLINE_GMM_MAIN(case)
+                        else:  # 'batch', i.e., batch_GMM
+                            model = BATCH_GMM_MAIN(case)
+                    else:
+                        raise NotImplementedError()
+                    model.train_test_model(X_init_train, y_init_train, X_init_test, y_init_test, X_arrival, y_arrival,
+                                           X_test, y_test)
+                    _best_results = model.info  # model.info['train_times']
+                    _middle_results = {}
 
-                # # save each result first
-                # out_file = pth.abspath(f'{out_expand_dir}/{case_str}.csv')
-                # print('+++', out_file)
-                # save_each_result(_best_results, case_str, out_file)
-                #
-                # dump_data(_middle_results, out_file + '-middle_results.dat')
-                #
-                results[(in_dir, case_str)] = (_best_results, _middle_results)
+                    # # save each result first
+                    # out_file = pth.abspath(f'{out_expand_dir}/{case_str}.csv')
+                    # print('+++', out_file)
+                    # save_each_result(_best_results, case_str, out_file)
+                    #
+                    # dump_data(_middle_results, out_file + '-middle_results.dat')
+                    #
+                    _best_results_arr.append(_best_results)
+                    _middle_results_arr.append(_middle_results)
+                results[(in_dir, case_str)] = (_best_results_arr, _middle_results_arr)
             except Exception as e:
                 traceback.print_exc()
                 print(f"some error exists in {case}")
@@ -1332,4 +1436,5 @@ def main(random_state, n_jobs=-1, n_repeats=1, online=True):
 
 
 if __name__ == '__main__':
-    main(random_state=RANDOM_STATE, n_jobs=1, n_repeats=1, online=True)
+
+    main(random_state=RANDOM_STATE, n_jobs=1, n_repeats=5, online=False)

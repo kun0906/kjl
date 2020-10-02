@@ -2,14 +2,16 @@
 Set global constants
 
 """
-
-# change random_state, the result will change too.
+##########################################################################################################
+# Set random_state
 RANDOM_STATE = 42
 
-# set the print level
-# DEBUG = 1 # print everything
-INFO = 5    # print the basic information
+##########################################################################################################
+# Define print level constants. The larger value, the more print info
+ERROR = 1
+WARNING = 5
+INFO = 10  # print the basic information
+DEBUG = 15  # print everything
 
-
-
-
+# Set the print level
+VERBOSE = DEBUG

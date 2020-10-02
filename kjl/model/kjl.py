@@ -7,6 +7,8 @@ import multiprocessing
 import warnings
 
 # 2. third-party packages
+from collections import Counter
+
 import numpy as np
 
 # 3. your own package
@@ -18,7 +20,9 @@ from datetime import datetime
 # set some stuffs
 from sklearn.utils import resample
 
+from config import DEBUG
 from kjl.utils.data import data_info
+from kjl.utils.tool import mprint
 
 warnings.simplefilter('always', FitFailedWarning)
 multiprocessing.set_start_method('spawn', True)
@@ -58,91 +62,85 @@ def getGaussianGram(Xrow, Xcol, sigma, goFast=1):
     return K
 
 
-def kernelJLInitialize(X, sigma, d, m, n, centering=0, independent_row_col=1, random_state=100):
-    """Project data to d-dimension spaces
 
-    Parameters
-    ----------
-    X
-    sigma
-    d
-    m
-    n
-    centering
-    independent_row_col
-
-    Returns
-    -------
-
-    """
-    print(f'random_state: {random_state}')
-    np.random.seed(random_state)  # don't remove
-    N, D = X.shape
-
-    if independent_row_col:
-        # # indRow and indCol are independent each other
-        # indRow = np.random.randint(N, size=n)
-        # indCol = np.random.randint(N, size=m)
-
-        indRow = resample(range(N), n_samples=n, random_state=random_state,
-                          replace=False)
-        indCol = resample(range(N), n_samples=m, random_state=random_state,
-                          replace=False)
-
-    else:
-        # Random select max(n,m) rows
-        # indices = np.random.randint(N, size=max(n, m))
-        indices = resample(range(N), n_samples=max(n, m), random_state=random_state,
-                           replace=False)
-        # In indRow and indCol, one includes another
-        indRow = indices[0:n]
-        indCol = indices[0:m]
-
-    Xrow = X[indRow, :]  # nxD
-    Xcol = X[indCol, :]  # mXD
-
-    # compute Gaussian kernel gram matrix A (i.e., K generated from a subset of X)
-    # print(Xrow, Xcol)
-    A = getGaussianGram(Xrow, Xcol, sigma)  # nXm
-    # print(A)
-    if centering:
-        # subtract the mean of col from each element in a col
-        A = A - np.mean(A, axis=0)
-
-    # Projection matrix: ZK (nXd = nXm * mXd) # matrix product : Gaussian sketching
-    # U = np.dot(A, np.random.multivariate_normal([0] * d, np.diag([1] * d), m))
-    random_matrix = np.random.multivariate_normal([0] * d, np.diag([1] * d), m)
-    U = np.matmul(A, random_matrix)  # preferred for matrix multiplication
-    print("Finished getting the projection matrix")
-
-    # Obtain gram between full data and Xrow (Nxn)
-    K = getGaussianGram(X, Xrow, sigma)
-
-    # projected data (Nxd = NXn * nXd)
-    KU = np.matmul(K, U)  # preferred for matrix multiplication
-    print("Projected data")
-
-    return KU, U, Xrow, random_matrix, A
-
-
-# def merge_parameters(tuned_parameters):
-#     if len(tuned_parameters.keys()) <=1:
-#         return tuned_parameters
-#     for i,
 #
-#     return
+# def kernelJLInitialize(X, sigma, d, m, n, centering=0, independent_row_col=1, random_state=100):
+#     """Project data to d-dimension spaces
+#
+#     Parameters
+#     ----------
+#     X
+#     sigma
+#     d
+#     m
+#     n
+#     centering
+#     independent_row_col
+#
+#     Returns
+#     -------
+#
+#     """
+#     print(f'random_state: {random_state}')
+#     np.random.seed(random_state)  # don't remove
+#     N, D = X.shape
+#
+#     if independent_row_col:
+#         # # indRow and indCol are independent each other
+#         # indRow = np.random.randint(N, size=n)
+#         # indCol = np.random.randint(N, size=m)
+#
+#         indRow = resample(range(N), n_samples=n, random_state=random_state,
+#                           replace=False)
+#         indCol = resample(range(N), n_samples=m, random_state=random_state,
+#                           replace=False)
+#
+#     else:
+#         # Random select max(n,m) rows
+#         # indices = np.random.randint(N, size=max(n, m))
+#         indices = resample(range(N), n_samples=max(n, m), random_state=random_state,
+#                            replace=False)
+#         # In indRow and indCol, one includes another
+#         indRow = indices[0:n]
+#         indCol = indices[0:m]
+#
+#     Xrow = X[indRow, :]  # nxD
+#     Xcol = X[indCol, :]  # mXD
+#
+#     # compute Gaussian kernel gram matrix A (i.e., K generated from a subset of X)
+#     # print(Xrow, Xcol)
+#     A = getGaussianGram(Xrow, Xcol, sigma)  # nXm
+#     # print(A)
+#     if centering:
+#         # subtract the mean of col from each element in a col
+#         A = A - np.mean(A, axis=0)
+#
+#     # Projection matrix: ZK (nXd = nXm * mXd) # matrix product : Gaussian sketching
+#     # U = np.dot(A, np.random.multivariate_normal([0] * d, np.diag([1] * d), m))
+#     random_matrix = np.random.multivariate_normal([0] * d, np.diag([1] * d), m)
+#     U = np.matmul(A, random_matrix)  # preferred for matrix multiplication
+#     print("Finished getting the projection matrix")
+#
+#     # Obtain gram between full data and Xrow (Nxn)
+#     K = getGaussianGram(X, Xrow, sigma)
+#
+#     # projected data (Nxd = NXn * nXd)
+#     KU = np.matmul(K, U)  # preferred for matrix multiplication
+#     print("Projected data")
+#
+#     return KU, U, Xrow, random_matrix, A
 
 
 class KJL():
-    def __init__(self, kjl_params, debug=False):
-        self.kjl_params = kjl_params
-        self.debug = debug
-        self.random_state = self.kjl_params['random_state']
+    def __init__(self, params):
+        self.params = params
+        self.random_state = params.random_state
+        self.verbose = params.verbose
         self.i = 0
         self.t = 1
-        self.fixed_U = True
+        self.fixed_U_size = True
 
-    def fit(self, X_train):
+    def fit(self, X_train, y_train=None):
         """Get KJL related data, such as, U, X_row, random matrix, and A
 
         Parameters
@@ -153,107 +151,76 @@ class KJL():
         -------
 
         """
-        if self.kjl_params['kjl']:
-            d = self.kjl_params['kjl_d']
-            n = self.kjl_params['kjl_n']
-            q = self.kjl_params['kjl_q']
 
-            start = datetime.now()
-            n = n or max([200, int(np.floor(X_train.shape[0] / 100))])  # n_v: rows; m_v: cols. 200, 100?
-            m = n
-            if hasattr(self, 'sigma') and self.sigma:
-                sigma = self.sigma
-            else:
-                # compute sigma
-                dists = pairwise_distances(X_train)
-                if self.debug:
-                    # for debug
-                    _qs = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
-                    _sigmas = np.quantile(dists, _qs)  # it will cost time
-                    print(f'train set\' sigmas with qs: {list(zip(_sigmas, _qs))}')
-                sigma = np.quantile(dists, q)
-                if sigma == 0:
-                    print(f'sigma:{sigma}, and use 1e-7 for the latter experiment.')
-                    sigma = 1e-7
-            # self.sigma_kjl = sigma
-            print("sigma: {}".format(sigma))
+        #####################################################################################################
+        # Step 1. Get sigma according to q_kjl
+        d = self.params.d_kjl
+        n = self.params.n_kjl
+        q = self.params.q_kjl
 
-            # project train data
-            # if debug: data_info(X_train, name='before KJL, X_train')
-            # X_train, self.U_kjl, self.Xrow_kjl, self.random_matrix, self.A = kernelJLInitialize(X_train, self.sigma_kjl,
-            #                                                                                     d, m, n, centering=1,
-            #                                                                                     independent_row_col=0,
-            #                                                                                     random_state=self.random_state)
+        self.n_samples, _ = X_train.shape
 
-            print(f'random_state: {self.random_state}')
-            np.random.seed(self.random_state)  # don't remove
-            N, D = X_train.shape
-
-            independent_row_col = 0
-            if independent_row_col:
-                # # indRow and indCol are independent each other
-                # indRow = np.random.randint(N, size=n)
-                # indCol = np.random.randint(N, size=m)
-
-                indRow = resample(range(N), n_samples=n, random_state=self.random_state,
-                                  replace=False)
-                indCol = resample(range(N), n_samples=m, random_state=self.random_state,
-                                  replace=False)
-
-            else:
-                # Random select max(n,m) rows
-                # indices = np.random.randint(N, size=max(n, m))
-                indices = resample(range(N), n_samples=max(n, m), random_state=self.random_state,
-                                   replace=False)
-                # In indRow and indCol, one includes another
-                indRow = indices[0:n]
-                indCol = indices[0:m]
-
-            Xrow = X_train[indRow, :]  # nxD
-            Xcol = X_train[indCol, :]  # mXD
-
-            # compute Gaussian kernel gram matrix A (i.e., K generated from a subset of X)
-            # print(Xrow, Xcol)
-            A = getGaussianGram(Xrow, Xcol, sigma)  # nXm
-            # print(A)
-            self.uncenter_A = A
-
-            centering = 1
-            if centering:
-                # subtract the mean of col from each element in a col
-                A = A - np.mean(A, axis=0)
-
-            # Projection matrix: ZK (nXd = nXm * mXd) # matrix product : Gaussian sketching
-            # U = np.dot(A, np.random.multivariate_normal([0] * d, np.diag([1] * d), m))
-            random_matrix = np.random.multivariate_normal([0] * d, np.diag([1] * d), m)
-            U = np.matmul(A, random_matrix)  # preferred for matrix multiplication
-            print("Finished getting the projection matrix")
-
-            # # Obtain gram between full data and Xrow (Nxn)
-            # K = getGaussianGram(X_train, Xrow, sigma)
-            #
-            # # projected data (Nxd = NXn * nXd)
-            # KU = np.matmul(K, U)  # preferred for matrix multiplication
-            # X_train = KU
-            # print("Projected data")
-
-            self.A = A
-            self.U = U
-            self.Xrow = Xrow
-            self.random_matrix = random_matrix
-            self.sigma_kjl = sigma
-
-            if self.debug: data_info(X_train, name='after KJL, X_train')
-
-            end = datetime.now()
-            kjl_train_time = (end - start).total_seconds()
-            print("Fitting kjl_inst on train set took {} seconds".format(kjl_train_time))
-
+        if hasattr(self, 'sigma') and self.sigma:
+            sigma = self.sigma
         else:
-            kjl_train_time = 0
+            # compute sigma
+            dists = pairwise_distances(X_train)
+            sigma = np.quantile(dists, q)
+            if sigma == 0:
+                print(f'sigma:{sigma}, and use 1e-7 for the latter experiment.')
+                sigma = 1e-7
+        mprint(f'sigma: {sigma}, q_kjl: {q}, n_kjl: {n}, d_kjl: {d}, random_state: {self.random_state}',
+               self.verbose, DEBUG)
 
-        self.kjl_train_time = kjl_train_time
+        #####################################################################################################
+        # Step 2. Get Xrow according to n
+        n = n or max([200, int(round(X_train.shape[0] / 100, 0))])  # n_v: rows; m_v: cols. 200, 100?
+        m = n
+        np.random.seed(self.random_state)  # to get the fixed random_matrix (R)
+        N, D = X_train.shape
+        independent_row_col = 0
+        if independent_row_col:
+            # # indRow and indCol are independent each other
+            # indRow = np.random.randint(N, size=n)
+            # indCol = np.random.randint(N, size=m)
+            indRow = resample(range(N), n_samples=n, random_state=self.random_state, stratify=y_train,
+            replace = False)
+            indCol = resample(range(N), n_samples=m, random_state=self.random_state, stratify=y_train,
+                              replace=False)
+        else:
+            # Random select max(n,m) rows
+            # indices = np.random.randint(N, size=max(n, m))
+            indices = resample(range(N), n_samples=max(n, m), random_state=self.random_state, stratify=y_train,
+                               replace=False)
+            # In indRow and indCol, one includes another
+            indRow = indices[0:n]
+            indCol = indices[0:m]
+        mprint(f"y_train: {Counter(y_train)}, y_row: {Counter(y_train[indRow])}",
+               self.verbose, DEBUG)
+        Xrow = X_train[indRow, :]  # nxD
+        Xcol = X_train[indCol, :]  # mXD
 
+        #####################################################################################################
+        # Step 3. Get U according to Xrow
+        # compute Gaussian kernel gram matrix A (i.e., K generated from a subset of X)
+        A = getGaussianGram(Xrow, Xcol, sigma)  # nXm
+        self.uncenter_A = A
+
+        centering = 1
+        if centering:
+            # subtract the mean of col from each element in a col
+            A = A - np.mean(A, axis=0)
+
+        # Projection matrix: ZK (nXd = nXm * mXd) # matrix product : Gaussian sketching
+        # U = np.dot(A, np.random.multivariate_normal([0] * d, np.diag([1] * d), m))
+        self.random_matrix = np.random.multivariate_normal([0] * d, np.diag([1] * d), m)
+        self.U = np.matmul(A, self.random_matrix)  # preferred for matrix multiplication
+        # print("Finished getting the projection matrix")
+        self.A = A
+        self.Xrow = Xrow
+        self.sigma_kjl = sigma
+
+        if self.verbose >= DEBUG: data_info(X_train, name='after KJL, X_train')
 
         return self
 
@@ -270,95 +237,56 @@ class KJL():
             "d" is the lower space dimension
 
         """
-        # if self.kjl_params['kjl']:
-        #     # # for debug
-        #     if self.debug:
-        #         data_info(X, name='X_test_std')
-        #         _qs = [0, 0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1]
-        #         _sigmas = np.quantile(pairwise_distances(X), _qs)
-        #         print(f'test set\' sigmas with qs: {list(zip(_sigmas, _qs))}')
-        #
-        #     start = datetime.now()
-        #     print("Projecting test data")
-        #     K = getGaussianGram(X, self.Xrow, self.sigma_kjl)  # get kernel matrix using rbf
-        #     X = np.matmul(K, self.U)
-        #     if self.verbose > 5: print(K, K.shape, self.U, self.U.shape, X)
-        #     if self.debug: data_info(X, name='after KJL, X')
-        #     end = datetime.now()
-        #     kjl_test_time = (end - start).total_seconds()
-        #     print("kjl on test set took {} seconds".format(kjl_test_time))
-        #
-        # else:
-        #     kjl_test_time = 0
-        #
-        # self.kjl_test_time = kjl_test_time
-
         K = getGaussianGram(X, self.Xrow, self.sigma_kjl)  # get kernel matrix using rbf
-        X = np.matmul(K, self.U)
+        X = np.matmul(K, self.U)  # K@U
 
         return X
 
-    def update(self, x):
+    def update(self, X):
 
-        # return x
+        self.fixed_U_size = False
+        if self.fixed_U_size:  # U: nxn
+            # Get t first
+            n_new, _ = X.shape
+            ratio = n_new / (self.n_samples + n_new)
+            t = int(round(ratio * self.params.n_kjl, 0))
+            X = sklearn.utils.shuffle(X, random_state=self.random_state)
+            X = X[:t, :]  # random select t rows
+            self.t = t
+            mprint(f't: {self.t}, ratio: {ratio}, n: {self.params.n_kjl}, n_samples: {self.n_samples}', self.verbose, DEBUG)
 
-        if x.shape[0] <= 10:
-            t = x.shape[0]
-        else:  # m > 10
-            t = 1
-            x = sklearn.utils.shuffle(x, random_state=self.random_state)
-            x = x[:t, :]  # random select t rows
-        self.t = t
-
-        self.fixed_U = True
-        if self.fixed_U:  # U: nxn
-            # (what about self.sigma_kjl? (should we update it? ))
-            #
-            # self.Xrow = sklearn.utils.shuffle(self.Xrow, random_state = self.random_state)
             if self.i + t > self.Xrow.shape[0]:
                 d = self.Xrow.shape[0] - self.i
-                self.Xrow[self.i: d, :] = x[:d, :]
-                self.i = t-d
-                self.Xrow[0:self.i, :] = x[d:, :]
+                self.Xrow[self.i: d, :] = X[:d, :]
+                self.i = t - d
+                self.Xrow[0:self.i, :] = X[d:, :]
             else:
-                self.Xrow[self.i: self.i + t, :] = x
+                self.Xrow[self.i: self.i + t, :] = X
                 self.i += t
             self.A = getGaussianGram(self.Xrow, self.Xrow, self.sigma_kjl)
-            # A1 = getGaussianGram(self.Xrow[:-t, :], x, self.sigma_kjl)   # A1: (n-t) x t
-            # self.uncenter_A[:-t, -t:] = A1   # (n-t) x t
-            # self.uncenter_A[-t:, :-t] = A1.T # t x (n-t)
-            # A2 = getGaussianGram(x, x, self.sigma_kjl)  # kernel(x, x) = txt
-            # self.uncenter_A[-t:, -t:] = A2  # t*n
-            #
-            # self.A = self.uncenter_A
 
             centering = True
             if centering:
                 # subtract the mean of col from each element in a col
                 self.A = self.A - np.mean(self.A, axis=0)
-            #
-            # self.Xrow[-t:] = x  # replace the last t rows.
+
             self.U = np.matmul(self.A, self.random_matrix)  # preferred for matrix multiplication
 
-
-            # self.Xrow[-t:] = x  # replace the last t rows.
-            # self.A = getGaussianGram(self.Xrow, self.Xrow, self.sigma_kjl)  # kernel(x, x) = txt
-            # centering = True
-            # if centering:
-            #     # subtract the mean of col from each element in a col
-            #     self.A = self.A - np.mean(self.A, axis=0)
-            #
-            # self.U = np.matmul(self.A, self.random_matrix)  # preferred for matrix multiplication
-
-        else:  # the size of U : n <- n+10
+        else:  # increased U : n <- n+10
+            # Get t first
+            n_new, _ = X.shape
+            t = int(round(self.params.ratio_kjl * n_new, 0))
+            X = sklearn.utils.shuffle(X, random_state=self.random_state)
+            X = X[:t, :]  # random select t rows
+            self.t = t
+            mprint(f't: {self.t}', self.verbose, DEBUG)
 
             # # only one column and one row will change comparing with the previous one, so we need to optimize it.
-            A1 = getGaussianGram(self.Xrow, x, self.sigma_kjl)     # n x t
-            A = np.concatenate([self.uncenter_A, A1], axis=1)       # A: nxn, A1 nxt => nx(n+t)
-            A2 = getGaussianGram(x, x, self.sigma_kjl)  # kernel(x, x) = t x t  # A2: txt
+            A1 = getGaussianGram(self.Xrow, X, self.sigma_kjl)  # n x t
+            A = np.concatenate([self.uncenter_A, A1], axis=1)  # A: nxn, A1 nxt => nx(n+t)
+            A2 = getGaussianGram(X, X, self.sigma_kjl)  # kernel(x, x) = t x t  # A2: txt
             A1 = np.concatenate([A1.T, A2], axis=1)  # A1: tx(t+n)
             self.A = np.concatenate([A, A1], axis=0)  # (n+t)x(n+t)
-
             self.uncenter_A = self.A
 
             centering = True
@@ -366,27 +294,12 @@ class KJL():
                 # subtract the mean of col from each element in a col
                 self.A = self.A - np.mean(self.A, axis=0)
 
-            self.Xrow = np.concatenate([self.Xrow, x], axis=0)
-            d = self.kjl_params['kjl_d']
-            n = self.Xrow.shape[0]  # n <= n+1
-
-            # Todo: modify this part
-            # random_matrix = np.random.multivariate_normal([0] * d, np.diag([1] * d), m)   # mxd
+            self.Xrow = np.concatenate([self.Xrow, X], axis=0)
+            d = self.params.d_kjl
+            # update random_matrix
+            # np.random.seed(self.random_state)  # there is no need to fixed the new_random_matrix (R)
             M1 = np.random.multivariate_normal([0] * d, np.diag([1] * d), t)  # means, cov, size : nxt
             # print(f'M1: {M1}')
-            self.new_random_matrix = np.concatenate([self.random_matrix, M1], axis=0)   # (n+t)xd
-
-
-            # # preferred for matrix multiplication
-            # U11 = self.A@self.random_matrix + A1@M1.T
-            # U12 = self.A@M1 + self.A1@M2
-            # U21 = A1.T@self.random_matrix + A2@M1.T
-            # U22 = A1.T@M1 + A2@M2
-            #
-            # self.U = np.concatenate([U11, U12], axis=1)
-            # U2 = np.concatenate([U21, U22], axis=1)
-            # self.U = np.concatenate([self.U, U2], axis=0)
-
+            self.new_random_matrix = np.concatenate([self.random_matrix, M1], axis=0)  # (n+t)xd
             self.random_matrix = self.new_random_matrix
-
             self.U = np.matmul(self.A, self.random_matrix)

@@ -26,7 +26,7 @@ from kjl.model.online_gmm import ONLINE_GMM, quickshift_seek_modes, meanshift_se
 from kjl.model.standardization import STD
 
 from kjl.utils.data import split_train_test, load_data, extract_data, dump_data, save_result, batch, data_info
-from kjl.utils.tool import execute_time, func_running_time
+from kjl.utils.tool import execute_time, time_func
 from fractions import Fraction
 from collections import Counter
 from report import plot_result
@@ -141,9 +141,9 @@ class BASE_MODEL():
         # Step 1: Preprocessing the data, which includes standarization, mode seeking, and kernel projection.
         # Step 1.1: Standardize the data first
         self.std_inst = STD()
-        _, std_train_time = func_running_time(self.std_inst.fit, X_train)
+        _, std_train_time = time_func(self.std_inst.fit, X_train)
         self.train_time += std_train_time
-        X_train, std_train_time = func_running_time(self.std_inst.transform, X_train)
+        X_train, std_train_time = time_func(self.std_inst.transform, X_train)
         self.train_time += std_train_time
 
         # # Step 1.2: Seek modes of the data by quickshift++ or meanshift
@@ -167,7 +167,7 @@ class BASE_MODEL():
         proj_train_time = 0.0
         if 'kjl' in self.params.keys() and self.params['kjl']:
             self.kjl_inst = KJL(self.params)
-            _, kjl_train_time = func_running_time(self.kjl_inst.fit, X_train)
+            _, kjl_train_time = time_func(self.kjl_inst.fit, X_train)
             proj_train_time += kjl_train_time
             X_train, kjl_train_time = func_running_time(self.kjl_inst.transform, X_train)
             proj_train_time += kjl_train_time
@@ -411,10 +411,10 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         # data_info(X_batch_proj, name='after updating X_proj')
         if not self.params['kjl']:
             self.params['incorporated_points'] = 0
-            self.params['fixed_U'] = False
+            self.params['fixed_U_size'] = False
         else:
             self.params['incorporated_points'] = self.kjl_inst.t
-            self.params['fixed_U'] = self.kjl_inst.fixed_U
+            self.params['fixed_U_size'] = self.kjl_inst.fixed_U_size
 
         # self.abnormal_thres = np.infty  # for debug
 

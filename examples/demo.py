@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn.base import BaseEstimator
 
 
 def op_demo():
@@ -18,6 +19,36 @@ def op_demo():
     d = a * b.T
     print(f'd:', d)
 
+import logging
+from logging import getLogger
+
+lg = getLogger(name='mylog')
+lg.setLevel(level=logging.INFO)
+
+lg.info('afadfasf')
+lg.debug('afadfasf')
+lg.warning('afadfasf')
+lg.error('afadfasf')
+
+class MYCLASSIFIER(BaseEstimator):
+    print(type(BaseEstimator))
+    a = 10
+
+    def __init__(self, a=1, b=2, c = ''):
+        print(type(self))
+        self.a = a
+        self.b = b
+        self.c1 =c
+
+    def fit(self):
+        pass
+
+
+def estimator_demo():
+    cf = MYCLASSIFIER()
+    cf.fit()
+
 
 if __name__ == '__main__':
-    op_demo()
+    # op_demo()
+    estimator_demo()
