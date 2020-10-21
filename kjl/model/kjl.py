@@ -20,7 +20,7 @@ from datetime import datetime
 # set some stuffs
 from sklearn.utils import resample
 
-from config import DEBUG
+from config import DEBUG, INFO, WARNING
 from kjl.utils.data import data_info
 from kjl.utils.tool import mprint
 
@@ -140,7 +140,7 @@ class KJL():
         self.t = 1
         self.fixed_U_size = True
 
-    def fit(self, X_train, y_train=None):
+    def fit(self, X_train, y_train=None, X_train_raw=None, y_train_raw=None):
         """Get KJL related data, such as, U, X_row, random matrix, and A
 
         Parameters
@@ -206,7 +206,7 @@ class KJL():
         A = getGaussianGram(Xrow, Xcol, sigma)  # nXm
         self.uncenter_A = A
 
-        centering = 1
+        centering = True
         if centering:
             # subtract the mean of col from each element in a col
             A = A - np.mean(A, axis=0)
@@ -219,8 +219,8 @@ class KJL():
         self.A = A
         self.Xrow = Xrow
         self.sigma_kjl = sigma
-
-        if self.verbose >= DEBUG: data_info(X_train, name='after KJL, X_train')
+        self.Xrow_raw = X_train_raw[indRow]
+        self.yrow_raw = y_train_raw[indRow]
 
         return self
 
@@ -242,27 +242,58 @@ class KJL():
 
         return X
 
-    def update(self, X):
+    def update(self, X, y, X_raw, y_raw, std_inst):
+        """
 
-        self.fixed_U_size = False
+        Parameters
+        ----------
+        X_raw: unstd
+        std_inst
+
+        Returns
+        -------
+
+        """
+        # return 0
+        self.fixed_U_size = True
+        # X_raw =X
         if self.fixed_U_size:  # U: nxn
             # Get t first
-            n_new, _ = X.shape
+            n_new, _ = X_raw.shape
             ratio = n_new / (self.n_samples + n_new)
             t = int(round(ratio * self.params.n_kjl, 0))
-            X = sklearn.utils.shuffle(X, random_state=self.random_state)
-            X = X[:t, :]  # random select t rows
+            t = 1 if t <1 else t
+            X_raw, y_raw = sklearn.utils.shuffle(X_raw, y_raw, random_state=self.random_state)
+            X_raw = X_raw[:t, :]  # random select t rows
+            y_raw = y_raw[:t]
             self.t = t
-            mprint(f't: {self.t}, ratio: {ratio}, n: {self.params.n_kjl}, n_samples: {self.n_samples}', self.verbose, DEBUG)
+            mprint(f't: {self.t}, ratio: {ratio}, n: {self.params.n_kjl}, n_samples: {self.n_samples}, y_raw: {Counter(y_raw)}', self.verbose, INFO)
+            mprint(f"before updating, y_row: {Counter(self.yrow_raw)}", self.verbose, INFO)
+            # if self.i + t >= self.Xrow_raw.shape[0]:
+            #     d = self.Xrow_raw.shape[0] - self.i
+            #     self.Xrow_raw[self.i: self.params.n_kjl, :] = X_raw[:d, :]
+            #     self.yrow_raw[self.i: self.params.n_kjl] = y_raw[:d]
+            #     self.i = t - d
+            #     self.Xrow_raw[0:self.i, :] = X_raw[d:, :]
+            #     self.yrow_raw[0:self.i] = y_raw[d:]
+            # else:
+            #     self.Xrow_raw[self.i: self.i + t, :] = X_raw
+            #     self.yrow_raw[self.i: self.i + t] = y_raw
+            #     self.i += t
+            print(f'self.kjl.i: {self.i}')
 
-            if self.i + t > self.Xrow.shape[0]:
-                d = self.Xrow.shape[0] - self.i
-                self.Xrow[self.i: d, :] = X[:d, :]
-                self.i = t - d
-                self.Xrow[0:self.i, :] = X[d:, :]
+            idxs = sklearn.utils.resample(range(self.params.n_kjl), n_samples= t, random_state=self.random_state*self.i)
+            print(f'idxs: {idxs}')
+            self.i = (self.i+t) %  self.params.n_kjl
+            for _i, _x, _y in zip(idxs, X_raw, y_raw):
+                self.Xrow_raw[_i] = _x
+                self.yrow_raw[_i] = _y
+
+            if std_inst is None:
+                self.Xrow = self.Xrow_raw
             else:
-                self.Xrow[self.i: self.i + t, :] = X
-                self.i += t
+                self.Xrow = std_inst.transform(self.Xrow_raw)
+            self.Xrow = sklearn.utils.shuffle(self.Xrow, random_state=self.random_state)
             self.A = getGaussianGram(self.Xrow, self.Xrow, self.sigma_kjl)
 
             centering = True
@@ -271,17 +302,23 @@ class KJL():
                 self.A = self.A - np.mean(self.A, axis=0)
 
             self.U = np.matmul(self.A, self.random_matrix)  # preferred for matrix multiplication
-
+            mprint(f"after updating, y_row: {Counter(self.yrow_raw)}", self.verbose, DEBUG)
         else:  # increased U : n <- n+10
             # Get t first
-            n_new, _ = X.shape
+            n_new, _ = X_raw.shape
             t = int(round(self.params.ratio_kjl * n_new, 0))
-            X = sklearn.utils.shuffle(X, random_state=self.random_state)
-            X = X[:t, :]  # random select t rows
+            X_raw = sklearn.utils.shuffle(X_raw, random_state=self.random_state)
+            X_raw = X_raw[:t, :]  # random select t rows
             self.t = t
             mprint(f't: {self.t}', self.verbose, DEBUG)
 
             # # only one column and one row will change comparing with the previous one, so we need to optimize it.
+            if std_inst is None:
+                self.Xrow = self.Xrow_raw
+                X= X_raw
+            else:
+                self.Xrow = std_inst.transform(self.Xrow_raw)
+                X = std_inst.transform(X_raw)
             A1 = getGaussianGram(self.Xrow, X, self.sigma_kjl)  # n x t
             A = np.concatenate([self.uncenter_A, A1], axis=1)  # A: nxn, A1 nxt => nx(n+t)
             A2 = getGaussianGram(X, X, self.sigma_kjl)  # kernel(x, x) = t x t  # A2: txt
@@ -294,7 +331,8 @@ class KJL():
                 # subtract the mean of col from each element in a col
                 self.A = self.A - np.mean(self.A, axis=0)
 
-            self.Xrow = np.concatenate([self.Xrow, X], axis=0)
+            # self.Xrow = np.concatenate([self.Xrow, X], axis=0)
+            self.Xrow_raw = np.concatenate([self.Xrow_raw, X_raw], axis=0)
             d = self.params.d_kjl
             # update random_matrix
             # np.random.seed(self.random_state)  # there is no need to fixed the new_random_matrix (R)

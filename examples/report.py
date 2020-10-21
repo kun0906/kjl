@@ -1,12 +1,16 @@
+import os
+
+from pdf2image import convert_from_bytes
+
 from kjl.utils.tool import load_data
 import numpy as np
 import matplotlib.pyplot as plt
 plt.ioff()
 import matplotlib as mpl
 from matplotlib import rcParams
-print(mpl.is_interactive())
+# print(mpl.is_interactive())
 import time
-
+import pandas as pd
 
 def plot_individul_result(result, out_file, fixed_U_size=None, n_point=None):
 
@@ -330,7 +334,7 @@ def get_average(_result):
     # # train_times_arr = np.asarray(train_times_arr)
     # # test_times_arr = np.asarray(test_times_arr)
     train_times_dict = {}
-    for (k, v) in best_results['train_times'][0].items():
+    for (k, v) in best_results['train_times'][0].items():   # {}
         tmp = []
         for best_res in train_times_arr:
             tmp.append(np.asarray([_v[k] for _v in best_res]))
@@ -364,6 +368,12 @@ def get_average(_result):
     # abnormal_threses = np.mean(abnormal_threses_arr, axis=0)
     # abnormal_threses_std = np.std(abnormal_threses_arr, axis=0)
 
+    # average_result = {'train_times': train_times_dict['preprocessing_time'], 'test_times': test_times_dict['preprocessing_time'],
+    #                   'aucs': (aucs, aucs_std), 'n_components': (n_components, n_components_std)}
+    # average_result = {'train_times': train_times_dict['model_fitting_time'], 'test_times': test_times_dict['prediction_time'],
+    #                   'aucs': (aucs, aucs_std), 'n_components': (n_components, n_components_std)}
+    # average_result = {'train_times': train_times_dict['rescore_time'], 'test_times': test_times_dict['auc_time'],
+    #                   'aucs': (aucs, aucs_std), 'n_components': (n_components, n_components_std)}
     average_result = {'train_times': train_times_dict['train_time'], 'test_times': test_times_dict['test_time'],
                       'aucs': (aucs, aucs_std), 'n_components': (n_components, n_components_std)}
 
@@ -392,6 +402,7 @@ def plot_each_result(results, k_dataset=(), out_file=''):
         if 'online:False' in param_str:
             result_batch_GMM = get_average(_result)
         elif 'online:True' in param_str:
+            # result_batch_GMM = get_average(_result)
             result_online_GMM = get_average(_result)
             experiment_case = param_str
             params = _result[0][0]['params']    # _result[n_repeats] = {best_results, middle_result}
@@ -418,6 +429,7 @@ def plot_each_result(results, k_dataset=(), out_file=''):
     q_kjl = params.q_kjl
     n_kjl = params.n_kjl
     d_kjl = params.d_kjl
+    std = params.std
     kjl = params.kjl
     n_repeats = params.n_repeats
     dataset_name, data_file = k_dataset
@@ -436,7 +448,7 @@ def plot_each_result(results, k_dataset=(), out_file=''):
     #     title = f'online GMM on {dataset_name}\n({title})' if online else f'Batch GMM on {dataset_name}\n({title})'
 
     if kjl:
-        title = f'n_components={n_components_init}, {covariance_type}; KJL={kjl}, n={n_kjl}, d={d_kjl}, q={q_kjl}; n_repeats={n_repeats}'
+        title = f'n_comp={n_components_init}, {covariance_type}; std={std}; KJL={kjl}, n={n_kjl}, d={d_kjl}, q={q_kjl}; n_repeats={n_repeats}'
         if fixed_kjl:
             title = f'Batch GMM vs. Online GMM with fixed KJL on {dataset_name}\n{title}'
         elif fixed_U_size:
@@ -699,6 +711,77 @@ def plot_result(result, out_file, fixed_U_size=None, n_point=None):
         # sns.reset_defaults()
         # rcParams.update({'figure.autolayout': True})
 
+def write_imgs2excel(worksheet, img_pth, position):
+    """
+    https://stackoverflow.com/questions/51601031/python-writing-images-and-dataframes-to-the-same-excel-file/51608720
+    Parameters
+    ----------
+    worksheet
+    img_pth
+    position
+
+    Returns
+    -------
+
+    """
+    # Insert an image.
+    # worksheet.insert_image('D3', 'logo.png')
+    worksheet.insert_image(position, img_pth)
+
+
+def imgs2xls(xls_pth, img_lst = []):
+    """
+    https://stackoverflow.com/questions/33672833/set-width-and-height-of-an-image-when-inserting-via-worksheet-insert-image
+    Parameters
+    ----------
+    xls_pth
+    img_lst
+
+    Returns
+    -------
+
+    """
+    # Create a Pandas dataframe from some data.
+    df = pd.DataFrame({'Data': [10, 20, 30, 20, 15, 30, 45]})
+
+    # Create a Pandas Excel writer using XlsxWriter as the engine.
+    writer = pd.ExcelWriter(xls_pth, engine='xlsxwriter')
+
+    # Convert the dataframe to an XlsxWriter Excel object.
+    df.to_excel(writer, sheet_name='Sheet1')
+
+    # Get the xlsxwriter workbook and worksheet objects.
+    workbook = writer.book
+    worksheet = writer.sheets['Sheet1']
+
+
+
+    # Insert an image.
+    for i, img in enumerate(img_lst):
+        # worksheet.insert_image('D3', 'logo.png')
+        print(i, img)
+
+        from PIL import Image
+
+        im = Image.open(img)
+        image_width, image_height = im.size
+
+        # image_width = 140.0
+        # image_height = 182.0
+
+        cell_width = 200.0
+        cell_height = 200.0
+
+        x_scale = cell_width / image_width
+        y_scale = cell_height / image_height
+
+        worksheet.insert_image(i+2, 3, img, {'x_scale': x_scale, 'y_scale': y_scale})
+        worksheet.set_column(1, 10, width=cell_width/5)
+        worksheet.set_row(i+2, height=cell_height)
+
+    # Close the Pandas Excel writer and output the Excel file.
+    writer.save()
+
 
 def main(online=True):
     # out_dir = 'out/data/data_reprst/pcaps/mimic_GMM_dataset'
@@ -715,6 +798,34 @@ def main(online=True):
     plot_each_result(results, k_dataset=('mimic_GMM', 'path'), out_file=out_file)
     print("\n\n---finish succeeded!")
 
+def _pdf2img(pdf_pth, img_pth):
+    print(pdf_pth, os.path.exists(pdf_pth))
+    """
+    install pdf2image, poppler
+    https://github.com/Belval/pdf2image
+    https://stackoverflow.com/questions/54990306/how-to-write-pandas-dataframe-and-insert-image-or-chart-into-the-same-excel-wor
+    """
+    # from pdf2image import convert_from_path
+    # pages = convert_from_path(pdf_pth, 500)
+    pages = convert_from_bytes(open(pdf_pth, 'rb').read())
+    for page in pages:
+        page.save(img_pth, 'JPEG')
+        break
+    return img_pth
+
+def main2():
+    in_dir = 'out/data/feats/'
+    img_lst = [f'{in_dir}CTU1_FRIG1/Xy-normal-abnormal.dat-case0-ratio_0.5.dat.pdf',
+               f'{in_dir}CTU1_FRIG1/Xy-normal-abnormal.dat-case0-ratio_0.8.dat.pdf',
+               f'{in_dir}CTU1_FRIG1/Xy-normal-abnormal.dat-case0-ratio_0.9.dat.pdf',
+               f'{in_dir}CTU1_FRIG1/Xy-normal-abnormal.dat-case0-ratio_0.95.dat.pdf',
+               f'{in_dir}CTU1_FRIG1/Xy-normal-abnormal.dat-case0-ratio_1.0.dat.pdf']
+
+
+    img_lst = [_pdf2img(v, v+'.jpg') for v in img_lst]
+    imgs2xls('out/imgs.xlsx', img_lst)
+
 if __name__ == '__main__':
 
-    main(online=False)
+    # main(online=False)
+    main2()

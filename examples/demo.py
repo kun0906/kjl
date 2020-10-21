@@ -1,5 +1,10 @@
+import datetime
+
 import numpy as np
+from odet.pparser.parser import PCAP, _get_flow_duration, _get_frame_time
 from sklearn.base import BaseEstimator
+
+from kjl.utils.data import dump_data, load_data, data_info
 
 
 def op_demo():
@@ -49,6 +54,23 @@ def estimator_demo():
     cf.fit()
 
 
+def pcap2time():
+
+    pcap_file = '../../IoT_feature_sets_comparison_20190822/examples/data/data_reprst/pcaps/DEMO_IDS' \
+                '/DS-srcIP_192.168.10.5/AGMT-WorkingHours/srcIP_192.168.10.5_AGMT.pcap'
+    pp=PCAP(pcap_file)
+    pp.pcap2flows()
+    out_file = pp.pcap_file + '.dat'
+    data_info(np.asarray([_get_flow_duration(pkts) for fid, pkts in pp.flows]).reshape(-1, 1), name=f'durations before')
+    dump_data(pp.flows, out_file)
+
+    flows = load_data(out_file)
+    for fid, pkts in flows:
+        print([str(datetime.datetime.fromtimestamp(_get_frame_time(pkt))) for pkt in pkts])
+    data_info(np.asarray([_get_flow_duration(pkts) for fid, pkts in flows]).reshape(-1, 1), name=f'durations')
+
+
 if __name__ == '__main__':
     # op_demo()
-    estimator_demo()
+    # estimator_demo()
+    pcap2time()

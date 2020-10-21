@@ -99,7 +99,7 @@ def data_info(data, name=''):
     dataset = pd.DataFrame(data=data, index=range(data.shape[0]), columns=columns)
     print(f'\n{name}.shape: {data.shape}')
     print(f'\n{dataset.describe()}')
-    print(dataset.info(verbose=True))
+    # print(dataset.info(verbose=True))
 
 
 def extract_data(normal_pth, abnormal_pth, meta_data={}):
@@ -312,7 +312,7 @@ def save_result(result, out_file):
             f.write('\n')
 
 
-def batch(X, y, *, step=1, stratify=True):
+def batch(X, y, *, step=1, stratify=False):
     if stratify:
         # keep that each batch has the same ratio of different labels
         # https://stackoverflow.com/questions/36997619/sklearn-stratified-sampling-based-on-a-column

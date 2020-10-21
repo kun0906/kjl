@@ -38,7 +38,7 @@ class ONLINE_GMM(GaussianMixture):
         super().__init__(
             n_components=n_components, tol=tol, reg_covar=reg_covar,
             max_iter=max_iter, n_init=n_init, init_params=init_params,
-            random_state=random_state, warm_start=warm_start,
+            random_state=random_state, warm_start=warm_start, precisions_init=precisions_init,
             verbose=verbose, verbose_interval=verbose_interval)
 
         self.n_components = n_components
@@ -68,7 +68,7 @@ class ONLINE_GMM(GaussianMixture):
     def get_params(self, deep=True):
         return self.__dict__
 
-    def _initialize(self):
+    def _initialize1(self):
 
         # n_samples, _ = X.shape
         # weights, means, covariances = _estimate_gaussian_parameters(
@@ -94,6 +94,31 @@ class ONLINE_GMM(GaussianMixture):
         else:
             self.precisions_cholesky_ = self.precisions_init
 
+    # def _initialize_parameters(self, X, random_state):
+    #     """Initialize the model parameters.
+    #
+    #     Parameters
+    #     ----------
+    #     X : array-like, shape  (n_samples, n_features)
+    #
+    #     random_state : RandomState
+    #         A random number generator instance.
+    #     """
+    #     n_samples, _ = X.shape
+    #
+    #     if self.init_params == 'kmeans':
+    #         resp = np.zeros((n_samples, self.n_components))
+    #         label = sklearn.cluster.KMeans(n_clusters=self.n_components, n_init=1,
+    #                                        random_state=random_state).fit(X).labels_
+    #         resp[np.arange(n_samples), label] = 1
+    #     elif self.init_params == 'random':
+    #         resp = random_state.rand(n_samples, self.n_components)
+    #         resp /= resp.sum(axis=1)[:, np.newaxis]
+    #     else:
+    #         raise ValueError("Unimplemented initialization method '%s'"
+    #                          % self.init_params)
+    #
+    #     self._initialize(X, resp)
 
     def _e_step(self, X):
         """E step.

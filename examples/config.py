@@ -14,4 +14,4 @@ INFO = 10  # print the basic information
 DEBUG = 15  # print everything
 
 # Set the print level
-VERBOSE = DEBUG
+VERBOSE = INFO

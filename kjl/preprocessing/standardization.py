@@ -74,6 +74,7 @@ def online_update_mean_variance(x, n, mu, sigma):
     # *: element product
     C = np.sum((x - new_mu[np.newaxis, :]) * (x - mu[np.newaxis, :]), axis=0)
     new_sigma = np.sqrt((sigma ** 2 * (n - 1) + C) / (n + m - 1))
-    print(new_mu, new_sigma)
+    # print(f'mu: {mu}, sigma: {sigma}')
+    # print(f'new_mu: {new_mu}, new_sigma: {new_sigma}')
 
     return new_mu, new_sigma
