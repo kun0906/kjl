@@ -285,6 +285,7 @@ class KJL():
             idxs = sklearn.utils.resample(range(self.params.n_kjl), n_samples= t, random_state=self.random_state*self.i)
             print(f'idxs: {idxs}')
             self.i = (self.i+t) %  self.params.n_kjl
+
             for _i, _x, _y in zip(idxs, X_raw, y_raw):
                 self.Xrow_raw[_i] = _x
                 self.yrow_raw[_i] = _y
@@ -293,8 +294,17 @@ class KJL():
                 self.Xrow = self.Xrow_raw
             else:
                 self.Xrow = std_inst.transform(self.Xrow_raw)
-            self.Xrow = sklearn.utils.shuffle(self.Xrow, random_state=self.random_state)
+
             self.A = getGaussianGram(self.Xrow, self.Xrow, self.sigma_kjl)
+
+            # A1 = getGaussianGram(self.Xrow, x, self.sigma_kjl)  # nxt
+            # self.A[:, -t:] = A1
+            # A2 = getGaussianGram(x, x, self.sigma_kjl)  # kernel(x, x) = txt
+            # A1[-t:, -t:] = A2  # t*n
+            # self.A[-t:] = A1.T  # n*n
+
+            # self.Xrow = sklearn.utils.shuffle(self.Xrow, random_state=self.random_state)
+
 
             centering = True
             if centering:

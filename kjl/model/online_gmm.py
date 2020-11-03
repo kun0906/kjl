@@ -10,6 +10,7 @@ from collections import Counter
 
 import sklearn
 from scipy import linalg
+from sklearn import cluster
 from sklearn.base import BaseEstimator
 from sklearn.cluster import MeanShift
 from sklearn.metrics import pairwise_distances
@@ -94,31 +95,31 @@ class ONLINE_GMM(GaussianMixture):
         else:
             self.precisions_cholesky_ = self.precisions_init
 
-    # def _initialize_parameters(self, X, random_state):
-    #     """Initialize the model parameters.
-    #
-    #     Parameters
-    #     ----------
-    #     X : array-like, shape  (n_samples, n_features)
-    #
-    #     random_state : RandomState
-    #         A random number generator instance.
-    #     """
-    #     n_samples, _ = X.shape
-    #
-    #     if self.init_params == 'kmeans':
-    #         resp = np.zeros((n_samples, self.n_components))
-    #         label = sklearn.cluster.KMeans(n_clusters=self.n_components, n_init=1,
-    #                                        random_state=random_state).fit(X).labels_
-    #         resp[np.arange(n_samples), label] = 1
-    #     elif self.init_params == 'random':
-    #         resp = random_state.rand(n_samples, self.n_components)
-    #         resp /= resp.sum(axis=1)[:, np.newaxis]
-    #     else:
-    #         raise ValueError("Unimplemented initialization method '%s'"
-    #                          % self.init_params)
-    #
-    #     self._initialize(X, resp)
+    def _initialize_parameters(self, X, random_state, init = None):
+        """Initialize the model parameters.
+
+        Parameters
+        ----------
+        X : array-like, shape  (n_samples, n_features)
+
+        random_state : RandomState
+            A random number generator instance.
+        """
+        n_samples, _ = X.shape
+
+        if self.init_params == 'kmeans':
+            resp = np.zeros((n_samples, self.n_components))
+            label = cluster.KMeans(n_clusters=self.n_components, init=init, n_init=1,
+                                           random_state=random_state).fit(X).labels_
+            resp[np.arange(n_samples), label] = 1
+        elif self.init_params == 'random':
+            resp = random_state.rand(n_samples, self.n_components)
+            resp /= resp.sum(axis=1)[:, np.newaxis]
+        else:
+            raise ValueError("Unimplemented initialization method '%s'"
+                             % self.init_params)
+
+        self._initialize(X, resp)
 
     def _e_step(self, X):
         """E step.

@@ -2,6 +2,8 @@ import os
 import os.path as pt
 import pickle
 import traceback
+
+import dill
 import pandas as pd
 import numpy as np
 from numpy import genfromtxt
@@ -164,7 +166,7 @@ def extract_data(normal_pth, abnormal_pth, meta_data={}):
     return normal_data, abnormal_data
 
 
-def dump_data(data, out_file='data.dat'):
+def dump_data(data, out_file='data.dat', dump_method='dill'):
     """
 
     Parameters
@@ -181,7 +183,11 @@ def dump_data(data, out_file='data.dat'):
         os.makedirs(out_dir)
 
     with open(out_file, 'wb') as f:
-        pickle.dump(data, f)
+        if dump_method =='dill':
+            # https://stackoverflow.com/questions/37906154/dill-vs-cpickle-speed-difference
+            dill.dump(data, f)
+        else:
+            pickle.dump(data, f)
 
 
 def _get_line(result_each, feat_set=''):
