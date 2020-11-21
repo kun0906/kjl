@@ -38,7 +38,7 @@ class UChicago(Base):
             self.labels.extend(_labels)
 
 
-def get_flows(in_dir, subdatasets, out_dir='examples/data/feats', verbose = 15):
+def get_flows(in_dir, subdatasets, out_dir='examples/data/feats', verbose = 15, overwrite=False):
     normal_files = []  # store normal flows
     abnormal_files = []  # store abnormal flows
 
@@ -46,25 +46,33 @@ def get_flows(in_dir, subdatasets, out_dir='examples/data/feats', verbose = 15):
         normal_dir, abnormal_dir = subdataset
         #########################################################################################################
         # get normal flows
-        uc = UChicago()
-        # normal_dir = 'DS60_UChi_IoT/iotlab_open_shut_fridge_192.168.143.43/idle'
-        pcap_files = uc.get_path(os.path.join(in_dir, normal_dir))
-        labels = [f'normal' for v in range(len(pcap_files))]
-        uc.get_flows(pcap_files, labels)
         out_file = os.path.join(out_dir, normal_dir, 'flows.dat')
-        dump_data((uc.flows, uc.labels), out_file)
+        if overwrite:
+            if os.path.exists(out_file): os.remove(out_file)
+        if not os.path.exists(out_file):
+            uc = UChicago()
+            # normal_dir = 'DS60_UChi_IoT/iotlab_open_shut_fridge_192.168.143.43/idle'
+            pcap_files = uc.get_path(os.path.join(in_dir, normal_dir))
+            labels = [f'normal' for v in range(len(pcap_files))]
+            uc.get_flows(pcap_files, labels)
+
+            dump_data((uc.flows, uc.labels), out_file)
         normal_files.append(out_file)
 
         #########################################################################################################
         # get abnormal flows
-        uc = UChicago()
-        # abnormal_dir = 'DS60_UChi_IoT/iotlab_open_shut_fridge_192.168.143.43/open_shut'
-        pcap_files = uc.get_path(os.path.join(in_dir, abnormal_dir))
-        labels = [f'abnormal' for v in range(len(pcap_files))]
-        uc.get_flows(pcap_files, labels)
-        out_file = os.path.join(out_dir, abnormal_dir, 'flows.dat')
-        dump_data((uc.flows, uc.labels), out_file)
-        abnormal_files.append(out_file)
+        if not (abnormal_dir is None):
+            out_file = os.path.join(out_dir, abnormal_dir, 'flows.dat')
+            if overwrite:
+                if os.path.exists(out_file): os.remove(out_file)
+            if not os.path.exists(out_file):
+                uc = UChicago()
+                # abnormal_dir = 'DS60_UChi_IoT/iotlab_open_shut_fridge_192.168.143.43/open_shut'
+                pcap_files = uc.get_path(os.path.join(in_dir, abnormal_dir))
+                labels = [f'abnormal' for v in range(len(pcap_files))]
+                uc.get_flows(pcap_files, labels)
+                dump_data((uc.flows, uc.labels), out_file)
+            abnormal_files.append(out_file)
 
     if verbose > 10:
         print(f'normal_files: {normal_files}')
@@ -77,13 +85,15 @@ def filter_ips(in_dir='', out_dir='', ips=[], direction='both', keep_original=Tr
     #########################################################################################################
     uc = UChicago()
     pcap_files = uc.get_path(in_dir)
-    for pcap in pcap_files:
+    for pcap_file in pcap_files:
         # https://stackoverflow.com/questions/1945920/why-doesnt-os-path-join-work-in-this-case
         # out_file = pth.join(out_dir, pcap.split(sep=in_dir)[-1]) # second_dir cannot start with '/'
-        out_file = out_dir + pcap.split(sep=in_dir)[-1] +  '_filtered.pcap'
-        if '_filtered' not in pcap:
-            uc.filter_ip(pcap, out_file, ips=ips, direction=direction, keep_original=keep_original)
-
+        old_pcap = pcap_file
+        pcap_file = pcap_file.replace('.pcap_filtered', '')
+        os.rename(old_pcap, pcap_file)
+        if '_filtered' not in pcap_file:
+            out_file = out_dir + pcap_file.split(sep=in_dir)[-1] + '_filtered.pcap'
+            uc.filter_ip(pcap_file, out_file, ips=ips, direction=direction, keep_original=keep_original)
 
     print('finished!')
 

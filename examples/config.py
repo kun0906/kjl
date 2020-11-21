@@ -4,7 +4,7 @@ Set global constants
 """
 ##########################################################################################################
 # Set random_state
-RANDOM_STATE = 42
+RANDOM_STATE = 42*2
 
 ##########################################################################################################
 # Define print level constants. The larger value, the more print info
@@ -14,4 +14,4 @@ INFO = 10  # print the basic information
 DEBUG = 15  # print everything
 
 # Set the print level
-VERBOSE = DEBUG
+VERBOSE = INFO

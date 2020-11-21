@@ -6,8 +6,8 @@ import numpy as np
 
 class STD():
 
-    def __init__(self):
-        pass
+    def __init__(self, with_means = True):
+        self.with_means = with_means
 
     def fit(self, X_train):
         """
@@ -22,7 +22,7 @@ class STD():
         """
         self.n_samples, self.n_feats = X_train.shape
 
-        self.scaler = StandardScaler()
+        self.scaler = StandardScaler(with_mean=self.with_means)
 
         self.scaler.fit(X_train)
 

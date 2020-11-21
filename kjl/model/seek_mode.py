@@ -105,7 +105,8 @@ class MODESEEKING():
 
 def meanshift_seek_modes(X, bandwidth=None, thres_n=100):
     start = datetime.now()
-    clustering = MeanShift(bandwidth).fit(X)
+    clustering = MeanShift().fit(X)
+    # clustering = MeanShift(bandwidth=bandwidth).fit(X)
     end = datetime.now()
     meanshift_training_time = (end - start).total_seconds()
     print("meanshift_training, it took {} seconds".format(meanshift_training_time))
@@ -126,7 +127,7 @@ def meanshift_seek_modes(X, bandwidth=None, thres_n=100):
 
     means_init = np.asarray(cluster_centers, dtype=float)
     n_clusters = means_init.shape[0]
-    print(f'--all clusters ({all_n_clusters}) when (bandwidth:{bandwidth}). However, only {n_clusters} '
+    print(f'--all clusters ({all_n_clusters}) when (bandwidth:{bandwidth}, {clustering.bandwidth}). However, only {n_clusters} '
           f'clusters have at least {thres_n} datapoints. Counter(labels_): {Counter(all_labels_)}, *** '
           f'len(Counter(labels_)): {all_n_clusters}')
 

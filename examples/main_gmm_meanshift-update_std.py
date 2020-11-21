@@ -345,6 +345,7 @@ class BASE_MODEL:
         self._init_train(X_init_train, y_init_train)
         # Evaluate the model on the test set
         self._init_test(X_init_test, y_init_test)
+        self.abnormal_thres = np.infty
         mprint(f'***init result: train_time: {self.train_time}, abnormal_thres: {self.abnormal_thres}, '
                f'test_time: {self.test_time}, AUC: {self.auc},', self.verbose, DEBUG)
 
@@ -378,6 +379,10 @@ class BASE_MODEL:
 
         train_time = 0.0
 
+        # self.X_init_train = X_init_train
+        # self.y_init_train = y_init_train
+
+
         ##########################################################################################
         # Step 1: Preprocessing the data, which includes standardization, mode seeking, and kernel projection.
         if self.params.std:
@@ -390,6 +395,7 @@ class BASE_MODEL:
             # mprint(f'mu: {self.std_inst.scaler.mean_},std_var: {self.std_inst.scaler.scale_}', self.verbose, DEBUG)
             std_time += std_fitting_time
         else:
+            self.std_inst = None
             std_time = 0.0
         train_time += std_time
 
@@ -437,23 +443,24 @@ class BASE_MODEL:
         if self.verbose >= DEBUG: data_info(X_init_train, name='X_proj')
 
         # # Step 1.2: Seek modes of the data by quickshift++ or meanshift
-        if is_batch_train:
-            self.thres_n = 10  # used to filter clusters which have less than 100 datapoints
-            if self.params.meanshift:
-                dists = pairwise_distances(X_init_train)
-                sigma = np.quantile(dists, self.params.q_kjl)  # also used for kjl
-                means_init, n_components, seeking_time, all_n_clusters = meanshift_seek_modes(
-                    X_init_train, bandwidth=sigma, thres_n=self.thres_n)
-                self.params.n_components = n_components
-            # elif 'quickshift' in self.params.keys() and self.params['quickshift']:
-            #     self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
-            #         X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
-            #         thres_n=self.thres_n)
-            #     self.params['n_components'] = self.n_components
-            else:
-                seeking_time = 0
-        else:
-            seeking_time = 0.0
+        seeking_time = 0.0
+        # if is_batch_train:
+        #     self.thres_n = 10  # used to filter clusters which have less than 100 datapoints
+        #     if self.params.meanshift:
+        #         dists = pairwise_distances(X_init_train)
+        #         sigma = np.quantile(dists, self.params.q_kjl)  # also used for kjl
+        #         means_init, n_components, seeking_time, all_n_clusters = meanshift_seek_modes(
+        #             X_init_train, bandwidth=sigma, thres_n=self.thres_n)
+        #         self.params.n_components = n_components
+        #     # elif 'quickshift' in self.params.keys() and self.params['quickshift']:
+        #     #     self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
+        #     #         X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
+        #     #         thres_n=self.thres_n)
+        #     #     self.params['n_components'] = self.n_components
+        #     else:
+        #         seeking_time = 0
+        # else:
+        #     seeking_time = 0.0
         train_time += seeking_time
 
         ##########################################################################################
@@ -468,14 +475,14 @@ class BASE_MODEL:
         train_time += model_fitting_time
 
         # ##########################################################################################
-        # # Step 3. Get the threshold used to decide if a new flow is normal
-        # # the following values will be used in the online update phase
-        y_score, _ = time_func(self.model.decision_function, X_init_train)
-        self.abnormal_thres = np.quantile(y_score, q=self.params.q_abnormal_thres)  # abnormal threshold
-        _, log_resp = self.model._e_step(X_init_train)
-        self.model.sum_resp = np.sum(np.exp(log_resp), axis=0)
-        self.model.y_score = y_score
-        # self.X_init_train_proj = X_init_train
+        # # # Step 3. Get the threshold used to decide if a new flow is normal
+        # # # the following values will be used in the online update phase
+        # y_score, _ = time_func(self.model.decision_function, X_init_train)
+        # self.abnormal_thres = np.quantile(y_score, q=self.params.q_abnormal_thres)  # abnormal threshold
+        # _, log_resp = self.model._e_step(X_init_train)
+        # self.model.sum_resp = np.sum(np.exp(log_resp), axis=0)
+        # self.model.y_score = y_score
+        # # self.X_init_train_proj = X_init_train
 
         self.train_time = {'train_time': train_time,
                            'preprocessing_time': std_time + proj_time,
@@ -613,6 +620,8 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
             if i == 0:
                 # copy means_, covariances, and other params from the init_model
                 self.model = copy.deepcopy(self.init_model)
+                # self.std_inst = copy.deepcopy(self.std_inst)
+                # self.kjl_inst = copy.deepcopy(self.kjl_inst)
                 self.X_acculumated_train = self.X_init_train  # (std data)
                 self.y_acculumated_train = self.y_init_train
 
@@ -689,13 +698,32 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
                 self.std_inst = None
                 X_batch = X_batch_raw
                 std_time = 0.0
+
+            # normal_idx = np.where((y_score <= self.abnormal_thres) == True)
+            # abnormal_idx = np.where((y_score > self.abnormal_thres) == True)
+            # X_batch_normal = X_batch[normal_idx] if len(normal_idx[0]) > 0 else []
+            # y_batch_normal = y_batch[normal_idx] if len(normal_idx[0]) > 0 else []
+            # X_batch_abnormal = X_batch[abnormal_idx] if len(abnormal_idx[0]) > 0 else []
+            #
+            # # # without std and kjl
+            # # X_batch_normal_raw = X_batch_raw[normal_idx] if len(normal_idx[0]) > 0 else []
+            # # y_batch_normal_raw = y_batch_raw[normal_idx] if len(normal_idx[0]) > 0 else []
+            # # X_batch_abnormal_raw = X_batch_raw[abnormal_idx] if len(abnormal_idx[0]) > 0 else []
+            #
+            # # reproject the previous X_acculumated_train_proj with the updated std and kjl
+            # self.X_acculumated_train = np.concatenate([self.X_acculumated_train, X_batch_normal], axis=0)  # std_data
+            # self.y_acculumated_train = np.concatenate([self.y_acculumated_train, y_batch_normal])  # std_data
+            # # compute sigma
+            # dists = pairwise_distances(self.X_acculumated_train)
+            # self.sigma_kjl = np.quantile(dists, q=0.3)
+
             # Step 2.2: update projection: kjl or nystrom
             if self.params.kjl:
                 #  Update kjl: self.U_kjl, self.Xrow_kjl.
                 self.kjl_inst.n_samples = self.X_acculumated_train.shape[0]
                 _, time_proj_update = time_func(self.kjl_inst.update, X_batch, y_batch, None, None,
-                                                self.std_inst)
-                # X_batch, proj_time = time_func(self.kjl_inst.transform, X_batch)
+                                                None)
+                # # X_batch, proj_time = time_func(self.kjl_inst.transform, X_batch)
                 # proj_time += time_proj_update
                 proj_time = time_proj_update
             elif self.params.nystrom:
@@ -729,9 +757,9 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         # reproject the previous X_acculumated_train_proj with the updated std and kjl
         self.X_acculumated_train = np.concatenate([self.X_acculumated_train, X_batch_normal], axis=0)  # std_data
         self.y_acculumated_train = np.concatenate([self.y_acculumated_train, y_batch_normal])  # std_data
-        # X_acculumated_train_proj = self._preprocessing(self.X_acculumated_train)
         if self.params.kjl:
             X_acculumated_train_proj, _ = time_func(self.kjl_inst.transform, self.X_acculumated_train)
+            # X_acculumated_train_proj = self._preprocessing(self.X_acculumated_train)
         else:
             X_acculumated_train_proj = self.X_acculumated_train
 
@@ -894,7 +922,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
                                random_state=self.params.random_state,
                                warm_start=True)
         new_model._initialize_parameters(X_acculumated_train_proj, self.random_state,
-                                         init=self.model.means_)  # k-means++ ,self.model.means_
+                                         init='k-means++')  # k-means++ ,self.model.means_
         # Train the new model until it converges
         i = 0
         new_model.converged_ = False
@@ -1399,36 +1427,36 @@ def main(n_init_train=500, gs=True, kjl=True, std=True):
         # # # # Fridge:
         # subdatasets1 = (abnormal1, normal1)  # normal(open_shut) + abnormal(idle1)
         # subdatasets2 = (abnormal2, None)  # normal(browse)
-        'FRIG_OPEN_BROWSE': f'{in_dir}/FRIG_OPEN_BROWSE/Xy-normal-abnormal.dat',
+        # 'FRIG_OPEN_BROWSE': f'{in_dir}/FRIG_OPEN_BROWSE/Xy-normal-abnormal.dat',
 
         # # # # Fridge:
         # subdatasets1 = (abnormal2, normal1)  # normal(browse) + abnormal(idle1)
         # subdatasets2 = (abnormal1, None)  # normal(open_shut)
-        'FRIG_BROWSE_OPEN': f'{in_dir}/FRIG_BROWSE_OPEN/Xy-normal-abnormal.dat',
+        # 'FRIG_BROWSE_OPEN': f'{in_dir}/FRIG_BROWSE_OPEN/Xy-normal-abnormal.dat',
 
         # # # # Fridge:
         # subdatasets1 = (abnormal2, normal2)  # normal(browse) + abnormal (idle2)
         # subdatasets2 = (abnormal1, normal1)  # normal(open_shut) + abnormal(idle1)
-        'FRIG_IDLE12': f'{in_dir}/FRIG_IDLE12/Xy-normal-abnormal.dat',
+        # 'FRIG_IDLE12': f'{in_dir}/FRIG_IDLE12/Xy-normal-abnormal.dat',
 
         # # # # Fridge:
         # subdatasets1 = (normal1, abnormal2)  # normal(idle1) + abnormal(browse)
         # subdatasets2 = (abnormal1,None)  # normal(open_shut)
-        'FRIG_IDLE1_OPEN': f'{in_dir}/FRIG_IDLE1_OPEN/Xy-normal-abnormal.dat',
+        # 'FRIG_IDLE1_OPEN': f'{in_dir}/FRIG_IDLE1_OPEN/Xy-normal-abnormal.dat',
 
         # # # # # Fridge:
         # # subdatasets1 = (abnormal1, abnormal2)  # normal(open_shut) + abnormal(browse)
         # # subdatasets2 = (normal1,None)  # normal(idle1)
-        'FRIG_OPEN_IDLE1': f'{in_dir}/FRIG_OPEN_IDLE1/Xy-normal-abnormal.dat',
+        # 'FRIG_OPEN_IDLE1': f'{in_dir}/FRIG_OPEN_IDLE1/Xy-normal-abnormal.dat',
         #
         # # # # # Fridge:
         # # subdatasets1 = (normal2, abnormal1)  # normal(idle2) + abnormal (open_shut)
         # # subdatasets2 = (abnormal2,None)  # normal(browse)
-        'FRIG_IDLE2_BROWSE': f'{in_dir}/FRIG_IDLE2_BROWSE/Xy-normal-abnormal.dat',
+        # 'FRIG_IDLE2_BROWSE': f'{in_dir}/FRIG_IDLE2_BROWSE/Xy-normal-abnormal.dat',
         # # # # # Fridge:
         # # subdatasets1 = (abnormal2, abnormal1)  # normal(browse) + abnormal (open_shut)
         # # subdatasets2 = (normal2,None)  # normal(idle2)
-        'FRIG_BROWSE_IDLE2': f'{in_dir}/FRIG_BROWSE_IDLE2/Xy-normal-abnormal.dat',
+        # 'FRIG_BROWSE_IDLE2': f'{in_dir}/FRIG_BROWSE_IDLE2/Xy-normal-abnormal.dat',
 
         # # #
         # 'MAWI1_UNB1': f'{in_dir}/MAWI1_UNB1/Xy-normal-abnormal.dat',
@@ -1547,7 +1575,7 @@ def main(n_init_train=500, gs=True, kjl=True, std=True):
 
     # in parallel
     # get the number of cores. Note that, one cpu might have more than one core.
-    n_jobs = int(joblib.cpu_count() // 4)
+    n_jobs = int(joblib.cpu_count() // 1)
     print(f'n_job: {n_jobs}')
     parallel = Parallel(n_jobs=n_jobs, verbose=30)
     with parallel:
@@ -1565,7 +1593,7 @@ def main(n_init_train=500, gs=True, kjl=True, std=True):
 
 
 if __name__ == '__main__':
-    demo = False
+    demo = True
     if demo:
         init_sizes = [500]  # [100, 200, 500, 700]
         gses = [True]

@@ -408,6 +408,20 @@ class PCAP2FEATURES():
         print(f'Xy_file: {self.Xy_file}')
 
     def _flows2features_seperate(self, normal_files, abnormal_files, q_interval=0.9):
+        """ dataset1 and dataset2 use different interval and will get different dimension
+            then append 0 to the smaller dimension to make both has the same dimension
+
+        Parameters
+        ----------
+        normal_files
+        abnormal_files
+        q_interval
+
+        Returns
+        -------
+
+        """
+
         print(f'normal_files: {normal_files}')
         print(f'abnormal_files: {abnormal_files}')
 
@@ -496,6 +510,23 @@ def split_train_arrival_test(X, y, params):
     -------
 
     """
+
+    def random_select(X, y, n=100, random_state=100):
+        X, y = shuffle(X, y, random_state=random_state)
+        X0 = X[:n, :]
+        y0 = y[:n]
+
+        rest_X = X[n:, :]
+        rest_y = y[n:]
+        # X_nm_1, y_nm_1 = sklearn.utils.resample(X, y, n_samples=n, replace=False,
+        #                                         random_state=random_state)
+        # if n <=0:
+        #     _, dim = X.shape
+        #     X0, rest_X, y0, rest_y = np.empty((0, dim)), X, np.empty((0,)), y
+        # else:
+        #     X0, rest_X, y0, rest_y = train_test_split(X, y, train_size=n, random_state=random_state, shuffle=True)
+        return X0, y0, rest_X, rest_y
+
     random_state = params.random_state
     verbose = params.verbose
     # Step 1. Shuffle data first
@@ -503,8 +534,8 @@ def split_train_arrival_test(X, y, params):
     if verbose >= DEBUG: data_info(X, name='X')
 
     n_init_train = params.n_init_train  # 5000
-    n_init_test_abnm_0 = 50
-    n_arrival = 500    # params.n_init_train # 5000
+    n_init_test_abnm_0 = 1  # 50
+    n_arrival = params.n_init_train   # params.n_init_train # 5000
     n_test_abnm_0 = 100
 
     idx_nm_0 = y == 'normal_0'
@@ -520,6 +551,12 @@ def split_train_arrival_test(X, y, params):
         X_nm_1, y_nm_1 = X[idx_nm_1], y[idx_nm_1]
         idx_abnm_1 = y == 'abnormal_1'
         X_abnm_1, y_abnm_1 = X[idx_abnm_1], y[idx_abnm_1]
+
+        if len(y_abnm_1) == 0:
+            # split X_abnm_0 into X_abnm_0 and X_abnm_1
+            X_abnm_0, y_abnm_0, X_abnm_1, y_abnm_1 = random_select(X_abnm_0, y_abnm_0,
+                                                                   n=int(len(y_abnm_0) // 2), random_state=random_state)
+
     else:
         raise NotImplementedError()
 
@@ -552,22 +589,6 @@ def split_train_arrival_test(X, y, params):
     X_abnormal = np.concatenate([X_abnm_0, X_abnm_1], axis=0)
     if verbose >= DEBUG: data_info(X_normal, name='X_normal')
     if verbose >= DEBUG:   data_info(X_abnormal, name='X_abnormal')
-
-    def random_select(X, y, n=100, random_state=100):
-        X, y = shuffle(X, y, random_state=random_state)
-        X0 = X[:n, :]
-        y0 = y[:n]
-
-        rest_X = X[n:, :]
-        rest_y = y[n:]
-        # X_nm_1, y_nm_1 = sklearn.utils.resample(X, y, n_samples=n, replace=False,
-        #                                         random_state=random_state)
-        # if n <=0:
-        #     _, dim = X.shape
-        #     X0, rest_X, y0, rest_y = np.empty((0, dim)), X, np.empty((0,)), y
-        # else:
-        #     X0, rest_X, y0, rest_y = train_test_split(X, y, train_size=n, random_state=random_state, shuffle=True)
-        return X0, y0, rest_X, rest_y
 
     ########################################################################################################
     # Step 2.1. Get init_set
@@ -648,7 +669,7 @@ def split_train_arrival_test(X, y, params):
     return X_init_train, y_init_train, X_init_test, y_init_test, X_arrival, y_arrival, X_test, y_test
 
 
-def plot_data(X, y):
+def plot_data(X, y, title='Data'):
     plt.figure()
     y_unique = np.unique(y)
     colors = cm.rainbow(np.linspace(0.0, 1.0, y_unique.size))
@@ -657,9 +678,9 @@ def plot_data(X, y):
         plt.scatter(this_X[:, 0], this_X[:, 1], s=50,
                     c=color[np.newaxis, :],
                     alpha=0.5, edgecolor='k',
-                    label="Class %s" % this_y)
+                    label=f"Class {this_y} {this_X.shape}")
     plt.legend(loc="best")
-    plt.title("Data")
+    plt.title(title)
     plt.show()
 
 
@@ -700,10 +721,12 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
         # in_dir = f'./data/data_reprst/pcaps'
         if data_name == 'UNB1_UNB2':
             subdatasets = (
-            'UNB/CIC_IDS_2017/pc_192.168.10.5', 'UNB/CIC_IDS_2017/pc_192.168.10.8')  # each_data has normal and abnormal
+                'UNB/CIC_IDS_2017/pc_192.168.10.5',
+                'UNB/CIC_IDS_2017/pc_192.168.10.8')  # each_data has normal and abnormal
         elif data_name == 'UNB1_UNB3':
             subdatasets = (
-            'UNB/CIC_IDS_2017/pc_192.168.10.5', 'UNB/CIC_IDS_2017/pc_192.168.10.9')  # each_data has normal and abnormal
+                'UNB/CIC_IDS_2017/pc_192.168.10.5',
+                'UNB/CIC_IDS_2017/pc_192.168.10.9')  # each_data has normal and abnormal
         elif data_name == 'UNB1_UNB4':
             subdatasets = ('UNB/CIC_IDS_2017/pc_192.168.10.5',
                            'UNB/CIC_IDS_2017/pc_192.168.10.14')  # each_data has normal and abnormal
@@ -763,7 +786,12 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
         pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
         out_file = pf.Xy_file
 
-    elif data_name in ['FRIG_IDLE12', 'FRIG1_OPEN_BROWSE', 'FRIG1_BROWSE_OPEN']:
+    elif data_name in ['FRIG_IDLE12', 'FRIG_OPEN_BROWSE', 'FRIG_BROWSE_OPEN',
+                       'FRIG_IDLE1_OPEN', 'FRIG_OPEN_IDLE1',
+                       'FRIG_IDLE1_BROWSE', 'FRIG_BROWSE_IDLE1',
+                       'FRIG_IDLE2_OPEN', 'FRIG_OPEN_IDLE2',
+                       'FRIG_IDLE2_BROWSE', 'FRIG_BROWSE_IDLE2',
+                       ]:
 
         if pth.exists(out_file):
             # pass
@@ -785,24 +813,51 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
         uchicago.filter_ips(in_dir=pth.join(in_dir, abnormal2), out_dir=pth.join(in_dir, abnormal2), ips=ips,
                             direction='both', keep_original=False)
 
+        # # #Fridge: (normal1: idel1, and abnormal1: open_shut) (normal2: idle2 and abnormal2: browse)
+
         if data_name == 'FRIG_IDLE12':
-            # # # Fridge: (normal1: idle1, and normal2: idle2) (abnormal1: open_shut, and abnormal2: browse)
-            subdatasets1 = (normal1, abnormal1)  # normal1 and abnormal_1
-            subdatasets2 = (normal2, abnormal2)  # normal2 and abnormal_2
-        elif data_name == 'FRIG1_OPEN_BROWSE':
-            # # # Fridge: (abnormal1: open_shut, and abnormal2: browse) (normal1: idle1, and normal2: idle2)
-            subdatasets1 = (abnormal1, normal1)
-            subdatasets2 = (abnormal2, normal2)
-        elif data_name == 'FRIG1_BROWSE_OPEN':
-            # # # Fridge: (abnormal: browse, and abnormal2: open_shut ) abnormal: (normal1: idle2, and normal2: idle1)
-            subdatasets1 = (abnormal2, normal2)
-            subdatasets2 = (abnormal1, normal1)
+            subdatasets1 = (normal1, abnormal1)  # normal(idle1) + abnormal(open_shut)
+            subdatasets2 = (normal2, abnormal2)  # normal(idle2) + abnormal (browse)
+        elif data_name == 'FRIG_OPEN_BROWSE':
+            subdatasets1 = (abnormal1, normal1)  # normal(open_shut) + abnormal(idle1)
+            subdatasets2 = (abnormal2, None)  # normal(browse)
+        elif data_name == 'FRIG_BROWSE_OPEN':
+            subdatasets1 = (abnormal2, normal1)  # normal(browse) + abnormal (idle1)
+            subdatasets2 = (abnormal1, None)  # normal(open_shut)
+
+        elif data_name == 'FRIG_IDLE1_OPEN':
+            subdatasets1 = (normal1, abnormal2)  # normal(idle1) + abnormal(browse)
+            subdatasets2 = (abnormal1, None)  # normal(open_shut)
+        elif data_name == 'FRIG_OPEN_IDLE1':
+            subdatasets1 = (abnormal1, abnormal2)  # normal(open_shut) + abnormal(browse)
+            subdatasets2 = (normal1, None)  # normal(idle1)
+
+        elif data_name == 'FRIG_IDLE1_BROWSE':
+            subdatasets1 = (normal1, abnormal1)  # normal(idle1) + abnormal (open_shut)
+            subdatasets2 = (abnormal2, None)  # normal(browse)
+        elif data_name == 'FRIG_BROWSE_IDLE1':
+            subdatasets1 = (abnormal2, abnormal1)  # normal(browse) + abnormal (open_shut)
+            subdatasets2 = (normal1, None)  # normal(idle1)
+
+        elif data_name == 'FRIG_IDLE2_OPEN':
+            subdatasets1 = (normal2, abnormal2)  # normal(idle2) + abnormal(browse)
+            subdatasets2 = (abnormal1, None)  # normal(open_shut)
+        elif data_name == 'FRIG_OPEN_IDLE2':
+            subdatasets1 = (abnormal1, abnormal2)  # normal(open_shut) + abnormal(browse)
+            subdatasets2 = (normal2, None)  # normal(idle2)
+
+        elif data_name == 'FRIG_IDLE2_BROWSE':
+            subdatasets1 = (normal2, abnormal1)  # normal(idle2) + abnormal (open_shut)
+            subdatasets2 = (abnormal2, None)  # normal(browse)
+        elif data_name == 'FRIG_BROWSE_IDLE2':
+            subdatasets1 = (abnormal2, abnormal1)  # normal(browse) + abnormal (open_shut)
+            subdatasets2 = (normal2, None)  # normal(idle2)
         else:
             raise NotImplementedError(data_name)
 
-        subdatasets = (subdatasets1,subdatasets2)
+        subdatasets = (subdatasets1, subdatasets2)
         out_dir = 'data/feats'
-        normal_files, abnormal_files = uchicago.get_flows(in_dir, subdatasets, out_dir)
+        normal_files, abnormal_files = uchicago.get_flows(in_dir, subdatasets, out_dir, overwrite=overwrite)
         pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
         pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
         out_file = pf.Xy_file
@@ -811,8 +866,8 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
     elif data_name in ['UNB1_FRIG1', 'CTU1_FRIG1', 'MAWI1_FRIG1',
                        'FRIG1_UNB1', 'FRIG1_CTU1', 'FRIG1_MAWI1',
                        'UNB1_FRIG2',
-                       'CTU1_UNB2','CTU1_FRIG2',
-                       'MAWI1_UNB2','MAWI1_FRIG2',
+                       'CTU1_UNB2', 'CTU1_FRIG2',
+                       'MAWI1_UNB2', 'MAWI1_FRIG2',
                        'FRIG2_UNB1', 'FRIG2_CTU1', 'FRIG2_MAWI1',
                        'SCAM1_FRIG1', 'SCAM1_FRIG2',
                        'FRIG1_SCAM1', 'FRIG2_SCAM1'
