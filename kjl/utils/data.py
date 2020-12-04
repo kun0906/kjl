@@ -6,12 +6,13 @@ import traceback
 import dill
 import pandas as pd
 import numpy as np
+import sklearn
 from numpy import genfromtxt
 from sklearn.model_selection import train_test_split
 from sklearn.utils import resample
 import os.path as pth
 
-def split_train_test(normal_data, abnormal_data, train_size=0.8, test_size=150 * 2, random_state=42, debug=False):
+def split_train_test2(normal_data, abnormal_data, train_size=0.8, test_size=150 * 2, random_state=42, debug=False):
     """Split train and test set
 
     Parameters
@@ -75,6 +76,67 @@ def split_train_test(normal_data, abnormal_data, train_size=0.8, test_size=150 *
         data_info(X_test, name='X_test')
 
     return X_train, y_train, X_test, y_test
+
+
+def split_train_test(X, y, train_size=800, random_state=42):
+    """Split train and test set
+
+    Parameters
+    ----------
+    X
+    y
+    show
+
+    Returns
+    -------
+
+    """
+    X = np.asarray(X, dtype=float)
+    y = [0 if v.startswith('normal') else 1 for i, v in enumerate(list(y))]
+    y = np.asarray(y)
+
+    X, y = sklearn.utils.shuffle(X, y, random_state = random_state)
+    normal_idx = np.where(y==0)[0]
+    abnormal_idx = np.where(y==1)[0]
+    # normal_idx = [i for i, v in enumerate(y) if v.startswith('normal')]
+    # abnormal_idx =  [i for i, v  in enumerate(y) if v.startswith('abnormal')]
+
+    if 0 < train_size <= 1:
+        n_normal = int(normal_idx.shape[0] * train_size)
+    elif train_size < normal_idx.shape[0] :
+        n_normal = train_size
+    else:  # train_normal.shape[0] < train_size:
+        n_normal = normal_idx.shape[0]
+
+    X_normal, y_normal = X[normal_idx], y[normal_idx]
+    X_abnormal, y_abnormal = X[abnormal_idx], y[abnormal_idx]
+
+    X_train = X_normal[:n_normal, :]
+    y_train = y_normal[:n_normal].reshape(-1,1)
+
+    n_abnormal = abnormal_idx.shape[0]
+    n_val =50
+
+    X_val_normal = X_normal[n_normal:n_normal+n_val]
+    y_val_normal = y_normal[n_normal:n_normal + n_val].reshape(-1, 1)
+    X_val_abnormal = X_abnormal[:n_val, :]
+    y_val_abnormal = y_abnormal[:n_val].reshape(-1, 1)
+    X_val = np.vstack((X_val_normal, X_val_abnormal))
+    y_val = np.vstack((y_val_normal, y_val_abnormal)).flatten()
+
+    n_abnormal = 400  if n_abnormal > 400 else n_abnormal
+
+    X_test_normal = X_normal[n_normal+n_val:n_normal+n_val+n_abnormal, :]
+    y_test_normal = y_normal[n_normal+n_val:n_normal+n_val+n_abnormal].reshape(-1, 1)
+    X_test_abnormal = X_abnormal[n_val:n_abnormal+n_val, :]
+    y_test_abnormal = y_abnormal[n_val:n_abnormal+n_val].reshape(-1, 1)
+    X_test = np.vstack((X_test_normal, X_test_abnormal))
+    # normal and abnormal have the same size in the test set
+    y_test = np.vstack((y_test_normal, y_test_abnormal)).flatten()
+
+    print("train.shape: {}, test.shape: {}".format(X_train.shape, X_test.shape))
+
+    return X_train, y_train, X_val, y_val, X_test, y_test
 
 
 def load_data(in_file):
@@ -276,18 +338,18 @@ data_mapping = {
 }
 
 
-def save_result(result, out_file):
-    dump_data(result, pt.splitext(out_file)[0] + '.dat')
+def dat2csv(result, out_file):
 
     with open(out_file, 'w') as f:
         keys = []
         for (in_dir, case_str), (best_results, middle_results) in result.items():
             if case_str not in keys:
                 keys.append(case_str)
-        print(keys)
+        print(f'keys: {keys}')
 
         for key in keys:
             print('\n\n')
+            cnt = 0
             for (in_dir, case_str), (best_results, middle_results) in result.items():
                 # print(case_str, key)
                 if case_str != key:
@@ -315,8 +377,10 @@ def save_result(result, out_file):
                     line = ''
                 f.write(line + '\n')
                 print(line)
-            f.write('\n')
+                cnt += 1
+            f.write('\n\n\n') # f.write('\n'*(8-cnt))
 
+    return out_file
 
 def batch(X, y, *, step=1, stratify=False):
     if stratify:
@@ -396,7 +460,7 @@ def batch(X, y, *, step=1, stratify=False):
 
 
 
-def save_result(result, out_file):
+def save_result2(result, out_file):
     dump_data(result, pth.splitext(out_file)[0] + '.dat')
 
     # with open(out_file, 'w') as f:

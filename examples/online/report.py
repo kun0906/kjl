@@ -816,11 +816,13 @@ def _pdf2img(pdf_pth, img_pth):
 
 
 def imgs2xlsx(dataname_file_mappings, outfile='out/imgs.xlsx'):
+    if not os.path.exists(os.path.dirname(outfile)):
+        os.makedirs(os.path.dirname(outfile))
     res = OrderedDict()
     for i, ratio in enumerate([0.5, 0.8, 0.9, 0.95, 1.0]):
         img_lst = []
         for key, value in dataname_file_mappings.items():
-            img = 'out/' + value + f'-case0-ratio_{ratio}.dat.pdf'
+            img = 'online/out/online/' + value + f'-case0-ratio_{ratio}.dat.pdf'
             # img_lst.append(_pdf2img(img, img + '.png'))
             img_lst.append(img + '.png')
         res[ratio] = img_lst

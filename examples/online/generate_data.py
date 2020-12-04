@@ -3,22 +3,18 @@
 """
 import os
 import os.path as pth
-import traceback
 import numpy as np
 import sklearn
 from sklearn.datasets import make_blobs
-from sklearn.mixture import GaussianMixture
-from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
 
 from kjl.dataset import uchicago
-from kjl.dataset.uchicago import UChicago
 from kjl.utils.data import load_data, dump_data
 from kjl.utils.tool import execute_time, time_func, mprint, data_info
-from odet.pparser.parser import _pcap2flows, PCAP, _get_flow_duration, _get_split_interval, _flows2subflows
+from odet.pparser.parser import PCAP, _get_flow_duration, _get_split_interval, _flows2subflows
 from matplotlib import pyplot as plt, cm
 from collections import Counter
-from config import *
+from online.config import *
 
 RANDOM_STATE = 42
 
@@ -804,6 +800,12 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                             direction='both', keep_original=False)
         uchicago.filter_ips(in_dir=pth.join(in_dir, abnormal1), out_dir=pth.join(in_dir, abnormal1), ips=ips,
                             direction='both', keep_original=False)
+        # doesn't have much improvement in auc, so just comment it.
+        # tmp_out_dir = pth.join(in_dir, abnormal1+'-filtered/pcaps/')
+        # if not os.path.exists(tmp_out_dir):
+        #     # only split open_shut and remove part of normal traffic
+        #     uchicago.extract_abnormal_pkts(in_dir=pth.join(in_dir, abnormal1), out_dir=tmp_out_dir)
+        # abnormal1 = abnormal1 + '-filtered'
 
         normal2 = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle1'
         abnormal2 = 'UCHI/IOT_2020/sfrig_192.168.143.43/browse'
@@ -856,7 +858,7 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
             raise NotImplementedError(data_name)
 
         subdatasets = (subdatasets1, subdatasets2)
-        out_dir = 'data/feats'
+        out_dir = 'online/data/iat_size'
         normal_files, abnormal_files = uchicago.get_flows(in_dir, subdatasets, out_dir, overwrite=overwrite)
         pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
         pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
@@ -884,7 +886,7 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
         if pth.exists(out_file):
             pass
         else:
-            out_dir = 'data/feats'
+            out_dir = 'online/data/iat_size'
             if data_name in ['UNB1_FRIG1', 'FRIG1_UNB1']:  # Fridge: idle and open_shut
                 subdatasets1 = ('UNB/CIC_IDS_2017/pc_192.168.10.5')
                 subdatasets = (subdatasets1,)
@@ -1551,7 +1553,7 @@ def main(random_state, n_jobs=-1, single=False, verbose=10):
     # out_dir = 'out/'
 
     for subdatasets in datasets:
-        obs_dir = '../../IoT_feature_sets_comparison_20190822/examples/'
+        obs_dir = '../../../IoT_feature_sets_comparison_20190822/examples/'
         in_dir = f'{obs_dir}data/data_reprst/pcaps'
         pf = PCAP2FEATURES(out_dir=os.path.dirname(Xy_file), random_state=random_state)
         normal_files, abnormal_files = pf.get_path(subdatasets, in_dir, out_dir='out/')

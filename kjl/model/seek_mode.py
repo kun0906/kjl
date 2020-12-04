@@ -105,8 +105,8 @@ class MODESEEKING():
 
 def meanshift_seek_modes(X, bandwidth=None, thres_n=100):
     start = datetime.now()
-    clustering = MeanShift().fit(X)
-    # clustering = MeanShift(bandwidth=bandwidth).fit(X)
+    # clustering = MeanShift().fit(X)
+    clustering = MeanShift(bandwidth=bandwidth).fit(X)
     end = datetime.now()
     meanshift_training_time = (end - start).total_seconds()
     print("meanshift_training, it took {} seconds".format(meanshift_training_time))

@@ -76,7 +76,13 @@ end
     # %eigdecomposition of the kernel matrix of subsampled data
     # Eigvec, Lambda = eigs(Ksub, d)
     # use v0 = np.ones(Ksub.shape[0]) to fix the result
-    Lambda, Eigvec = scipy.sparse.linalg.eigs(Ksub, k=d, which='LM', v0=np.ones(Ksub.shape[0]))
+    try:
+        Lambda, Eigvec = scipy.sparse.linalg.eigs(Ksub, k=d, which='LM', v0=np.ones(Ksub.shape[0]))
+    except Exception as e:
+        print(f'scipy.sparse.linalg.eigs error, {e}, try to add 1e-3 to redo again or lower accuracy')
+        # new_matrix = np.zeros(Ksub.shape)
+        # np.fill_diagonal(new_matrix, 1e-3)
+        Lambda, Eigvec = scipy.sparse.linalg.eigs(Ksub, k=d, which='LM', v0=np.ones(Ksub.shape[0]), tol=1e-10)
     Lambda = np.real(np.diag(Lambda))  # np.diag(Lambda) to make it has the same format with matlab output
     Eigvec = np.real(Eigvec)
 

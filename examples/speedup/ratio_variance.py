@@ -3,6 +3,7 @@
 """
 import os
 import traceback
+from collections import OrderedDict
 
 import numpy as np
 import pandas as pd
@@ -174,7 +175,7 @@ def get_auc_ratio(ocsvm_aucs, gmm_aucs, same=True):
     return diff
 
 
-def get_diff(df1, df2, feat_set='iat', same=False):
+def get_diff(df1, df2, feat_set='iat', same=False, file_type = None, is_sample=False):
     """ d2 - df1
 
     Parameters
@@ -203,7 +204,11 @@ def get_diff(df1, df2, feat_set='iat', same=False):
                 ocsvm_aucs = get_all_aucs(df1.iloc[i][j])
                 gmm_aucs = get_all_aucs(df2.iloc[i][j])
                 diff = get_auc_ratio(ocsvm_aucs, gmm_aucs, same)  # auc ratio should be GMM/OCSVM
-                _line.append(diff)
+                if file_type =='tmp':
+                    _line[start_col-3] = diff
+                    _line.append(df2.iloc[i][j])
+                else:
+                    _line.append(diff)
                 # _line_str +=diff
 
                 ocsvm_train_times = get_all_aucs(df1.iloc[i][j + 1])
@@ -218,11 +223,19 @@ def get_diff(df1, df2, feat_set='iat', same=False):
                 diff = get_auc_ratio(gmm_train_times, ocsvm_train_times,
                                      same)  # training time ratio should be OCSVM/GMM
                 print(i, j, list(df2.iloc[i].values))
-                idxs = [_i for _i, v in enumerate(list(df2.iloc[i].values)) if 'n_components' in str(v)]
-                if len(idxs) > 0:
-                    comp_str = df2.iloc[i][idxs[0]].replace('n_components', 'n_comp').replace('}:', '')
-                    diff = diff + f" ({comp_str})"
-                _line2.append(diff)
+                if is_sample:
+                    # diff = diff + ''
+                    pass
+                else:
+                    idxs = [_i for _i, v in enumerate(list(df2.iloc[i].values)) if 'n_components' in str(v)]
+                    if len(idxs) > 0:
+                        comp_str = df2.iloc[i][idxs[0]].replace('n_components', 'n_comp').replace('}:', '')
+                        diff = diff + f" ({comp_str})"
+                if file_type == 'tmp':
+                    _line2[start_col - 3] = diff
+                    _line2.append(df2.iloc[i][j+1])
+                else:
+                    _line2.append(diff)
                 # _line_str += '\n' + diff
 
                 ocsvm_test_times = get_all_aucs(df1.iloc[i][j + 2])
@@ -233,7 +246,11 @@ def get_diff(df1, df2, feat_set='iat', same=False):
                 ocsvm_test_times = [v / n_test * scale for v in ocsvm_test_times]
                 gmm_test_times = [v / n_test * scale for v in gmm_test_times]
                 diff = get_auc_ratio(gmm_test_times, ocsvm_test_times, same)  # testing time ratio should be OCSVM/GMM
-                _line3.append(diff)
+                if file_type == 'tmp':
+                    _line3[start_col - 3] = diff
+                    _line3.append(df2.iloc[i][j + 2])
+                else:
+                    _line3.append(diff)
                 # _line_str += '\n' + diff
                 # _line.append(_line_str)
 
@@ -251,7 +268,7 @@ def get_diff(df1, df2, feat_set='iat', same=False):
     return values
 
 
-def improvement(resulst_xlsx, feat_set='iat', out_file='-improvement.xlsx'):
+def improvement(resulst_xlsx, feat_set='iat', out_file='-improvement.xlsx', is_sample=False):
     xls = pd.ExcelFile(resulst_xlsx)
     # Now you can list all sheets in the file
     print(f'xls.sheet_names:', xls.sheet_names)
@@ -270,7 +287,7 @@ def improvement(resulst_xlsx, feat_set='iat', out_file='-improvement.xlsx'):
                 df1 = pd.read_excel(resulst_xlsx, sheet_name=baseline_sheet_name, header=header,
                                     index_col=None)  # index_col=False: not use the first columns as index
 
-                values = get_diff(df1, df1, feat_set=feat_set, same=True)
+                values = get_diff(df1, df1, feat_set=feat_set, same=True, file_type = 'tmp', is_sample=is_sample)
                 values.insert(0, [sheet_name if _i == 0 else '' for _i in range(len(values[0]))])
                 pd.DataFrame(values).to_excel(writer, sheet_name=baseline_sheet_name, index=False, header=False)
 
@@ -283,7 +300,7 @@ def improvement(resulst_xlsx, feat_set='iat', out_file='-improvement.xlsx'):
                 # header = 5: it will skip the first 5 row
                 df2 = pd.read_excel(resulst_xlsx, sheet_name=sheet_name, header=header,
                                     index_col=None)  # index_col=False: not use the first columns as index
-                values = get_diff(df1, df2, feat_set=feat_set, same=False)
+                values = get_diff(df1, df2, feat_set=feat_set, same=False, file_type = 'tmp', is_sample=is_sample)
                 values.insert(0, [sheet_name if _i == 0 else '' for _i in range(len(values[0]))])
                 # break
             except Exception as e:
@@ -308,9 +325,9 @@ def improvement(resulst_xlsx, feat_set='iat', out_file='-improvement.xlsx'):
                 # 'Best_auc', 'Ratio(OCSVM/method)'
                 for row_vs in values:
                     vs = []
-                    for v in [row_vs[0], row_vs[2], row_vs[3], row_vs[7]]:
+                    for v in [row_vs[0], row_vs[2], row_vs[3], row_vs[4]]:
 
-                        v = find_data_mapping(v)
+                        # v = find_data_mapping(v)
 
                         if 'shape: (' in v:
                             v = v.split('(')[1].split(')')[0]
@@ -319,7 +336,7 @@ def improvement(resulst_xlsx, feat_set='iat', out_file='-improvement.xlsx'):
             else:
                 header.append(values[0][0])
                 for row, _ in enumerate(v_tmp):
-                    v_tmp[row].append(values[row][7])
+                    v_tmp[row].append(values[row][4])
 
             # for row, _ in enumerate(v_tmp):
             #     # for each algorithm, it has len(v_tmp) rows
@@ -342,79 +359,209 @@ def improvement(resulst_xlsx, feat_set='iat', out_file='-improvement.xlsx'):
     return out_file
 
 
-datasets = [
-    # # # 'DS10_UNB_IDS/DS11-srcIP_192.168.10.5',
-    'DS10_UNB_IDS/DS12-srcIP_192.168.10.8',
-    # 'DS10_UNB_IDS/DS13-srcIP_192.168.10.9',
-    # 'DS10_UNB_IDS/DS14-srcIP_192.168.10.14',
-    # 'DS10_UNB_IDS/DS15-srcIP_192.168.10.15',
-    # # # # #
-    # # # # 'DS20_PU_SMTV/DS21-srcIP_10.42.0.1',
-    # # # # # #
-    'DS40_CTU_IoT/DS41-srcIP_10.0.2.15',
-    # # #
-    # # # # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50',
-    # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50',
-    'DS50_MAWI_WIDE/DS52-srcIP_203.78.7.165',
-    # 'DS50_MAWI_WIDE/DS53-srcIP_203.78.4.32',
-    # 'DS50_MAWI_WIDE/DS54-srcIP_222.117.214.171',
-    # 'DS50_MAWI_WIDE/DS55-srcIP_101.27.14.204',
-    # 'DS50_MAWI_WIDE/DS56-srcIP_18.178.219.109',
-    # #
-    # # #
-    # # # # 'DS60_UChi_IoT/DS61-srcIP_192.168.143.20',
-    'DS60_UChi_IoT/DS62-srcIP_192.168.143.42',
-    # # # 'DS60_UChi_IoT/DS63-srcIP_192.168.143.43',
-    # # # 'DS60_UChi_IoT/DS64-srcIP_192.168.143.48'
+def dat2latex(in_file, out_file = None):
+    """ ratio.xlsx to latex table
 
-    # 'WRCCDC/2020-03-20',
-    # 'DEFCON/ctf26',
-    'ISTS/2015',
-    # 'MACCDC/2012',
+    Parameters
+    ----------
+    in_file
+    out_file
 
-]
+    Returns
+    -------
 
-data_mapping = {
-    # 'DS10_UNB_IDS/DS11-srcIP_192.168.10.5':'UNB_PC1',
-    'DS10_UNB_IDS/DS12-srcIP_192.168.10.8': 'UNB_PC2',
-    'DS10_UNB_IDS/DS13-srcIP_192.168.10.9': 'UNB_PC3',
-    'DS10_UNB_IDS/DS14-srcIP_192.168.10.14': 'UNB_PC4',
-    'DS10_UNB_IDS/DS15-srcIP_192.168.10.15': 'UNB_PC5',
+    """
+    if out_file is None:
+        out_file = in_file + '-latex.xlsx'
 
-    # 'DS20_PU_SMTV/DS21-srcIP_10.42.0.1':'SMTV',
-    # # #
-    'DS40_CTU_IoT/DS41-srcIP_10.0.2.15': 'CTU',
-    'DS40_CTU_IoT/DS42-srcIP_192.168.1.196': 'CTU',
-    #
-    # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50':'MAWI',
-    # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50',
-    'DS50_MAWI_WIDE/DS52-srcIP_203.78.7.165': 'MAWI_PC2',
-    # 'DS50_MAWI_WIDE/DS53-srcIP_203.78.4.32':'MAWI_PC3',
-    # 'DS50_MAWI_WIDE/DS54-srcIP_222.117.214.171':'MAWI_PC4',
-    # 'DS50_MAWI_WIDE/DS55-srcIP_101.27.14.204':'MAWI_PC5',
-    # 'DS50_MAWI_WIDE/DS56-srcIP_18.178.219.109':'MAWI_PC6',
+    sheet_names = ['OCSVM', 'GMMs','n_components', 'dataset']
+    xls = pd.ExcelFile(in_file)
+    # Now you can list all sheets in the file
+    print(f'xls.sheet_names:', xls.sheet_names)
+    with ExcelWriter(out_file) as writer:
+        df = pd.read_excel(in_file,  header=3, index_col=None)  # index_col=False: not use the first columns as index
+        df.dropna(axis='rows', how='all', inplace=True)
+        df = df.fillna(value='')
+        for i, sheet_name in enumerate(sheet_names):
+            print(f'\n\n----{i}, {sheet_name}')
+            try:
+                arr = df.values[1:, :]
+                if sheet_name == 'OCSVM':
+                    values = arr[:, 3]
+                    vs = []
+                    headers = ['UNB', 'CTU', 'MAWI', 'ISTS', 'MACCDC', 'SCAM']
+                    for i in range(3): # acu, training, testing
+                        vs.append(np.asarray([values[j+i].replace('+/-', '$\\pm$') for j in range(0, len(values), 3)]))
 
-    'ISTS/2015': 'ISTS',
-    'MACCDC/2012': 'MACCDC',
+                    headers = np.asarray(headers).reshape(1, -1)
+                    values = np.asarray(vs)
+                    values = np.concatenate([headers, values], axis=0)
+                    headers = np.asarray(['Dataset', 'AUC', 'Training time (s)', 'Testing time (s)']).reshape(-1, 1)
+                    values = np.concatenate([headers, values], axis=1)
 
-    # 'DS60_UChi_IoT/DS61-srcIP_192.168.143.20':'GHom',
-    'DS60_UChi_IoT/DS62-srcIP_192.168.143.42': 'SCam',
-    # 'DS60_UChi_IoT/DS63-srcIP_192.168.143.43':'SFrig',
-    # 'DS60_UChi_IoT/DS64-srcIP_192.168.143.48':'BSTCH',
+                elif sheet_name =='GMMs':
+                    # headers = np.asarray(df.cols[4:8]).reshape(1, -1)
+                    headers = ['\multicolumn{2}{|c|}{Dataset}& GMM()              & ' ,
+                              '\\begin{tabular}[c]{@{}c@{}}KJL-\\GMM() \end{tabular} & ' ,
+                              '\\begin{tabular}[c]{@{}c@{}}Nystr{\"o}m-\\GMM() \end{tabular} & ' ,
+                              '\\begin{tabular}[c]{@{}c@{}}QS-KJL-\\GMM() \end{tabular} & ' ,
+                              '\\begin{tabular}[c]{@{}c@{}}MS-KJL-\\GMM() \end{tabular}  ']
 
-}
+                    values = arr[:, 4:9]
+                    vs = []
+                    for v in values:
+                        vs.append([v_.split('(')[0].replace('+/-', '$\\pm$') for v_ in v])
+
+                    headers = np.asarray(headers).reshape(1, -1)
+                    values = np.asarray(vs)
+                    values = np.concatenate([headers, values], axis=0)
+                    headers = np.asarray(['Dataset',
+                                          '\multirow{3}{*}{UNB} & Speed-up AUC', '& Speed-up Training ',
+                                          '& Speed-up Testing ',
+                                          '\multirow{3}{*}{CTU} & Speed-up AUC', '& Speed-up Training ',
+                                          '& Speed-up Testing ',
+                                          '\multirow{3}{*}{MAWI} & Speed-up AUC', '& Speed-up Training ',
+                                          '& Speed-up Testing ',
+                                          '\multirow{3}{*}{ISTS} & Speed-up AUC', '& Speed-up Training ',
+                                          '& Speed-up Testing ',
+                                          '\multirow{3}{*}{\Cell{MAC-\\CDC}} & Speed-up AUC', '& Speed-up Training ',
+                                          '& Speed-up Testing ',
+                                          '\multirow{3}{*}{SCAM} & Speed-up AUC', '& Speed-up Training ',
+                                          '& Speed-up Testing ',
+                                          ]).reshape(-1, 1)
+                    values = np.concatenate([headers, values], axis=1)
+
+                elif sheet_name =='n_components':
+                    headers = ['\multicolumn{2}{|c|}{Dataset}& GMM()              & ',
+                               '\\begin{tabular}[c]{@{}c@{}}KJL-\\GMM() \end{tabular} & ',
+                               '\\begin{tabular}[c]{@{}c@{}}Nystr{\"o}m-\\GMM() \end{tabular} & ',
+                               '\\begin{tabular}[c]{@{}c@{}}QS-KJL-\\GMM() \end{tabular} & ',
+                               '\\begin{tabular}[c]{@{}c@{}}MS-KJL-\\GMM() \end{tabular}  ']
+
+                    values = arr[:, 4:9]
+                    vs = []
+                    for v in values:
+                        v = [v_.split(':')[1].replace(')', '') for v_ in v if 'n_comp' in v_]
+                        if len(v) > 0: vs.append(np.asarray(v))
+
+                    headers = np.asarray(headers).reshape(1, -1)
+                    values = np.asarray(vs)
+                    values = np.concatenate([headers, values], axis=0)
+                    headers = np.asarray(['Dataset',
+                                          'UNB','CTU', 'MAWI', 'ISTS', 'MACCDC', 'SCAM'
+                                          ]).reshape(-1, 1)
+                    values = np.concatenate([headers, values], axis=1)
 
 
-def find_data_mapping(value):
-    for k, v in data_mapping.items():
-        if k in value:
-            value = v
-            break
+                else: # dataset
+                    headers = ['Dataset', 'Train set', 'Test set', 'dim']
+                    values = arr[:, 0:3]
+                    vs = []
+                    for v in values:
+                        if v[0] == '': continue
 
-    return value
+                        name = v[0].split('|')[0]
+                        n_train, dim = v[1].replace(' ', '').split('-')
+                        n_train = n_train.replace('(', '')
+                        n_train = f'normal: {n_train}'
+                        dim = dim.replace(')', '')
+                        n_test, _ = v[2].split('-')
+                        n_test = n_test.replace('(', '')
+                        n_test = int(n_test)//2
+                        n_test = f'normal: {n_test}, novelty: {n_test}'
+                        vs.append([name, n_train, n_test, dim])
+
+                    headers = np.asarray(headers).reshape(1, -1)
+                    values = np.asarray(vs)
+                    values = np.concatenate([headers, values], axis=0)
+                    headers = np.asarray(['Dataset',
+                                          'UNB', 'CTU', 'MAWI', 'ISTS', 'MACCDC', 'SCAM'
+                                          ]).reshape(-1, 1)
+                    values = np.concatenate([headers, values], axis=1)
+
+                pd.DataFrame(values).to_excel(writer, sheet_name=sheet_name, index=False, header=False)
+            except Exception as e:
+                traceback.print_exc()
+
+        writer.save()
+
+    return out_file
 
 
-def dat2xlxs(in_file, out_file):
+#
+# datasets = [
+#     # # # 'DS10_UNB_IDS/DS11-srcIP_192.168.10.5',
+#     'DS10_UNB_IDS/DS12-srcIP_192.168.10.8',
+#     # 'DS10_UNB_IDS/DS13-srcIP_192.168.10.9',
+#     # 'DS10_UNB_IDS/DS14-srcIP_192.168.10.14',
+#     # 'DS10_UNB_IDS/DS15-srcIP_192.168.10.15',
+#     # # # # #
+#     # # # # 'DS20_PU_SMTV/DS21-srcIP_10.42.0.1',
+#     # # # # # #
+#     'DS40_CTU_IoT/DS41-srcIP_10.0.2.15',
+#     # # #
+#     # # # # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50',
+#     # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50',
+#     'DS50_MAWI_WIDE/DS52-srcIP_203.78.7.165',
+#     # 'DS50_MAWI_WIDE/DS53-srcIP_203.78.4.32',
+#     # 'DS50_MAWI_WIDE/DS54-srcIP_222.117.214.171',
+#     # 'DS50_MAWI_WIDE/DS55-srcIP_101.27.14.204',
+#     # 'DS50_MAWI_WIDE/DS56-srcIP_18.178.219.109',
+#     # #
+#     # # #
+#     # # # # 'DS60_UChi_IoT/DS61-srcIP_192.168.143.20',
+#     'DS60_UChi_IoT/DS62-srcIP_192.168.143.42',
+#     # # # 'DS60_UChi_IoT/DS63-srcIP_192.168.143.43',
+#     # # # 'DS60_UChi_IoT/DS64-srcIP_192.168.143.48'
+#
+#     # 'WRCCDC/2020-03-20',
+#     # 'DEFCON/ctf26',
+#     'ISTS/2015',
+#     # 'MACCDC/2012',
+#
+# ]
+#
+# data_mapping = {
+#     # 'DS10_UNB_IDS/DS11-srcIP_192.168.10.5':'UNB_PC1',
+#     'DS10_UNB_IDS/DS12-srcIP_192.168.10.8': 'UNB_PC2',
+#     'DS10_UNB_IDS/DS13-srcIP_192.168.10.9': 'UNB_PC3',
+#     'DS10_UNB_IDS/DS14-srcIP_192.168.10.14': 'UNB_PC4',
+#     'DS10_UNB_IDS/DS15-srcIP_192.168.10.15': 'UNB_PC5',
+#
+#     # 'DS20_PU_SMTV/DS21-srcIP_10.42.0.1':'SMTV',
+#     # # #
+#     'DS40_CTU_IoT/DS41-srcIP_10.0.2.15': 'CTU',
+#     'DS40_CTU_IoT/DS42-srcIP_192.168.1.196': 'CTU',
+#     #
+#     # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50':'MAWI',
+#     # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50',
+#     'DS50_MAWI_WIDE/DS52-srcIP_203.78.7.165': 'MAWI_PC2',
+#     # 'DS50_MAWI_WIDE/DS53-srcIP_203.78.4.32':'MAWI_PC3',
+#     # 'DS50_MAWI_WIDE/DS54-srcIP_222.117.214.171':'MAWI_PC4',
+#     # 'DS50_MAWI_WIDE/DS55-srcIP_101.27.14.204':'MAWI_PC5',
+#     # 'DS50_MAWI_WIDE/DS56-srcIP_18.178.219.109':'MAWI_PC6',
+#
+#     'ISTS/2015': 'ISTS',
+#     'MACCDC/2012': 'MACCDC',
+#
+#     # 'DS60_UChi_IoT/DS61-srcIP_192.168.143.20':'GHom',
+#     'DS60_UChi_IoT/DS62-srcIP_192.168.143.42': 'SCam',
+#     # 'DS60_UChi_IoT/DS63-srcIP_192.168.143.43':'SFrig',
+#     # 'DS60_UChi_IoT/DS64-srcIP_192.168.143.48':'BSTCH',
+#
+# }
+
+#
+# def find_data_mapping(value):
+#     for k, v in data_mapping.items():
+#         if k in value:
+#             value = v
+#             break
+#
+#     return value
+
+
+def dat2xlxs(in_file, out_file,):
     results = load_data(in_file)
 
     new_results = {}
@@ -444,7 +591,12 @@ def dat2xlxs(in_file, out_file):
     #
     # }
 
-    GMM_covariance_type = 'diag'
+    try:
+        GMM_covariance_type = [_best_res['params']['GMM_covariance_type'] for (data_name_file, case), (_best_res, _mid_res) in results.items() if 'GMM_covariance_type' in _best_res['params'].keys()][0]
+    except Exception as e:
+        print(f'e: {e}')
+        GMM_covariance_type = 'diag'
+
     methods_mapping = {
         'case1': 'OCSVM',
         'case2': f'GMM-{GMM_covariance_type}',
@@ -453,22 +605,33 @@ def dat2xlxs(in_file, out_file):
         'case5': f'GMM-{GMM_covariance_type}-kjl-quickshift',
         'case6': f'GMM-{GMM_covariance_type}-kjl-meanshift',
     }
-
+    methods_mapping = OrderedDict(methods_mapping)
 
     with ExcelWriter(out_file) as writer:
 
-        for sheet_name in ['OCSVM']:
+        for i, sheet_name in enumerate(methods_mapping.values()):
             values = []
-            for i, ((data_key, method_key), (best_values, mid_values)) in enumerate(results.items()):
+            _each_total_rows = 0
+            is_header = True
+            for j, ((data_key, method_key), (best_values, mid_values)) in enumerate(results.items()):
 
                 if methods_mapping[method_key] != sheet_name:
                     continue
 
-                print(f'\n\n----{i}, {sheet_name}')
+                print(f'----i={i}, j={j}, sheet_name:{sheet_name}, data_key: {data_key}')
                 try:
-                    header = 5
+                    if is_header:
+                        header = 5
+                        # the first 5 rows are empty for writing configurations
+                        values.extend([[] for i in range(header)])
+                        values.append([method_key])
+                        is_header= False
+
+
                     X_train_shape = best_values['X_train_shape']
+                    X_train_shape = f'{X_train_shape}'.replace(',', '-')
                     X_test_shape = best_values['X_test_shape']
+                    X_test_shape = f'{X_test_shape}'.replace(',', '-')
                     aucs = best_values['aucs']
                     train_times = best_values['train_times']
                     test_times = best_values['test_times']
@@ -478,8 +641,8 @@ def dat2xlxs(in_file, out_file):
                     params = best_values['params']
                     _suffex = ''
 
-                    line = f'{data_key}, {X_train_shape}, {X_test_shape}, => aucs:{aucs_str}, train_times:{train_times_str}, test_times:{test_times_str}, with params: {params}: {_suffex}'
-                    values.append(line)
+                    line = f'{data_key}, {method_key}, {X_train_shape}, {X_test_shape}, auc: u+/-std, , , => aucs:{aucs_str}, train_times:{train_times_str}, test_times:{test_times_str}, with params: {params}: {_suffex}'
+                    values.append(line.split(','))
                     pd.DataFrame(values).to_excel(writer, sheet_name, index=False, header=False)
 
                     startrow = len(values) + 5
@@ -491,37 +654,35 @@ def dat2xlxs(in_file, out_file):
                     values = [sheet_name]
                     values.extend([] * _each_total_rows)
 
-            writer.save()
+        # once call write.save(), it will close the file
+        writer.save()
 
     return out_file
-#
-# def results2xlsx(in_file, out_file = ''):
-#     if out_file == '':
-#         out_file = in_file + '.xlsx'
-#     out_file = dat2xlxs(in_file, out_file)
-#
-#     out_file = improvement(out_file, feat_set='iat_size', out_file=os.path.splitext(out_file)[0] + '-ratio.xlsx')
-#     return out_file
 
-
-def dat2xlsx2(in_file=''):
-    file_type = 'ratio_variance'
-
-    if file_type == '.dat':
-        out_file = in_file + '.xlsx'
-        dat2xlxs(in_file, out_file)
-
-    elif file_type == 'ratio_variance':
-        # result_xlsl = 'out/data_kll/iat_size/header:False/KJL-OCSVM-GMM-iat_size-header_False-gs_True_grid_search-20200523-all.xlsx'
-        # result_xlsl = 'out/data_kjl/report/KJL-OCSVM-GMM-gs_True-20200630.xlsx'
-        # result_xlsl = 'out/data_kjl/report/KJL-OCSVM-GMM-gs_True-20200702.xlsx'
-        result_xlsl = 'out/data_kjl/report/KJL-OCSVM-GMM-gs_True-20200729.xlsx'
-        # result_xlsl = 'out/data_kjl/report/all_results-20200829.csv.xlsx'
-        out_file = os.path.splitext(result_xlsl)[0] + '-ratio.xlsx'
-        improvement(result_xlsl, feat_set='iat_size', out_file=out_file)
 
 if __name__ == '__main__':
 
-    in_file = 'out/data_kjl/report/all_results.dat'
-    dat2xlsx2(in_file)
+    # in_file = 'out/data_kjl/report/all_results.dat'
+    #
+    # file_type = 'ratio_variance'
+    #
+    # if file_type == '.dat':
+    #     out_file = in_file + '.xlsx'
+    #     dat2xlxs(in_file, out_file)
+    #
+    # elif file_type == 'ratio_variance':
+    #     # result_xlsl = 'out/data_kll/iat_size/header:False/KJL-OCSVM-GMM-iat_size-header_False-gs_True_grid_search-20200523-all.xlsx'
+    #     # result_xlsl = 'out/data_kjl/report/KJL-OCSVM-GMM-gs_True-20200630.xlsx'
+    #     # result_xlsl = 'out/data_kjl/report/KJL-OCSVM-GMM-gs_True-20200702.xlsx'
+    #     result_xlsl = 'out/data_kjl/report/KJL-OCSVM-GMM-gs_True-20200729.xlsx'
+    #     # result_xlsl = 'out/data_kjl/report/all_results-20200829.csv.xlsx'
+    #     out_file = os.path.splitext(result_xlsl)[0] + '-ratio.xlsx'
+    #     improvement(result_xlsl, feat_set='iat_size', out_file=out_file)
 
+    in_file = 'speedup/out/all_results.dat'
+    out_file = dat2xlxs(in_file, out_file=in_file+'.xlsx')
+    out_xlsx = improvement(out_file, feat_set='iat_size', out_file=os.path.splitext(out_file)[0] + '-ratio.xlsx')
+    #
+    # in_file = 'speedup/out/iat_size-gs_False-full/all_results.dat-ratio.xlsx'
+    # out_file = dat2latex(in_file, out_file=in_file+'-latex.xlsx')
+    # print(out_file)

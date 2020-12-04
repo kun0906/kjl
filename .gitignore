@@ -10,8 +10,8 @@ utils/_pycache__/
 *.sh
 
 
-/examples/data/*
-/examples/out/*
+/examples/online/data/*
+/examples/online/out/*
 legacy
 
 

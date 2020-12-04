@@ -17,26 +17,28 @@ import matplotlib.pyplot as plt
 import numpy as np
 from joblib import Parallel, delayed
 from sklearn import metrics
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 from sklearn.metrics import roc_curve, pairwise_distances
-from sklearn.mixture._gaussian_mixture import _estimate_gaussian_parameters
 
-from config import *
-from generate_data import generate_data, split_train_arrival_test
+from online.config import *
+from online.generate_data import generate_data, split_train_arrival_test, plot_data
 from kjl.model.gmm import GMM
 from kjl.model.kjl import KJL
 from kjl.model.nystrom import NYSTROM
 from kjl.model.online_gmm import ONLINE_GMM
-from kjl.model.seek_mode import MODESEEKING
+from kjl.model.seek_mode import meanshift_seek_modes
 from kjl.preprocessing.standardization import STD
 from kjl.utils.data import load_data, batch, data_info
 from kjl.utils.parameters import PARAM
 from kjl.utils.tool import execute_time, time_func, mprint
-from report import imgs2xlsx
+from online.report import imgs2xlsx
 
 
 class SINGLE_CASE:
 
     def __init__(self, random_state=42, **kwargs):
+        self.overwrite = None
         self.random_state = random_state
 
         for key, value in kwargs.items():
@@ -51,28 +53,71 @@ class SINGLE_CASE:
         X, y = load_data(data_file)
         return X, y
 
+    def visual_tsne(self, X, y, params=None):
+
+        n_components = 2
+        if not (params is None):
+            data_name = params.data_name
+            init_set = f'(init_set={int(params.percent_first_init * 100)}:{int(round((1 - params.percent_first_init) * 100))}-{params.X_init_train.shape})'
+        else:
+            data_name = 'Data'
+            init_set = ''
+
+        # PCA
+        X_embedded = PCA(n_components=n_components, random_state=100).fit_transform(X)
+        plot_data(X_embedded, y, title=f'pca on {data_name}, {init_set}')
+
+        # TSNE
+        X_embedded = TSNE(n_components=n_components, random_state=100).fit_transform(X)
+        plot_data(X_embedded, y, title=f'tsne on {data_name}, {init_set}')
+
     def run(self, params):
         info = {}
 
         params.data_type = 'two_datasets'
         X, y = self.load_data(params.data_file, params)
-        params.X_init_train, params.y_init_train, params.X_init_test, params.y_init_test, \
-        params.X_arrival, params.y_arrival, params.X_test, params.y_test = \
-            split_train_arrival_test(X, y, params)
+
+        # params.X_init_train, params.y_init_train, params.X_init_test, params.y_init_test, \
+        # params.X_arrival, params.y_arrival, params.X_test, params.y_test = split_train_arrival_test(X, y, params)
+        # X_tmp = np.concatenate([params.X_init_train, params.X_init_test, params.X_arrival, params.X_test],
+        #                        axis=0)
+        # y_tmp = np.concatenate([params.y_init_train, params.y_init_test, params.y_arrival, params.y_test],
+        #                        axis=0)
+        # self.visual_tsne(X_tmp, y_tmp, params)
+
         for is_online in [True, False]:
-            params.is_online = is_online
+            params_copy = copy.deepcopy(params)
+            params_copy.is_online = is_online
             _info = {}
-            for i in range(params.n_repeats):
-                if params.is_online:
-                    model = ONLINE_GMM_MAIN(params)
-                    # model = BATCH_GMM_MAIN(params)
+            for i in range(params_copy.n_repeats):
+                if params_copy.is_online:
+                    model = ONLINE_GMM_MAIN(params_copy)
+                    # model = BATCH_GMM_MAIN(params_copy)
                 else:
-                    model = BATCH_GMM_MAIN(params)
-                params.random_state = (i + 1) * self.random_state
-                model.random_state = params.random_state
-                model.params.random_state = params.random_state
-                model.init_train_test(params.X_init_train, params.y_init_train, params.X_init_test, params.y_init_test)
-                _info[i] = model.batch_train_test(params.X_arrival, params.y_arrival, params.X_test, params.y_test)
+                    model = BATCH_GMM_MAIN(params_copy)
+
+                params_copy.random_state = (i + 1) * self.random_state
+                print(f'i: {i}, ---random_state: {params_copy.random_state}')
+                model.random_state = params_copy.random_state
+                model.params.random_state = params_copy.random_state
+
+                params_copy.X_init_train, params_copy.y_init_train, params_copy.X_init_test, params_copy.y_init_test, \
+                params_copy.X_arrival, params_copy.y_arrival, params_copy.X_test, params_copy.y_test = split_train_arrival_test(
+                    X, y, params_copy)
+                if i == 0 and is_online:
+                    X_tmp = np.concatenate(
+                        [params_copy.X_init_train, params_copy.X_init_test, params_copy.X_arrival, params_copy.X_test],
+                        axis=0)
+                    y_tmp = np.concatenate(
+                        [params_copy.y_init_train, params_copy.y_init_test, params_copy.y_arrival, params_copy.y_test],
+                        axis=0)
+                    # self.visual_tsne(X_tmp, y_tmp, params_copy)
+                    data_info(X_tmp, name=f'X_tmp: {i}, random_state: {params_copy.random_state}')
+
+                model.init_train_test(params_copy.X_init_train, params_copy.y_init_train, params_copy.X_test,
+                                      params_copy.y_test)
+                _info[i] = model.batch_train_test(params_copy.X_arrival, params_copy.y_arrival, params_copy.X_test,
+                                                  params_copy.y_test)
             info['online' if is_online else 'batch'] = _info
         self.info = info
 
@@ -142,29 +187,36 @@ class SINGLE_CASE:
         fixed_kjl = params.fixed_kjl
         fixed_U_size = params.fixed_U_size
         n_components_init = params.n_components
+        gs = params.gs
         covariance_type = params.covariance_type
+        meanshift = params.meanshift
         q_kjl = params.q_kjl
         n_kjl = params.n_kjl
         d_kjl = params.d_kjl
         std = params.std
+        with_means_std = params.with_means_std
         kjl = params.kjl
         n_repeats = params.n_repeats
         # dataset_name, data_file = k_dataset
         dataset_name = f'{dataset_name} (init_set={int(params.percent_first_init * 100)}:{int(round((1 - params.percent_first_init) * 100))}-{params.X_init_train.shape})'
 
         if kjl:
-            title = f'n_comp={n_components_init}, {covariance_type}; std={std}; KJL={kjl}, n={n_kjl}, d={d_kjl}, q={q_kjl}; n_repeats={n_repeats}'
+            # {covariance_type};
+            title = f'n_cp={n_components_init}, {covariance_type}; gs={gs}; std={std}_c={with_means_std}; KJL={kjl}, n={n_kjl}, d={d_kjl}, q={q_kjl}; ms={meanshift}'
             if fixed_kjl:
-                title = f'Batch vs. Online GMM with fixed KJL on {dataset_name}\n{title}'
+                title = f'Fixed KJL on {dataset_name}; n_repeats={n_repeats}\n{title}'
             elif fixed_U_size:
                 # (replace {n_point} cols and rows of U)
-                title = f'Batch vs. Online GMM with fixed U size on {dataset_name}\n{title}'
+                title = f'Fixed U size on {dataset_name}; n_repeats={n_repeats}\n{title}'
             else:  # increased_U
-                title = f'Batch vs. Online GMM with increased U size on {dataset_name}\n{title}'
+                title = f'Increased U size on {dataset_name}; n_repeats={n_repeats}\n{title}'
         else:
-            title = f'n_comps={n_components_init}, {covariance_type}; KJL={kjl}; n_repeats={n_repeats}'
-            title = f'Batch vs. Online GMM on {dataset_name}\n({title})'
+            #  {covariance_type};
+            title = f'n_cp={n_components_init}, {covariance_type}; gs={gs}; std={std}_ctr={with_means_std}; KJL={kjl}; ms={meanshift}'
+            title = f'{dataset_name};n_repeats={n_repeats}\n({title})'
 
+        title = title.replace('False', 'F')
+        title = title.replace('True', 'T')
         batch_size = params.batch_size
         xlabel = f'The ith batch: i * batch_size({batch_size}) datapoints'
 
@@ -202,67 +254,46 @@ class SINGLE_CASE:
             plt.subplots_adjust(top=0.9, bottom=0.1, right=0.975, left=0.12)
         except Warning as e:
             raise ValueError(e)
-        #
+
         # fig.text(.5, 15, "total label", ha='center')
         plt.figtext(0.5, 0.01, f'X-axis:({xlabel})', fontsize=11, va="bottom", ha="center")
         print(out_file)
         if not pth.exists(os.path.dirname(out_file)): os.makedirs(os.path.dirname(out_file))
+        if pth.exists(out_file): os.remove(out_file)
         fig.savefig(out_file, format='pdf', dpi=300)
-        fig.savefig(out_file + '.png', format='png', dpi=300)
+        out_file += '.png'
+        if pth.exists(out_file): os.remove(out_file)
+        fig.savefig(out_file, format='png', dpi=300)
         if is_show: plt.show()
         plt.close(fig)
 
         return out_file
 
 
-def add_offset(data, name='means', offset=1e-3):
-    if name == 'weights':
-        if np.any(data <= offset):
-            new_data = (data + offset) / np.sum(data)
-        else:
-            new_data = data
-    elif name == 'means':
-        new_data = []
-        for vs in data:
-            if np.any(abs(data) <= offset):
-                new_data.append(np.array([v + offset if v > 0 else v - offset for v in vs]))
-            else:
-                new_data.append(vs)
-        new_data = np.array(new_data, dtype=float)
-    elif name == 'covariances':
-        new_data = []
-        for vs in data:
-            if np.any(abs(data) <= offset):
-                new_data.append(np.array([v + offset if v > 0 else v - offset for v in vs]))
-            else:
-                new_data.append(vs)
-        new_data = np.array(new_data, dtype=float)
-    else:
-        pass
-
-    return new_data
-
 
 class BASE_MODEL:
+
+    def __init__(self):
+        self.verbose = 1
 
     def init_train_test(self, X_init_train, y_init_train, X_init_test, y_init_test):
 
         ##########################################################################################
         # Step 1. configure parameters for tuning
         # case = 'GMM_full-gs_True-kjl_True-nystrom_False-quickshift_False-meanshift_False'
-        if self.params.detector_name == 'GMM' and self.params.covariance_type == 'diag' and \
-                self.params.gs:  # self.params['kjl']  and not self.params.quickshift  and not self.params.meanshift
+        if self.params.detector_name == 'GMM' and self.params.covariance_type == 'diag':  # self.params['kjl']  and not self.params.quickshift  and not self.params.meanshift
             params = {}
-            # best params for the combination of UNB1 and UNB2
-            # params['n_components'] = [5]  # UNB2
-            # params['qs_kjl'] = [0.7]
+            if not self.params.gs:
+                # best params for the combination of UNB1 and UNB2
+                # params['n_components'] = [5]  # UNB2
+                # params['qs_kjl'] = [0.7]
 
-            # params['n_components'] = [2]  # mimic_GMM_dataset
-            params['qs_kjl'] = [0.3]
-
-            # # # # # # grid search
-            params['n_components'] = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45]
-            # params['qs_kjl'] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
+                params['n_components'] = [2]  # mimic_GMM_dataset
+                params['qs_kjl'] = [0.3]
+            else:
+                # # # # # # grid search
+                params['n_components'] = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45]
+                params['qs_kjl'] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
 
             # fixed n and d
             # params['ns_kjl'] = [100]
@@ -301,7 +332,8 @@ class BASE_MODEL:
 
         ##########################################################################################
         # Step 3. To get the best model with best_params, best_auc, best train_time and test_time
-        mprint(f'\n***The best params: model_params: {best_model_params}, params: {best_params}')
+        mprint(
+            f'\n***The best params: model_params: {best_model_params}, q_kjl: {best_params.q_kjl}, d_kjl: {best_params.d_kjl}, n_kjl: {best_params.n_kjl}')
         self.params = best_params
         self.model = GMM()
         model_params = {'n_components': best_model_params['n_components'],
@@ -324,7 +356,7 @@ class BASE_MODEL:
                           'params': self.params, 'model_params': self.model.get_params()}
         return self.model
 
-    def _init_train(self, X_init_train, y_init_train=None):
+    def _init_train(self, X_init_train, y_init_train=None, is_batch_train=False):
         """Train model on the initial set (init_set)
 
         Parameters
@@ -346,15 +378,12 @@ class BASE_MODEL:
 
         train_time = 0.0
 
-        self.X_init_train = X_init_train
-        self.y_init_train = y_init_train
-
         ##########################################################################################
         # Step 1: Preprocessing the data, which includes standardization, mode seeking, and kernel projection.
         if self.params.std:
             # Step 1.1: Standardize the data first
             # fit std_inst
-            self.std_inst = STD()
+            self.std_inst = STD(with_means=self.params.with_means_std)
             _, std_fitting_time = time_func(self.std_inst.fit, X_init_train)
             # transform X_train
             X_init_train, std_time = time_func(self.std_inst.transform, X_init_train)
@@ -364,23 +393,26 @@ class BASE_MODEL:
             std_time = 0.0
         train_time += std_time
 
-        # # Step 1.2: Seek modes of the data by quickshift++ or meanshift
-        time_seeking = 0.0
-        # self.thres_n = 100  # used to filter clusters which have less than 100 datapoints
-        # if 'meanshift' in self.params.keys() and self.params['meanshift']:
-        #     dists = pairwise_distances(X_train)
-        #     self.sigma = np.quantile(dists, self.params['q_kjl'])  # also used for kjl
-        #     self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = meanshift_seek_modes(
-        #         X_train, bandwidth=self.sigma, thres_n=self.thres_n)
-        #     self.params['n_components'] = self.n_components
-        # elif 'quickshift' in self.params.keys() and self.params['quickshift']:
-        #     self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
-        #         X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
-        #         thres_n=self.thres_n)
-        #     self.params['n_components'] = self.n_components
-        # else:
-        #     self.seek_train_time = 0
-        train_time += time_seeking
+        self.X_init_train = X_init_train
+        self.y_init_train = y_init_train
+
+        # # # Step 1.2: Seek modes of the data by quickshift++ or meanshift
+        # time_seeking = 0.0
+        # # self.thres_n = 100  # used to filter clusters which have less than 100 datapoints
+        # # if 'meanshift' in self.params.keys() and self.params['meanshift']:
+        # #     dists = pairwise_distances(X_train)
+        # #     self.sigma = np.quantile(dists, self.params['q_kjl'])  # also used for kjl
+        # #     self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = meanshift_seek_modes(
+        # #         X_train, bandwidth=self.sigma, thres_n=self.thres_n)
+        # #     self.params['n_components'] = self.n_components
+        # # elif 'quickshift' in self.params.keys() and self.params['quickshift']:
+        # #     self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
+        # #         X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
+        # #         thres_n=self.thres_n)
+        # #     self.params['n_components'] = self.n_components
+        # # else:
+        # #     self.seek_train_time = 0
+        # train_time += time_seeking
 
         # Step 1.3. Project the data onto a lower space with KJL or Nystrom
         if self.params.kjl:
@@ -402,7 +434,27 @@ class BASE_MODEL:
         else:
             proj_time = 0.0
         train_time += proj_time
-        if self.verbose > DEBUG: data_info(X_init_train, name='X_proj before updating KJL')
+        if self.verbose >= DEBUG: data_info(X_init_train, name='X_proj')
+
+        # # Step 1.2: Seek modes of the data by quickshift++ or meanshift
+        if is_batch_train:
+            self.thres_n = 10  # used to filter clusters which have less than 100 datapoints
+            if self.params.meanshift:
+                dists = pairwise_distances(X_init_train)
+                sigma = np.quantile(dists, self.params.q_kjl)  # also used for kjl
+                means_init, n_components, seeking_time, all_n_clusters = meanshift_seek_modes(
+                    X_init_train, bandwidth=sigma, thres_n=self.thres_n)
+                self.params.n_components = n_components
+            # elif 'quickshift' in self.params.keys() and self.params['quickshift']:
+            #     self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
+            #         X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
+            #         thres_n=self.thres_n)
+            #     self.params['n_components'] = self.n_components
+            else:
+                seeking_time = 0
+        else:
+            seeking_time = 0.0
+        train_time += seeking_time
 
         ##########################################################################################
         # Step 2. Setting self.model'params (e.g., means_init, and n_components when use meanshift or quickshift)
@@ -415,9 +467,9 @@ class BASE_MODEL:
         _, model_fitting_time = time_func(self.model.fit, X_init_train)
         train_time += model_fitting_time
 
-        ##########################################################################################
-        # Step 3. Get the threshold used to decide if a new flow is normal
-        # the following values will be used in the online update phase
+        # ##########################################################################################
+        # # Step 3. Get the threshold used to decide if a new flow is normal
+        # # the following values will be used in the online update phase
         y_score, _ = time_func(self.model.decision_function, X_init_train)
         self.abnormal_thres = np.quantile(y_score, q=self.params.q_abnormal_thres)  # abnormal threshold
         _, log_resp = self.model._e_step(X_init_train)
@@ -427,7 +479,7 @@ class BASE_MODEL:
 
         self.train_time = {'train_time': train_time,
                            'preprocessing_time': std_time + proj_time,
-                           # 'mode_seeking': time_seeking,
+                           'seeking_time': seeking_time,
                            'model_fitting_time': model_fitting_time,
                            'rescore_time': 0}
 
@@ -454,7 +506,7 @@ class BASE_MODEL:
         """
 
         test_time = 0.0
-        print(f'y_test: {Counter(y_init_test)}')
+        mprint(f'y_test: {Counter(y_init_test)}', self.verbose, INFO)
         ##########################################################################################
         # Step 1: Preprocessing
         X_init_test, preprocessing_time = time_func(self._preprocessing, X_init_test)
@@ -521,8 +573,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         # stores all results
         self.info = {}
 
-    def batch_train_test(self, X_arrival, y_arrival, X_test,
-                         y_test):
+    def batch_train_test(self, X_arrival, y_arrival, X_test, y_test):
         """ Train and test model
 
         Parameters
@@ -562,8 +613,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
             if i == 0:
                 # copy means_, covariances, and other params from the init_model
                 self.model = copy.deepcopy(self.init_model)
-                # self.X_acculumated_train_proj = self.X_init_train_proj
-                self.X_acculumated_train = self.X_init_train
+                self.X_acculumated_train = self.X_init_train  # (std data)
                 self.y_acculumated_train = self.y_init_train
 
             # online train model (update GMM model values, such as, means, covariances, kjl_U, and n_components)
@@ -602,6 +652,8 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
            y_score: abnormal score
            testing_time, auc, apc
         """
+        # if self.verbose >= DEBUG: data_info(np.asarray(X_batch), name='X_batch')
+        if self.verbose >= DEBUG: data_info(np.asarray(self.X_acculumated_train), name='X_acculumated_train')
         mprint(f'y_batch: {Counter(y_batch)}', self.verbose, DEBUG)
         train_time = 0.0
         X_batch_raw = X_batch
@@ -630,9 +682,9 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
             if self.params.std:
                 # update the mean and scaler of self.std_inst with 'x'
                 # use the original X_batch to update std_inst
-                _, time_std_update = time_func(self.std_inst.update, X_batch_raw)
+                # _, time_std_update = time_func(self.std_inst.update, X_batch_raw)
                 X_batch, std_time = time_func(self.std_inst.transform, X_batch_raw)
-                std_time += time_std_update
+                # std_time += time_std_update
             else:
                 self.std_inst = None
                 X_batch = X_batch_raw
@@ -641,15 +693,16 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
             if self.params.kjl:
                 #  Update kjl: self.U_kjl, self.Xrow_kjl.
                 self.kjl_inst.n_samples = self.X_acculumated_train.shape[0]
-                _, time_proj_update = time_func(self.kjl_inst.update, X_batch, y_batch, X_batch_raw, y_batch_raw,
+                _, time_proj_update = time_func(self.kjl_inst.update, X_batch, y_batch, None, None,
                                                 self.std_inst)
-                X_batch, proj_time = time_func(self.kjl_inst.transform, X_batch)
-                proj_time += time_proj_update
+                # X_batch, proj_time = time_func(self.kjl_inst.transform, X_batch)
+                # proj_time += time_proj_update
+                proj_time = time_proj_update
             elif self.params.nystrom:
                 # Update nystrom_inst
                 _, time_proj_update = time_func(self.nystrom_inst.update, X_batch)
-                X_batch, proj_time = time_func(self.nystrom_inst.transform, X_batch)
-                proj_time += time_proj_update
+                # X_batch, proj_time = time_func(self.nystrom_inst.transform, X_batch)
+                # proj_time += time_proj_update
             else:
                 proj_time = 0
 
@@ -665,85 +718,94 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         normal_idx = np.where((y_score <= self.abnormal_thres) == True)
         abnormal_idx = np.where((y_score > self.abnormal_thres) == True)
         X_batch_normal = X_batch[normal_idx] if len(normal_idx[0]) > 0 else []
+        y_batch_normal = y_batch[normal_idx] if len(normal_idx[0]) > 0 else []
         X_batch_abnormal = X_batch[abnormal_idx] if len(abnormal_idx[0]) > 0 else []
-        # without std and kjl
-        X_batch_normal_raw = X_batch_raw[normal_idx] if len(normal_idx[0]) > 0 else []
-        X_batch_abnormal_raw = X_batch_raw[abnormal_idx] if len(abnormal_idx[0]) > 0 else []
+
+        # # without std and kjl
+        # X_batch_normal_raw = X_batch_raw[normal_idx] if len(normal_idx[0]) > 0 else []
+        # y_batch_normal_raw = y_batch_raw[normal_idx] if len(normal_idx[0]) > 0 else []
+        # X_batch_abnormal_raw = X_batch_raw[abnormal_idx] if len(abnormal_idx[0]) > 0 else []
 
         # reproject the previous X_acculumated_train_proj with the updated std and kjl
-        X_acculumated_train_proj = self._preprocessing(self.X_acculumated_train)
+        self.X_acculumated_train = np.concatenate([self.X_acculumated_train, X_batch_normal], axis=0)  # std_data
+        self.y_acculumated_train = np.concatenate([self.y_acculumated_train, y_batch_normal])  # std_data
+        # X_acculumated_train_proj = self._preprocessing(self.X_acculumated_train)
+        if self.params.kjl:
+            X_acculumated_train_proj, _ = time_func(self.kjl_inst.transform, self.X_acculumated_train)
+        else:
+            X_acculumated_train_proj = self.X_acculumated_train
 
         end = datetime.now()
         preprocessing_time = (end - start).total_seconds()
         train_time += preprocessing_time
 
         start = datetime.now()
-        # # Step 2.3: Seek modes of the data by quickshift++ or meanshift for initialize GMM
-        n_thres = 0  # used to filter clusters which have less than 100 datapoints
-        if self.params.meanshift:
-            if self.params.kjl:  # use the same sigma of kjl
-                self.sigma = self.kjl_inst.sigma_kjl
-            else:
-                dists = pairwise_distances(X_acculumated_train_proj)
-                self.sigma = np.quantile(dists, q=0.3)
-            ms = MODESEEKING(method_name='meanshift', bandwidth=None,
-                             random_state=self.random_state, verbose=self.verbose)
-            _, ms_fitting_time = time_func(ms.fit, X_acculumated_train_proj, n_thres=n_thres)
-            n_components = ms.n_clusters_
-            mprint(f'mode_seeking_time: {ms_fitting_time}s, n_clusters: {n_components}', self.verbose, DEBUG)
-            n_samples, _ = X_acculumated_train_proj.shape
-            resp = np.zeros((n_samples, n_components))
-            # label = cluster.KMeans(n_clusters=self.n_components, n_init=1,
-            #                        random_state=random_state).fit(X).labels_
-            resp[np.arange(n_samples), ms.labels_] = 1
-
-            weights, means, covariances = _estimate_gaussian_parameters(
-                X_acculumated_train_proj, resp, self.model.reg_covar, self.model.covariance_type)
-            weights /= n_samples
-            new_model = ONLINE_GMM(n_components=n_components,
-                                   covariance_type=self.model.covariance_type,
-                                   weights_init=weights,
-                                   means_init=means,
-                                   covariances_init=covariances,
-                                   verbose=self.verbose,
-                                   random_state=self.params.random_state,
-                                   warm_start=True)
-
-        elif self.params.quickshift:
-            ms = MODESEEKING(method_name='quickshift', k=100, beta=0.9,
-                             random_state=self.random_state, verbose=self.verbose)
-            _, ms_fitting_time = time_func(ms.fit, X_acculumated_train_proj, n_thres=n_thres)
-            n_components = ms.n_clusters_
-            mprint(f'mode_seeking_time: {ms_fitting_time}s, n_clusters: {n_components}', self.verbose, DEBUG)
-            n_samples, _ = X_acculumated_train_proj.shape
-            resp = np.zeros((n_samples, self.model.n_components))
-            # label = cluster.KMeans(n_clusters=self.n_components, n_init=1,
-            #                        random_state=random_state).fit(X).labels_
-            resp[np.arange(n_samples), ms.labels_] = 1
-
-            weights, means, covariances = _estimate_gaussian_parameters(
-                X_acculumated_train_proj, resp, self.model.reg_covar, self.model.covariance_type)
-            weights /= n_samples
-            new_model = ONLINE_GMM(n_components=n_components,
-                                   covariance_type=self.model.covariance_type,
-                                   weights_init=weights,
-                                   means_init=means,
-                                   covariances_init=covariances,
-                                   verbose=self.verbose,
-                                   random_state=self.params.random_state,
-                                   warm_start=True)
-        else:
-            # print(f'before online, self.model.weights_: {self.model.weights_}')
-            # print(f'before online, self.model.means_: {self.model.means_}')
-            # print(f'before online, self.model.covariances_: {self.model.covariances_}')
-            new_model = ONLINE_GMM(n_components=self.model.n_components,
-                                   covariance_type=self.model.covariance_type,
-                                   weights_init=self.model.weights_,
-                                   means_init=self.model.means_,
-                                   covariances_init=self.model.covariances_,
-                                   verbose=self.verbose,
-                                   random_state=self.params.random_state,
-                                   warm_start=True)
+        # # # Step 2.3: Seek modes of the data by quickshift++ or meanshift for initialize GMM
+        # n_thres = 0  # used to filter clusters which have less than 100 datapoints
+        # if self.params.meanshift:
+        #     if self.params.kjl:  # use the same sigma of kjl
+        #         self.sigma = self.kjl_inst.sigma_kjl
+        #     else:
+        #         dists = pairwise_distances(X_acculumated_train_proj)
+        #         self.sigma = np.quantile(dists, q=0.3)
+        #     ms = MODESEEKING(method_name='meanshift', bandwidth=None,
+        #                      random_state=self.random_state, verbose=self.verbose)
+        #     _, ms_fitting_time = time_func(ms.fit, X_acculumated_train_proj, n_thres=n_thres)
+        #     n_components = ms.n_clusters_
+        #     mprint(f'mode_seeking_time: {ms_fitting_time}s, n_clusters: {n_components}', self.verbose, DEBUG)
+        #     n_samples, _ = X_acculumated_train_proj.shape
+        #     resp = np.zeros((n_samples, n_components))
+        #     # label = cluster.KMeans(n_clusters=self.n_components, n_init=1,
+        #     #                        random_state=random_state).fit(X).labels_
+        #     resp[np.arange(n_samples), ms.labels_] = 1
+        #
+        #     weights, means, covariances = _estimate_gaussian_parameters(
+        #         X_acculumated_train_proj, resp, self.model.reg_covar, self.model.covariance_type)
+        #     weights /= n_samples
+        #     new_model = ONLINE_GMM(n_components=n_components,
+        #                            covariance_type=self.model.covariance_type,
+        #                            weights_init=weights,
+        #                            means_init=means,
+        #                            covariances_init=covariances,
+        #                            verbose=self.verbose,
+        #                            random_state=self.params.random_state,
+        #                            warm_start=True)
+        #
+        # elif self.params.quickshift:
+        #     ms = MODESEEKING(method_name='quickshift', k=100, beta=0.9,
+        #                      random_state=self.random_state, verbose=self.verbose)
+        #     _, ms_fitting_time = time_func(ms.fit, X_acculumated_train_proj, n_thres=n_thres)
+        #     n_components = ms.n_clusters_
+        #     mprint(f'mode_seeking_time: {ms_fitting_time}s, n_clusters: {n_components}', self.verbose, DEBUG)
+        #     n_samples, _ = X_acculumated_train_proj.shape
+        #     resp = np.zeros((n_samples, self.model.n_components))
+        #     # label = cluster.KMeans(n_clusters=self.n_components, n_init=1,
+        #     #                        random_state=random_state).fit(X).labels_
+        #     resp[np.arange(n_samples), ms.labels_] = 1
+        #
+        #     weights, means, covariances = _estimate_gaussian_parameters(
+        #         X_acculumated_train_proj, resp, self.model.reg_covar, self.model.covariance_type)
+        #     weights /= n_samples
+        #     new_model = ONLINE_GMM(n_components=n_components,
+        #                            covariance_type=self.model.covariance_type,
+        #                            weights_init=weights,
+        #                            means_init=means,
+        #                            covariances_init=covariances,
+        #                            verbose=self.verbose,
+        #                            random_state=self.params.random_state,
+        #                            warm_start=True)
+        # else:
+        #     # print(f'before online, self.model.weights_: {self.model.weights_}')
+        #     # print(f'before online, self.model.means_: {self.model.means_}')
+        #     # print(f'before online, self.model.covariances_: {self.model.covariances_}')
+        #     new_model = ONLINE_GMM(n_components=self.model.n_components,
+        #                            covariance_type=self.model.covariance_type,
+        #                            weights_init=self.model.weights_,
+        #                            means_init=self.model.means_,
+        #                            covariances_init=self.model.covariances_,
+        #                            verbose=self.verbose,
+        #                            random_state=self.params.random_state,
+        #                            warm_start=True)
 
         # Step 2.4: online train a new model on the batch data
         # 1) train on the normal data first (without needing to create any new component)
@@ -752,71 +814,96 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         # new_model.sum_resp = self.model.sum_resp  # shape (1, d): sum of exp(log_resp)
         # new_model._initialize()  # set up cholesky
 
-        update_flg = False
-        # The first update of GMM
-        # X_batch_used = np.zeros()
-        while (len(X_batch_normal) > 0) or (len(X_batch_abnormal) > 0):
-            if len(X_batch_normal) > 0:
-                # # 1) train on the normal data first (without needing to create any new component)
-                # _, log_resp = new_model._e_step(X_batch_normal)
-                # # data_info(np.exp(log_resp), name='resp')
-                # new_model._m_step_online(X_batch_normal, log_resp, sum_resp_pre=new_model.sum_resp,
-                #                          n_samples_pre=self.X_acculumated_train_proj.shape[0])
-                self.X_acculumated_train = np.concatenate([self.X_acculumated_train, X_batch_normal_raw], axis=0)
-                X_batch_normal_raw = []
-                X_acculumated_train_proj = np.concatenate([X_acculumated_train_proj, X_batch_normal], axis=0)
-                X_batch_normal = []
-
-            # elif len(X_batch_abnormal) > 0:
-            #     update_flg = True
-            #     # 2) train on the abnormal data (create new components)
-            #     # each time only focuses on one abnormal datapoint
-            #     idx = 0
-            #     # add a new data with std and kjl into self.X_acculumated_train_proj
-            #     x_proj = X_batch_abnormal[idx].reshape(1, -1)
-            #     X_batch_abnormal = np.delete(X_batch_abnormal, idx, axis=0)
-            #     X_acculumated_train_proj = np.concatenate([X_acculumated_train_proj, x_proj], axis=0)
-            #     # add a new data without std and kjl into self.X_acculumated_train
-            #     x_batch_raw = X_batch_abnormal_raw[idx].reshape(1, -1)
-            #     X_batch_abnormal_raw = np.delete(X_batch_abnormal_raw, idx, axis=0)
-            #     self.X_acculumated_train = np.concatenate([self.X_acculumated_train, x_batch_raw], axis=0)
-            #
-            #     # add new components and update threshold
-            #     new_model.add_new_component(x_proj, self.params.q_abnormal_thres, X_acculumated_train_proj)
-            # else:
-            #     break
-            #
-            # if len(X_batch_abnormal) > 0:
-            #     if not update_flg:  # update threshold
-            #         self.abnormal_thres = self.update_abnormal_thres(new_model, X_acculumated_train_proj)
-            #
-            #     y_score = new_model.decision_function(X_batch_abnormal)
-            #     # cond_normal = y_score < self.novelty_thres  # return bool values:  normal index
-            #     normal_idx = np.where((y_score <= self.abnormal_thres) == True)
-            #     abnormal_idx = np.where((y_score > self.abnormal_thres) == True)
-            #     X_batch_normal = X_batch_abnormal[normal_idx] if len(normal_idx[0]) > 0 else []
-            #     X_batch_abnormal = X_batch_abnormal[abnormal_idx] if len(abnormal_idx[0]) > 0 else []
-            #     # without std and proj
-            #     X_batch_normal_raw = X_batch_abnormal_raw[normal_idx] if len(normal_idx[0]) > 0 else []
-            #     X_batch_abnormal_raw = X_batch_abnormal_raw[abnormal_idx] if len(abnormal_idx[0]) > 0 else []
+        # update_flg = False
+        # # The first update of GMM
+        # # X_batch_used = np.zeros()
+        # while (len(X_batch_normal) > 0) or (len(X_batch_abnormal) > 0):
+        #     if len(X_batch_normal) > 0:
+        #         # # 1) train on the normal data first (without needing to create any new component)
+        #         # _, log_resp = new_model._e_step(X_batch_normal)
+        #         # # data_info(np.exp(log_resp), name='resp')
+        #         # new_model._m_step_online(X_batch_normal, log_resp, sum_resp_pre=new_model.sum_resp,
+        #         #                          n_samples_pre=self.X_acculumated_train_proj.shape[0])
+        #         self.X_acculumated_train = np.concatenate([self.X_acculumated_train, X_batch_normal_raw], axis=0)
+        #         X_batch_normal_raw = []
+        #         X_acculumated_train_proj = np.concatenate([X_acculumated_train_proj, X_batch_normal], axis=0)
+        #         X_batch_normal = []
+        #         self.y_acculumated_train = np.concatenate([self.y_acculumated_train, y_batch_normal_raw], axis=0)
+        # elif len(X_batch_abnormal) > 0:
+        #     update_flg = True
+        #     # 2) train on the abnormal data (create new components)
+        #     # each time only focuses on one abnormal datapoint
+        #     idx = 0
+        #     # add a new data with std and kjl into self.X_acculumated_train_proj
+        #     x_proj = X_batch_abnormal[idx].reshape(1, -1)
+        #     X_batch_abnormal = np.delete(X_batch_abnormal, idx, axis=0)
+        #     X_acculumated_train_proj = np.concatenate([X_acculumated_train_proj, x_proj], axis=0)
+        #     # add a new data without std and kjl into self.X_acculumated_train
+        #     x_batch_raw = X_batch_abnormal_raw[idx].reshape(1, -1)
+        #     X_batch_abnormal_raw = np.delete(X_batch_abnormal_raw, idx, axis=0)
+        #     self.X_acculumated_train = np.concatenate([self.X_acculumated_train, x_batch_raw], axis=0)
+        #
+        #     # add new components and update threshold
+        #     new_model.add_new_component(x_proj, self.params.q_abnormal_thres, X_acculumated_train_proj)
+        # else:
+        #     break
+        #
+        # if len(X_batch_abnormal) > 0:
+        #     if not update_flg:  # update threshold
+        #         self.abnormal_thres = self.update_abnormal_thres(new_model, X_acculumated_train_proj)
+        #
+        #     y_score = new_model.decision_function(X_batch_abnormal)
+        #     # cond_normal = y_score < self.novelty_thres  # return bool values:  normal index
+        #     normal_idx = np.where((y_score <= self.abnormal_thres) == True)
+        #     abnormal_idx = np.where((y_score > self.abnormal_thres) == True)
+        #     X_batch_normal = X_batch_abnormal[normal_idx] if len(normal_idx[0]) > 0 else []
+        #     X_batch_abnormal = X_batch_abnormal[abnormal_idx] if len(abnormal_idx[0]) > 0 else []
+        #     # without std and proj
+        #     X_batch_normal_raw = X_batch_abnormal_raw[normal_idx] if len(normal_idx[0]) > 0 else []
+        #     X_batch_abnormal_raw = X_batch_abnormal_raw[abnormal_idx] if len(abnormal_idx[0]) > 0 else []
 
         end = datetime.now()
         first_train_time = (end - start).total_seconds()
+
+        # # Step 1.2: Seek modes of the data by quickshift++ or meanshift
+        seeking_time = 0
+        # self.thres_n = 10  # used to filter clusters which have less than 100 datapoints
+        # if self.params.meanshift:
+        #     dists = pairwise_distances(X_acculumated_train_proj)
+        #     sigma = np.quantile(dists, self.params.q_kjl)  # also used for kjl
+        #     means_init, n_components, seeking_time, all_n_clusters = meanshift_seek_modes(
+        #         X_acculumated_train_proj, bandwidth=sigma, thres_n=self.thres_n)
+        #     self.params.n_components = n_components
+        #     self.model.n_components = n_components
+        #     self.model.means_ = means_init
+        # # elif 'quickshift' in self.params.keys() and self.params['quickshift']:
+        # #     self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
+        # #         X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
+        # #         thres_n=self.thres_n)
+        # #     self.params['n_components'] = self.n_components
+        # else:
+        #     seeking_time = 0
+        train_time += seeking_time
 
         start = datetime.now()
 
         new_model = ONLINE_GMM(n_components=self.model.n_components,
                                covariance_type=self.model.covariance_type,
+                               # means_init=self.model.means_,
                                verbose=self.verbose,
                                random_state=self.params.random_state,
                                warm_start=True)
-        new_model._initialize_parameters(X_acculumated_train_proj, self.random_state)
+        new_model._initialize_parameters(X_acculumated_train_proj, self.random_state,
+                                         init=self.model.means_)  # k-means++ ,self.model.means_
         # Train the new model until it converges
         i = 0
         new_model.converged_ = False
         if not new_model.converged_:  new_model.max_iter = 100
         prev_lower_bound = -np.infty
-        if self.verbose >= 1: mprint(f'X_acculumated_train_proj: {X_acculumated_train_proj.shape}')
+        if self.verbose >= 1:
+            # if self.verbose >= DEBUG: data_info(X_acculumated_train_proj, name='X_proj')
+            mprint(
+                f'X_acculumated_train_proj: {X_acculumated_train_proj.shape}, y_acculumated_train: {Counter(self.y_acculumated_train)}')
         best_n_iter_ = 0
         while (i < new_model.max_iter) and (not new_model.converged_):
             _st = datetime.now()
@@ -874,23 +961,26 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         ##########################################################################################
         # Step 3:  update the abnormal threshold with all accumulated data
         self.model = new_model
-        mprint(new_model.get_params(), self.verbose, DEBUG)
-        if not new_model.converged_:
-            self.abnormal_thres, rescore_time = time_func(self.update_abnormal_thres,
-                                                          self.model,
-                                                          X_acculumated_train_proj)
-        else:
-            # override the _e_step(), so  here is not mean(log_prob_norm)    #  return -1 * self.score_samples(X)
-            y_score = - log_prob_norm
-            self.abnormal_thres, rescore_time = time_func(np.quantile, y_score, q=self.params.q_abnormal_thres)
+        # # mprint(new_model.get_params(), self.verbose, DEBUG)
+        rescore_time = 0.0
+        # if not new_model.converged_:
+        #     self.abnormal_thres, rescore_time = time_func(self.update_abnormal_thres,
+        #                                                   self.model,
+        #                                                   X_acculumated_train_proj)
+        # else:
+        #     # override the _e_step(), so  here is not mean(log_prob_norm)    #  return -1 * self.score_samples(X)
+        #     y_score = - log_prob_norm
+        #     self.abnormal_thres, rescore_time = time_func(np.quantile, y_score, q=self.params.q_abnormal_thres)
+
         train_time += rescore_time
 
-        mprint(f'Batch time: {train_time} <=: preprocessing_time: {preprocessing_time},'
+        mprint(f'Batch time: {train_time} <=: preprocessing_time: {preprocessing_time}, seeking_time: {seeking_time}'
                f'first_train_time: {first_train_time}, iteration_time: {iteration_time},'
                f'rescore_time: {rescore_time}')
 
         self.train_time = {'train_time': train_time,
                            'preprocessing_time': preprocessing_time,
+                           'seeking_time': seeking_time,
                            'model_fitting_time': first_train_time + iteration_time,
                            'rescore_time': rescore_time}
 
@@ -898,26 +988,26 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
 
         return self
 
-    def update_abnormal_thres(self, model, X_normal_proj):
-        """Only use abnormal_score to update the abnormal_thres, in which,
-            abnormal_score = y_score[y_score > abnormal_thres]
-
-        Parameters
-        ----------
-        model
-        abnormal_thres
-        X_normal_proj
-
-        Returns
-        -------
-
-        """
-
-        y_score, model_predict_time = time_func(model.decision_function, X_normal_proj)
-        abnormal_thres = np.quantile(y_score, q=self.params.q_abnormal_thres)  # abnormal threshold
-        # model.y_score = y_score
-
-        return abnormal_thres
+    # def update_abnormal_thres(self, model, X_normal_proj):
+    #     """Only use abnormal_score to update the abnormal_thres, in which,
+    #         abnormal_score = y_score[y_score > abnormal_thres]
+    #
+    #     Parameters
+    #     ----------
+    #     model
+    #     abnormal_thres
+    #     X_normal_proj
+    #
+    #     Returns
+    #     -------
+    #
+    #     """
+    #
+    #     y_score, model_predict_time = time_func(model.decision_function, X_normal_proj)
+    #     abnormal_thres = np.quantile(y_score, q=self.params.q_abnormal_thres)  # abnormal threshold
+    #     # model.y_score = y_score
+    #
+    #     return abnormal_thres
 
     def online_test(self, X_test, y_test):
         """Evaluate model on the test set
@@ -939,7 +1029,28 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         -------
 
         """
-        self._init_test(X_test, y_test)
+        # if self.verbose >= DEBUG: data_info(np.asarray(X_test), name='X_test')
+        test_time = 0.0
+        X_test, preprocessing_time = time_func(self._preprocessing, X_test)
+        test_time += preprocessing_time
+
+        ##########################################################################################
+        # Step 2: Evaluate GMM on the test set
+        y_score, prediction_time = time_func(self.model.decision_function, X_test)
+        self.auc, auc_time = time_func(self.get_score, y_test, y_score)
+        if self.verbose >= DEBUG: data_info(np.asarray(y_score).reshape(-1, 1), name='y_score')
+        test_time += prediction_time + auc_time
+
+        mprint(f'Total test time: {test_time} <= preprocessing_time: {preprocessing_time}, '
+               f'prediction_time: {prediction_time}, auc_time: {auc_time}, AUC: {self.auc}', self.verbose, DEBUG)
+
+        self.test_time = {'test_time': test_time,
+                          'preprocessing_time': preprocessing_time,
+                          'prediction_time': prediction_time,
+                          'auc_time': auc_time}
+        # self._init_test(X_test, y_test)
+
+        return self
 
 
 class BATCH_GMM_MAIN(BASE_MODEL):
@@ -988,6 +1099,7 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         # # # Step 1. Get initial model (init_model) on initial set (init_set) and evaluate it on test set
         # self.init_model = self.init_train_test(X_init_train, y_init_train, X_init_test, y_init_test)
         self.init_model = self.model
+        # X_test, preprocessing_time = time_func(self._preprocessing, X_test)
 
         ##########################################################################################
         # Step 2. train the model on the batch data (previous+batch) and evaluate it.
@@ -1040,6 +1152,9 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         -------
            self
         """
+        # if self.verbose >= DEBUG: data_info(np.asarray(X_batch), name='X_batch')
+        if self.verbose >= DEBUG: data_info(np.asarray(self.X_acculumated_train), name='X_acculumated_train')
+
         start = datetime.now()
 
         mprint(f'y_batch: {Counter(y_batch)}', self.verbose, DEBUG)
@@ -1061,10 +1176,15 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         # Step 3.1: concatenate previous data and X_batch (only normal data)
         self.abnormal_thres = np.infty  # for debug
 
+        if self.params.std:
+            X_batch, _ = time_func(self.std_inst.transform, X_batch_raw)
+        else:
+            X_batch = X_batch_raw
+
         normal_idx = np.where((y_score <= self.abnormal_thres) == True)
         abnormal_idx = np.where((y_score > self.abnormal_thres) == True)
         if len(normal_idx[0]) > 0:
-            X_normal = X_batch_raw[normal_idx]
+            X_normal = X_batch[normal_idx]
             y_normal = y_batch[normal_idx]
             self.X_acculumated_train = np.concatenate([self.X_acculumated_train, X_normal], axis=0)
             self.y_acculumated_train = np.concatenate([self.y_acculumated_train, y_normal], axis=0)
@@ -1078,14 +1198,33 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         # Step 3.2: train a new model and use it to instead of the current one.
         # we use model.n_compoents to initialize n_components or the value found by quickhsift++ or meanshift
         # self.model_copy = copy.deepcopy(self.model)
-        self.model = GMM(n_components=self.model.n_components, covariance_type=self.params.covariance_type,
-                         random_state=self.params.random_state)
+
         # update self.model: replace the current model with new_model
         if self.params.fixed_kjl:  # (fixed KJL, U, and STD)
             # use the init self.kjl to transform X_batch
             # Step 1: Preprocessing
             X_batch, prepro_time = time_func(self._preprocessing, self.X_acculumated_train)
             preprocessing_time += prepro_time
+
+            # # Step 1.2: Seek modes of the data by quickshift++ or meanshift
+            self.thres_n = 10  # used to filter clusters which have less than 100 datapoints
+            if self.params.meanshift:
+                dists = pairwise_distances(X_batch)
+                sigma = np.quantile(dists, self.params.q_kjl)  # also used for kjl
+                means_init, n_components, seeking_time, all_n_clusters = meanshift_seek_modes(
+                    X_batch, bandwidth=sigma, thres_n=self.thres_n)
+                self.params.n_components = n_components
+            # elif 'quickshift' in self.params.keys() and self.params['quickshift']:
+            #     self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
+            #         X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
+            #         thres_n=self.thres_n)
+            #     self.params['n_components'] = self.n_components
+            else:
+                seeking_time = 0
+            train_time += seeking_time
+
+            self.model = GMM(n_components=self.params.n_components, covariance_type=self.params.covariance_type,
+                             random_state=self.params.random_state)
             ##########################################################################################
             # # Step 2: fit a model
             _, model_fitting_time = time_func(self.model.fit, X_batch)
@@ -1101,52 +1240,96 @@ class BATCH_GMM_MAIN(BASE_MODEL):
             train_time = (end - start).total_seconds()
             self.train_time = {'train_time': train_time,
                                'preprocessing_time': preprocessing_time,
+                               'seeking_time': seeking_time,
                                'model_fitting_time': model_fitting_time,
                                'rescore_time': rescore_time}
         else:
             end = datetime.now()
             train_time = (end - start).total_seconds()
-            self._init_train(self.X_acculumated_train, self.y_acculumated_train)  # self.train_time
-            self.train_time = {'train_time': train_time + self.train_time['train_time'],
-                               'preprocessing_time': preprocessing_time + self.train_time['preprocessing_time'],
-                               'model_fitting_time': self.train_time['model_fitting_time'],
-                               'rescore_time': self.train_time['rescore_time']}
+
+            # Step 1: Preprocessing
+            preprocessing_time = 0
+
+            if self.params.kjl:
+                # Fit a kjl_inst on the X_train
+                self.kjl_inst = KJL(self.params)
+                _, kjl_time = time_func(self.kjl_inst.fit, self.X_acculumated_train, self.y_acculumated_train,
+                                        self.X_acculumated_train, self.y_acculumated_train)
+                proj_time = kjl_time
+                # Transform X_train
+                X_batch, kjl_time = time_func(self.kjl_inst.transform, self.X_acculumated_train)
+                proj_time += kjl_time
+            else:
+                X_batch = self.X_acculumated_train
+                proj_time = 0.0
+            preprocessing_time += proj_time
+            if self.verbose >= DEBUG: data_info(X_batch, name='X_proj')
+            train_time += preprocessing_time
+
+
+            self.model = GMM(n_components=self.model.n_components, covariance_type=self.params.covariance_type,
+                             random_state=self.params.random_state)
+
+            seeking_time = 0.0
+            train_time += seeking_time
+
+            ##########################################################################################
+            # Step 2. Setting self.model'params (e.g., means_init, and n_components when use meanshift or quickshift)
+            model_params = {'n_components': self.params.n_components,
+                            'covariance_type': self.params.covariance_type,
+                            'means_init': None, 'random_state': self.random_state}
+            self.model.set_params(**model_params)
+            # mprint(self.model.get_params(), self.verbose, DEBUG)
+            # Fit self.model on the X_train
+            _, model_fitting_time = time_func(self.model.fit, X_batch)
+            train_time += model_fitting_time
+
+            rescore_time = 0
+
+            self.train_time = {'train_time': train_time,
+                               'preprocessing_time': preprocessing_time,
+                               'seeking_time': seeking_time,
+                               'model_fitting_time': model_fitting_time,
+                               'rescore_time': rescore_time}
 
         mprint(f'n_iter: {self.model.n_iter_}', self.verbose, DEBUG)
         mprint(f'self.train_time: {self.train_time}', self.verbose, 0)
 
         return self
 
-    def batch_test(self, X_batch, y_batch):
-        self._init_test(X_batch, y_batch)
+    def batch_test(self, X_test, y_test):
+        # # if self.verbose >= DEBUG: data_info(np.asarray(X_test), name='X_test')
+        #
+        # test_time = 0.0
+        #
+        # test_time += preprocessing_time
+        #
+        # ##########################################################################################
+        # # Step 2: Evaluate GMM on the test set
+        # y_score, prediction_time = time_func(self.model.decision_function, X_test)
+        # self.auc, auc_time = time_func(self.get_score, y_test, y_score)
+        # if self.verbose >= DEBUG: data_info(np.asarray(y_score).reshape(-1, 1), name='y_score')
+        # test_time += prediction_time + auc_time
+        #
+        # mprint(f'Total test time: {test_time} <= preprocessing_time: {preprocessing_time}, '
+        #        f'prediction_time: {prediction_time}, auc_time: {auc_time}, AUC: {self.auc}', self.verbose, DEBUG)
+        #
+        # self.test_time = {'test_time': test_time,
+        #                   'preprocessing_time': preprocessing_time,
+        #                   'prediction_time': prediction_time,
+        #                   'auc_time': auc_time}
 
+        self._init_test(X_test, y_test)
+        return self
 
-def _main(X_init_train, y_init_train, X_init_test, y_init_test, X_arrival, y_arrival, X_test,
-          y_test, params):
-    results = []
-    random_state = params.random_state
-    for i_repeat_idx in range(params.n_repeats):
-        # changing random_state affects KJL
-        params.random_state = random_state * (i_repeat_idx + 1)
-        if params.detector_name == 'GMM':
-            if params.online:
-                md = ONLINE_GMM_MAIN(params)
-            else:
-                md = BATCH_GMM_MAIN(params)
-        else:
-            raise NotImplementedError()
-
-        md.train_test_model(X_init_train, y_init_train, X_init_test, y_init_test, X_arrival, y_arrival, X_test,
-                            y_test)
-        results.append((md.info, {}))
-
-    return results
 
 
 def generate_experiment_cases(online=True, gs=True, n_repeats=5, q_abnormal_thres=1.0, fixed_kjl=False,
-                              verbose=10, batch_size=100, std=True, random_state=42):
-    TEMPLATE = {'detector_name': '', 'gs': False, 'std': std, 'kjl': False, 'nystrom': False, 'quickshift': False,
-                'meanshift': False, 'online': online, 'random_state': random_state, 'n_repeats': n_repeats,
+                              meanshift=False, kjl=True, std=True, with_means_std=True,
+                              verbose=10, batch_size=100, random_state=42):
+    TEMPLATE = {'detector_name': '', 'gs': False, 'std': std, 'with_means_std': with_means_std,
+                'kjl': False, 'nystrom': False, 'quickshift': False,
+                'meanshift': meanshift, 'online': online, 'random_state': random_state, 'n_repeats': n_repeats,
                 'q_abnormal_thres': q_abnormal_thres, 'verbose': verbose, 'batch_size': batch_size,
                 'fixed_kjl': fixed_kjl}
 
@@ -1167,7 +1350,7 @@ def generate_experiment_cases(online=True, gs=True, n_repeats=5, q_abnormal_thre
         #
         # # # GMM-gs:True-kjl:True
         # create_case(template=TEMPLATE, detector_name='GMM', covariance_type='full', gs=True, kjl=True)
-        create_case(template=TEMPLATE, detector_name='GMM', covariance_type='diag', gs=gs, kjl=True)
+        create_case(template=TEMPLATE, detector_name='GMM', covariance_type='diag', gs=gs, kjl=kjl)
         # #
         # # GMM-gs:True-kjl:True-nystrom:True   # nystrom will take more time than kjl
         # {'detector_name': 'GMM', 'covariance_type': 'full', 'gs': gs, 'kjl': False, 'nystrom': True},
@@ -1187,91 +1370,122 @@ def generate_experiment_cases(online=True, gs=True, n_repeats=5, q_abnormal_thre
 
 
 @execute_time
-def main():
+def main(n_init_train=500, gs=True, kjl=True, std=True):
     ##########################################################################################################
     # Step 0. All datasets
-    n_init_train = 1000
+    # n_init_train = 500
     in_dir = f'data/feats/n_init_train_{n_init_train}'
-    out_dir = 'out'
     data_path_mappings = {
-        # 'DEMO_IDS': 'DEMO_IDS/DS-srcIP_192.168.10.5',
-        'mimic_GMM': f'{in_dir}/mimic_GMM_dataset/Xy-normal-abnormal.dat',
-
-        'UNB1_UNB2': f'{in_dir}/UNB1_UNB2/Xy-normal-abnormal.dat',
-        'UNB1_UNB3': f'{in_dir}/UNB1_UNB3/Xy-normal-abnormal.dat',
-        'UNB1_UNB4': f'{in_dir}/UNB1_UNB4/Xy-normal-abnormal.dat',
-        'UNB1_UNB5': f'{in_dir}/UNB1_UNB5/Xy-normal-abnormal.dat',
-        'UNB2_UNB3': f'{in_dir}/UNB2_UNB3/Xy-normal-abnormal.dat',
-        'UNB1_CTU1': f'{in_dir}/UNB1_CTU1/Xy-normal-abnormal.dat',
-        'UNB1_MAWI1': f'{in_dir}/UNB1_MAWI1/Xy-normal-abnormal.dat',
-        'UNB2_CTU1': f'{in_dir}/UNB2_CTU1/Xy-normal-abnormal.dat',
-        'UNB2_MAWI1': f'{in_dir}/UNB2_MAWI1/Xy-normal-abnormal.dat',
-        'UNB2_FRIG1': f'{in_dir}/UNB2_FRIG1/Xy-normal-abnormal.dat',
-        # UNB1+Fridge: (normal: idle) abnormal: (open_shut)
-        'UNB2_FRIG2': f'{in_dir}/UNB_FRIG2/Xy-normal-abnormal.dat',  # UNB1+Fridge: (normal: idle) abnormal: (browse)
-
-        'CTU1_UNB1': f'{in_dir}/CTU1_UNB1/Xy-normal-abnormal.dat',
-        'CTU1_MAWI1': f'{in_dir}/CTU1_MAWI1/Xy-normal-abnormal.dat',
+        # # 'DEMO_IDS': 'DEMO_IDS/DS-srcIP_192.168.10.5',
+        'mimic_GMM': f'{in_dir}/mimic_GMM/Xy-normal-abnormal.dat',
         #
-        'UChi_FRIG1': f'{in_dir}/UChi_FRI1/Xy-normal-abnormal.dat',
-        # Fridge: (normal: idle, and idle1) abnormal: (open_shut, browse)
-        'UChi_FRIG2': f'{in_dir}/UChi_FRIG2/Xy-normal-abnormal.dat',
+        # 'UNB1_UNB2': f'{in_dir}/UNB1_UNB2/Xy-normal-abnormal.dat',
+        # # 'UNB1_UNB3': f'{in_dir}/UNB1_UNB3/Xy-normal-abnormal.dat',
+        # # 'UNB1_UNB4': f'{in_dir}/UNB1_UNB4/Xy-normal-abnormal.dat',
+        # # 'UNB1_UNB5': f'{in_dir}/UNB1_UNB5/Xy-normal-abnormal.dat',
+        # # 'UNB2_UNB3': f'{in_dir}/UNB2_UNB3/Xy-normal-abnormal.dat',
+        # 'UNB1_CTU1': f'{in_dir}/UNB1_CTU1/Xy-normal-abnormal.dat',
+        # 'UNB1_MAWI1': f'{in_dir}/UNB1_MAWI1/Xy-normal-abnormal.dat',
+        # # 'UNB2_CTU1': f'{in_dir}/UNB2_CTU1/Xy-normal-abnormal.dat',
+        # # 'UNB2_MAWI1': f'{in_dir}/UNB2_MAWI1/Xy-normal-abnormal.dat',
+        # 'UNB2_FRIG1': f'{in_dir}/UNB2_FRIG1/Xy-normal-abnormal.dat',
+        # # # UNB1+Fridge: (normal: idle) abnormal: (open_shut)
+        # # 'UNB2_FRIG2': f'{in_dir}/UNB_FRIG2/Xy-normal-abnormal.dat',  # UNB1+Fridge: (normal: idle) abnormal: (browse)
+        # #
+        # # 'CTU1_UNB1': f'{in_dir}/CTU1_UNB1/Xy-normal-abnormal.dat',
+        # # 'CTU1_MAWI1': f'{in_dir}/CTU1_MAWI1/Xy-normal-abnormal.dat',
+        # # #
 
-        'MAWI1_UNB1': f'{in_dir}/MAWI1_UNB1/Xy-normal-abnormal.dat',
-        'MAWI1_CTU1': f'{in_dir}/MAWI1_CTU1/Xy-normal-abnormal.dat',  # works
-        'MAWI1_UNB2': f'{in_dir}/MAWI1_UNB2/Xy-normal-abnormal.dat',
-        'CTU1_UNB2': f'{in_dir}/CTU1_UNB2/Xy-normal-abnormal.dat',
+        # # # # Fridge:
+        # subdatasets1 = (abnormal1, normal1)  # normal(open_shut) + abnormal(idle1)
+        # subdatasets2 = (abnormal2, None)  # normal(browse)
+        'FRIG_OPEN_BROWSE': f'{in_dir}/FRIG_OPEN_BROWSE/Xy-normal-abnormal.dat',
+
+        # # # # Fridge:
+        # subdatasets1 = (abnormal2, normal1)  # normal(browse) + abnormal(idle1)
+        # subdatasets2 = (abnormal1, None)  # normal(open_shut)
+        'FRIG_BROWSE_OPEN': f'{in_dir}/FRIG_BROWSE_OPEN/Xy-normal-abnormal.dat',
+
+        # # # # Fridge:
+        # subdatasets1 = (abnormal2, normal2)  # normal(browse) + abnormal (idle2)
+        # subdatasets2 = (abnormal1, normal1)  # normal(open_shut) + abnormal(idle1)
+        'FRIG_IDLE12': f'{in_dir}/FRIG_IDLE12/Xy-normal-abnormal.dat',
+
+        # # # # Fridge:
+        # subdatasets1 = (normal1, abnormal2)  # normal(idle1) + abnormal(browse)
+        # subdatasets2 = (abnormal1,None)  # normal(open_shut)
+        'FRIG_IDLE1_OPEN': f'{in_dir}/FRIG_IDLE1_OPEN/Xy-normal-abnormal.dat',
+
+        # # # # # Fridge:
+        # # subdatasets1 = (abnormal1, abnormal2)  # normal(open_shut) + abnormal(browse)
+        # # subdatasets2 = (normal1,None)  # normal(idle1)
+        'FRIG_OPEN_IDLE1': f'{in_dir}/FRIG_OPEN_IDLE1/Xy-normal-abnormal.dat',
         #
-        'UNB1_FRIG1': f'{in_dir}/UNB1_FRIG1/Xy-normal-abnormal.dat',
-        # UNB1+Fridge: (normal: idle) abnormal: (open_shut)
-        'CTU1_FRIG1': f'{in_dir}/CTU1_FRIG1/Xy-normal-abnormal.dat',
+        # # # # # Fridge:
+        # # subdatasets1 = (normal2, abnormal1)  # normal(idle2) + abnormal (open_shut)
+        # # subdatasets2 = (abnormal2,None)  # normal(browse)
+        'FRIG_IDLE2_BROWSE': f'{in_dir}/FRIG_IDLE2_BROWSE/Xy-normal-abnormal.dat',
+        # # # # # Fridge:
+        # # subdatasets1 = (abnormal2, abnormal1)  # normal(browse) + abnormal (open_shut)
+        # # subdatasets2 = (normal2,None)  # normal(idle2)
+        'FRIG_BROWSE_IDLE2': f'{in_dir}/FRIG_BROWSE_IDLE2/Xy-normal-abnormal.dat',
+
+        # # #
+        # 'MAWI1_UNB1': f'{in_dir}/MAWI1_UNB1/Xy-normal-abnormal.dat',
+        # 'MAWI1_CTU1': f'{in_dir}/MAWI1_CTU1/Xy-normal-abnormal.dat',  # works
+        # 'MAWI1_UNB2': f'{in_dir}/MAWI1_UNB2/Xy-normal-abnormal.dat',
+        # 'CTU1_UNB2': f'{in_dir}/CTU1_UNB2/Xy-normal-abnormal.dat',
+        #
+        # 'UNB1_FRIG1': f'{in_dir}/UNB1_FRIG1/Xy-normal-abnormal.dat',
+        # # UNB1+Fridge: (normal: idle) abnormal: (open_shut)
+        # 'CTU1_FRIG1': f'{in_dir}/CTU1_FRIG1/Xy-normal-abnormal.dat',
         # # CTU1+Fridge: (normal: idle) abnormal: (open_shut)
-        'MAWI1_FRIG1': f'{in_dir}/MAWI1_FRIG1/Xy-normal-abnormal.dat',
+        # 'MAWI1_FRIG1': f'{in_dir}/MAWI1_FRIG1/Xy-normal-abnormal.dat',
         # # MAWI1+Fridge: (normal: idle) abnormal: (open_shut)
         #
-        'FRIG1_UNB1': f'{in_dir}/FRIG1_UNB1/Xy-normal-abnormal.dat',
+        # 'FRIG1_UNB1': f'{in_dir}/FRIG1_UNB1/Xy-normal-abnormal.dat',
         # # UNB1+Fridge: (normal: idle) abnormal: (open_shut)
-        'FRIG1_CTU1': f'{in_dir}/FRIG1_CTU1/Xy-normal-abnormal.dat',
+        # 'FRIG1_CTU1': f'{in_dir}/FRIG1_CTU1/Xy-normal-abnormal.dat',
         # # CTU1+Fridge: (normal: idle) abnormal: (open_shut)
-        'FRIG1_MAWI1': f'{in_dir}/FRIG1_MAWI1/Xy-normal-abnormal.dat',
+        # 'FRIG1_MAWI1': f'{in_dir}/FRIG1_MAWI1/Xy-normal-abnormal.dat',
         #
-        'UNB1_FRIG2': f'{in_dir}/UNB1_FRIG2/Xy-normal-abnormal.dat',  # UNB1+Fridge: (normal: idle) abnormal: (browse)
-        'CTU1_FRIG2': f'{in_dir}/CTU1_FRIG2/Xy-normal-abnormal.dat',  # CTU1+Fridge: (normal: idle) abnormal: (browse)
-        'MAWI1_FRIG2': f'{in_dir}/MAWI1_FRIG2/Xy-normal-abnormal.dat',
+        # 'UNB1_FRIG2': f'{in_dir}/UNB1_FRIG2/Xy-normal-abnormal.dat',  # UNB1+Fridge: (normal: idle) abnormal: (browse)
+        # 'CTU1_FRIG2': f'{in_dir}/CTU1_FRIG2/Xy-normal-abnormal.dat',  # CTU1+Fridge: (normal: idle) abnormal: (browse)
+        # 'MAWI1_FRIG2': f'{in_dir}/MAWI1_FRIG2/Xy-normal-abnormal.dat',
         # # MAWI1+Fridge: (normal: idle) abnormal: (browse)
         #
-        'FRIG2_UNB1': f'{in_dir}/FRIG2_UNB1/Xy-normal-abnormal.dat',  # UNB1+Fridge: (normal: idle) abnormal: (browse)
-        'FRIG2_CTU1': f'{in_dir}/FRIG2_CTU1/Xy-normal-abnormal.dat',  # CTU1+Fridge: (normal: idle) abnormal: (browse)
-        'FRIG2_MAWI1': f'{in_dir}/FRIG2_MAWI1/Xy-normal-abnormal.dat',
+        # 'FRIG2_UNB1': f'{in_dir}/FRIG2_UNB1/Xy-normal-abnormal.dat',  # UNB1+Fridge: (normal: idle) abnormal: (browse)
+        # 'FRIG2_CTU1': f'{in_dir}/FRIG2_CTU1/Xy-normal-abnormal.dat',  # CTU1+Fridge: (normal: idle) abnormal: (browse)
+        # 'FRIG2_MAWI1': f'{in_dir}/FRIG2_MAWI1/Xy-normal-abnormal.dat',
         # # MAWI1+Fridge: (normal: idle) abnormal: (browse)
         # # #
-        'UNB1_SCAM1': f'{in_dir}/UNB1_SCAM1/Xy-normal-abnormal.dat',  # UNB1+SCam
-        'CTU1_SCAM1': f'{in_dir}/CTU1_SCAM1/Xy-normal-abnormal.dat',  # UNB1+SCam
-        'MAWI1_SCAM1': f'{in_dir}/MAWI1_SCAM1/Xy-normal-abnormal.dat',  # UNB1+SCam
-        'FRIG1_SCAM1': f'{in_dir}/FRIG1_SCAM1/Xy-normal-abnormal.dat',  # UNB1+SCam
-        'FRIG2_SCAM1': f'{in_dir}/FRIG2_SCAM1/Xy-normal-abnormal.dat',  # UNB1+SCam
-        #
-        'MACCDC1_UNB1': f'{in_dir}/MACCDC1_UNB1/Xy-normal-abnormal.dat',
-        'MACCDC1_CTU1': f'{in_dir}/MACCDC1_CTU1/Xy-normal-abnormal.dat',
-        'MACCDC1_MAWI1': f'{in_dir}/MACCDC1_MAWI1/Xy-normal-abnormal.dat',
-        #
+        # 'UNB1_SCAM1': f'{in_dir}/UNB1_SCAM1/Xy-normal-abnormal.dat',  # UNB1+SCam
+        # 'CTU1_SCAM1': f'{in_dir}/CTU1_SCAM1/Xy-normal-abnormal.dat',  # UNB1+SCam
+        # 'MAWI1_SCAM1': f'{in_dir}/MAWI1_SCAM1/Xy-normal-abnormal.dat',  # UNB1+SCam
+        # 'FRIG1_SCAM1': f'{in_dir}/FRIG1_SCAM1/Xy-normal-abnormal.dat',  # UNB1+SCam
+        # # 'FRIG2_SCAM1': f'{in_dir}/FRIG2_SCAM1/Xy-normal-abnormal.dat',  # UNB1+SCam
+        # #
+        # 'MACCDC1_UNB1': f'{in_dir}/MACCDC1_UNB1/Xy-normal-abnormal.dat',
+        # # 'MACCDC1_CTU1': f'{in_dir}/MACCDC1_CTU1/Xy-normal-abnormal.dat',
+        # 'MACCDC1_MAWI1': f'{in_dir}/MACCDC1_MAWI1/Xy-normal-abnormal.dat',
+        # #
+        # # # less flows of wshr1
+        # # 'UNB1_DRYER1': f'{in_dir}/UNB1_DRYER1/Xy-normal-abnormal.dat',
+        # # 'DRYER1_UNB1': f'{in_dir}/DRYER1_UNB1/Xy-normal-abnormal.dat',
+        # #
+        # # # it works
+        # 'UNB1_DWSHR1': f'{in_dir}/UNB1_DWSHR1/Xy-normal-abnormal.dat',
+        # # 'DWSHR1_UNB1': f'{in_dir}/DWSHR1_UNB1/Xy-normal-abnormal.dat',
+        # #
+        # 'FRIG1_DWSHR1': f'{in_dir}/FRIG1_DWSHR1/Xy-normal-abnormal.dat',
+        # # 'FRIG2_DWSHR1': f'{in_dir}/FRIG2_DWSHR1/Xy-normal-abnormal.dat',
+        # # 'CTU1_DWSHR1': f'{in_dir}/CTU1_DWSHR1/Xy-normal-abnormal.dat',
+        # # 'MAWI1_DWSHR1': f'{in_dir}/MAWI1_DWSHR1/Xy-normal-abnormal.dat',
+        # # 'MACCDC1_DWSHR1': f'{in_dir}/MACCDC1_DWSHR1/Xy-normal-abnormal.dat',
+        # #
         # # less flows of wshr1
-        'UNB1_DRYER1': f'{in_dir}/UNB1_DRYER1/Xy-normal-abnormal.dat',
-        'DRYER1_UNB1': f'{in_dir}/DRYER1_UNB1/Xy-normal-abnormal.dat',
-        #
-        # # it works
-        'UNB1_DWSHR1': f'{in_dir}/UNB1_DWSHR1/Xy-normal-abnormal.dat',
-        'DWSHR1_UNB1': f'{in_dir}/DWSHR1_UNB1/Xy-normal-abnormal.dat',
-        #
-        'FRIG1_DWSHR1': f'{in_dir}/FRIG1_DWSHR1/Xy-normal-abnormal.dat',
-        'FRIG2_DWSHR1': f'{in_dir}/FRIG2_DWSHR1/Xy-normal-abnormal.dat',
-        'CTU1_DWSHR1': f'{in_dir}/CTU1_DWSHR1/Xy-normal-abnormal.dat',
-        'MAWI1_DWSHR1': f'{in_dir}/MAWI1_DWSHR1/Xy-normal-abnormal.dat',
-        'MACCDC1_DWSHR1': f'{in_dir}/MACCDC1_DWSHR1/Xy-normal-abnormal.dat',
-        #
-        # # less flows of wshr1
-        'UNB1_WSHR1': f'{in_dir}/UNB1_WSHR1/Xy-normal-abnormal.dat',
-        'WSHR1_UNB1': f'{in_dir}/WSHR1_UNB1/Xy-normal-abnormal.dat',
+        # 'UNB1_WSHR1': f'{in_dir}/UNB1_WSHR1/Xy-normal-abnormal.dat',
+        # 'WSHR1_UNB1': f'{in_dir}/WSHR1_UNB1/Xy-normal-abnormal.dat',
 
     }
     print(f'len(data_path_mappings): {len(data_path_mappings)}')
@@ -1279,9 +1493,18 @@ def main():
     overwrite = False
     verbose = VERBOSE
 
-    ratios = [0.5, 0.8, 0.9, 0.95, 1.0] # [0.5, 0.8, 0.9, 0.95, 1.0]
-    experiment_cases = generate_experiment_cases(n_repeats=5, fixed_kjl=False,
-                                                 q_abnormal_thres=1, std=True, batch_size=100,
+    ratios = [0.5, 0.8, 0.9, 0.95, 1.0]  # [0.5, 0.8, 0.9, 0.95, 1.0]
+    # gs=True
+    ms = False
+    fixed_kjl = False
+    # kjl = True
+    # std = True
+    with_means_std = False
+    if not std:
+        with_means_std = False
+    experiment_cases = generate_experiment_cases(n_repeats=5, fixed_kjl=fixed_kjl, meanshift=ms, gs=gs,
+                                                 q_abnormal_thres=1, std=std, with_means_std=with_means_std,
+                                                 batch_size=50, kjl=kjl,
                                                  verbose=verbose, random_state=random_state)
     n_kjl = 100
     d_kjl = 10
@@ -1332,7 +1555,7 @@ def main():
                         for ((data_name, data_file), percent_first_init, experiment_case) in \
                         itertools.product(data_path_mappings.items(), ratios, experiment_cases))
 
-    out_file = f'out/{in_dir}/init={n_init_train}-d_kjl={d_kjl}-n_kjl={n_kjl}.dat'
+    out_file = f'out/{in_dir}/init={n_init_train}-gs={gs}-std={std}_center={with_means_std}-kjl={kjl}-d_kjl={d_kjl}-n_kjl={n_kjl}-ms={ms}-fixed_kjl={fixed_kjl}.dat'
     # print(out_file)
     # dump_data(outs, out_file=out_file)
     out_file += '.xlsx'
@@ -1342,4 +1565,18 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    demo = False
+    if demo:
+        init_sizes = [500]  # [100, 200, 500, 700]
+        gses = [True]
+        kjls = [True]
+        stds = [True]
+    else:
+        init_sizes = [500]  # [100, 200, 500, 700]
+        gses = [True, False]
+        kjls = [True, False]
+        stds = [True, False]
+        # with_means_stds=[Tr]
+    for init_size, gs, kjl, std in itertools.product(init_sizes, gses, kjls, stds):
+        print(f'***n_init_train={init_size}, gs={gs}, kjl={kjl}, std={std}')
+        main(n_init_train=init_size, gs=gs, kjl=kjl, std=std)

@@ -21,8 +21,8 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics import roc_curve, pairwise_distances
 
-from config import *
-from generate_data import generate_data, split_train_arrival_test, plot_data
+from online.config import *
+from online.generate_data import generate_data, split_train_arrival_test, plot_data
 from kjl.model.gmm import GMM
 from kjl.model.kjl import KJL
 from kjl.model.nystrom import NYSTROM
@@ -32,7 +32,7 @@ from kjl.preprocessing.standardization import STD
 from kjl.utils.data import load_data, batch, data_info
 from kjl.utils.parameters import PARAM
 from kjl.utils.tool import execute_time, time_func, mprint
-from report import imgs2xlsx
+from online.report import imgs2xlsx
 
 
 class SINGLE_CASE:
@@ -263,12 +263,40 @@ class SINGLE_CASE:
         fig.savefig(out_file, format='pdf', dpi=300)
         out_file += '.png'
         if pth.exists(out_file): os.remove(out_file)
-        fig.savefig(out_file, format='png', dpi=300)
+        fig.savefig(out_file, format='png', dpi=30)
         if is_show: plt.show()
         plt.close(fig)
 
         return out_file
 
+
+#
+# def add_offset(data, name='means', offset=1e-3):
+#     if name == 'weights':
+#         if np.any(data <= offset):
+#             new_data = (data + offset) / np.sum(data)
+#         else:
+#             new_data = data
+#     elif name == 'means':
+#         new_data = []
+#         for vs in data:
+#             if np.any(abs(data) <= offset):
+#                 new_data.append(np.array([v + offset if v > 0 else v - offset for v in vs]))
+#             else:
+#                 new_data.append(vs)
+#         new_data = np.array(new_data, dtype=float)
+#     elif name == 'covariances':
+#         new_data = []
+#         for vs in data:
+#             if np.any(abs(data) <= offset):
+#                 new_data.append(np.array([v + offset if v > 0 else v - offset for v in vs]))
+#             else:
+#                 new_data.append(vs)
+#         new_data = np.array(new_data, dtype=float)
+#     else:
+#         pass
+#
+#     return new_data
 
 
 class BASE_MODEL:
@@ -866,23 +894,22 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         first_train_time = (end - start).total_seconds()
 
         # # Step 1.2: Seek modes of the data by quickshift++ or meanshift
-        seeking_time = 0
-        # self.thres_n = 10  # used to filter clusters which have less than 100 datapoints
-        # if self.params.meanshift:
-        #     dists = pairwise_distances(X_acculumated_train_proj)
-        #     sigma = np.quantile(dists, self.params.q_kjl)  # also used for kjl
-        #     means_init, n_components, seeking_time, all_n_clusters = meanshift_seek_modes(
-        #         X_acculumated_train_proj, bandwidth=sigma, thres_n=self.thres_n)
-        #     self.params.n_components = n_components
-        #     self.model.n_components = n_components
-        #     self.model.means_ = means_init
-        # # elif 'quickshift' in self.params.keys() and self.params['quickshift']:
-        # #     self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
-        # #         X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
-        # #         thres_n=self.thres_n)
-        # #     self.params['n_components'] = self.n_components
-        # else:
-        #     seeking_time = 0
+        self.thres_n = 10  # used to filter clusters which have less than 100 datapoints
+        if self.params.meanshift:
+            dists = pairwise_distances(X_acculumated_train_proj)
+            sigma = np.quantile(dists, self.params.q_kjl)  # also used for kjl
+            means_init, n_components, seeking_time, all_n_clusters = meanshift_seek_modes(
+                X_acculumated_train_proj, bandwidth=sigma, thres_n=self.thres_n)
+            self.params.n_components = n_components
+            self.model.n_components = n_components
+            self.model.means_ = means_init
+        # elif 'quickshift' in self.params.keys() and self.params['quickshift']:
+        #     self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
+        #         X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
+        #         thres_n=self.thres_n)
+        #     self.params['n_components'] = self.n_components
+        else:
+            seeking_time = 0
         train_time += seeking_time
 
         start = datetime.now()
@@ -894,7 +921,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
                                random_state=self.params.random_state,
                                warm_start=True)
         new_model._initialize_parameters(X_acculumated_train_proj, self.random_state,
-                                         init=self.model.means_)  # k-means++ ,self.model.means_
+                                         init='k-means++')  # k-means++ ,self.model.means_
         # Train the new model until it converges
         i = 0
         new_model.converged_ = False
@@ -961,17 +988,15 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         ##########################################################################################
         # Step 3:  update the abnormal threshold with all accumulated data
         self.model = new_model
-        # # mprint(new_model.get_params(), self.verbose, DEBUG)
-        rescore_time = 0.0
-        # if not new_model.converged_:
-        #     self.abnormal_thres, rescore_time = time_func(self.update_abnormal_thres,
-        #                                                   self.model,
-        #                                                   X_acculumated_train_proj)
-        # else:
-        #     # override the _e_step(), so  here is not mean(log_prob_norm)    #  return -1 * self.score_samples(X)
-        #     y_score = - log_prob_norm
-        #     self.abnormal_thres, rescore_time = time_func(np.quantile, y_score, q=self.params.q_abnormal_thres)
-
+        # mprint(new_model.get_params(), self.verbose, DEBUG)
+        if not new_model.converged_:
+            self.abnormal_thres, rescore_time = time_func(self.update_abnormal_thres,
+                                                          self.model,
+                                                          X_acculumated_train_proj)
+        else:
+            # override the _e_step(), so  here is not mean(log_prob_norm)    #  return -1 * self.score_samples(X)
+            y_score = - log_prob_norm
+            self.abnormal_thres, rescore_time = time_func(np.quantile, y_score, q=self.params.q_abnormal_thres)
         train_time += rescore_time
 
         mprint(f'Batch time: {train_time} <=: preprocessing_time: {preprocessing_time}, seeking_time: {seeking_time}'
@@ -988,26 +1013,26 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
 
         return self
 
-    # def update_abnormal_thres(self, model, X_normal_proj):
-    #     """Only use abnormal_score to update the abnormal_thres, in which,
-    #         abnormal_score = y_score[y_score > abnormal_thres]
-    #
-    #     Parameters
-    #     ----------
-    #     model
-    #     abnormal_thres
-    #     X_normal_proj
-    #
-    #     Returns
-    #     -------
-    #
-    #     """
-    #
-    #     y_score, model_predict_time = time_func(model.decision_function, X_normal_proj)
-    #     abnormal_thres = np.quantile(y_score, q=self.params.q_abnormal_thres)  # abnormal threshold
-    #     # model.y_score = y_score
-    #
-    #     return abnormal_thres
+    def update_abnormal_thres(self, model, X_normal_proj):
+        """Only use abnormal_score to update the abnormal_thres, in which,
+            abnormal_score = y_score[y_score > abnormal_thres]
+
+        Parameters
+        ----------
+        model
+        abnormal_thres
+        X_normal_proj
+
+        Returns
+        -------
+
+        """
+
+        y_score, model_predict_time = time_func(model.decision_function, X_normal_proj)
+        abnormal_thres = np.quantile(y_score, q=self.params.q_abnormal_thres)  # abnormal threshold
+        # model.y_score = y_score
+
+        return abnormal_thres
 
     def online_test(self, X_test, y_test):
         """Evaluate model on the test set
@@ -1029,26 +1054,26 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         -------
 
         """
-        # if self.verbose >= DEBUG: data_info(np.asarray(X_test), name='X_test')
-        test_time = 0.0
-        X_test, preprocessing_time = time_func(self._preprocessing, X_test)
-        test_time += preprocessing_time
-
-        ##########################################################################################
-        # Step 2: Evaluate GMM on the test set
-        y_score, prediction_time = time_func(self.model.decision_function, X_test)
-        self.auc, auc_time = time_func(self.get_score, y_test, y_score)
-        if self.verbose >= DEBUG: data_info(np.asarray(y_score).reshape(-1, 1), name='y_score')
-        test_time += prediction_time + auc_time
-
-        mprint(f'Total test time: {test_time} <= preprocessing_time: {preprocessing_time}, '
-               f'prediction_time: {prediction_time}, auc_time: {auc_time}, AUC: {self.auc}', self.verbose, DEBUG)
-
-        self.test_time = {'test_time': test_time,
-                          'preprocessing_time': preprocessing_time,
-                          'prediction_time': prediction_time,
-                          'auc_time': auc_time}
-        # self._init_test(X_test, y_test)
+        # # if self.verbose >= DEBUG: data_info(np.asarray(X_test), name='X_test')
+        # test_time = 0.0
+        #
+        # test_time += preprocessing_time
+        #
+        # ##########################################################################################
+        # # Step 2: Evaluate GMM on the test set
+        # y_score, prediction_time = time_func(self.model.decision_function, X_test)
+        # self.auc, auc_time = time_func(self.get_score, y_test, y_score)
+        # if self.verbose >= DEBUG: data_info(np.asarray(y_score).reshape(-1, 1), name='y_score')
+        # test_time += prediction_time + auc_time
+        #
+        # mprint(f'Total test time: {test_time} <= preprocessing_time: {preprocessing_time}, '
+        #        f'prediction_time: {prediction_time}, auc_time: {auc_time}, AUC: {self.auc}', self.verbose, DEBUG)
+        #
+        # self.test_time = {'test_time': test_time,
+        #                   'preprocessing_time': preprocessing_time,
+        #                   'prediction_time': prediction_time,
+        #                   'auc_time': auc_time}
+        self._init_test(X_test, y_test)
 
         return self
 
@@ -1247,6 +1272,9 @@ class BATCH_GMM_MAIN(BASE_MODEL):
             end = datetime.now()
             train_time = (end - start).total_seconds()
 
+            self.model = GMM(n_components=self.model.n_components, covariance_type=self.params.covariance_type,
+                             random_state=self.params.random_state)
+
             # Step 1: Preprocessing
             preprocessing_time = 0
 
@@ -1265,10 +1293,6 @@ class BATCH_GMM_MAIN(BASE_MODEL):
             preprocessing_time += proj_time
             if self.verbose >= DEBUG: data_info(X_batch, name='X_proj')
             train_time += preprocessing_time
-
-
-            self.model = GMM(n_components=self.model.n_components, covariance_type=self.params.covariance_type,
-                             random_state=self.params.random_state)
 
             seeking_time = 0.0
             train_time += seeking_time
@@ -1322,6 +1346,28 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         self._init_test(X_test, y_test)
         return self
 
+
+#
+# def _main(X_init_train, y_init_train, X_init_test, y_init_test, X_arrival, y_arrival, X_test,
+#           y_test, params):
+#     results = []
+#     random_state = params.random_state
+#     for i_repeat_idx in range(params.n_repeats):
+#         # changing random_state affects KJL
+#         params.random_state = random_state * (i_repeat_idx + 1)
+#         if params.detector_name == 'GMM':
+#             if params.online:
+#                 md = ONLINE_GMM_MAIN(params)
+#             else:
+#                 md = BATCH_GMM_MAIN(params)
+#         else:
+#             raise NotImplementedError()
+#
+#         md.train_test_model(X_init_train, y_init_train, X_init_test, y_init_test, X_arrival, y_arrival, X_test,
+#                             y_test)
+#         results.append((md.info, {}))
+#
+#     return results
 
 
 def generate_experiment_cases(online=True, gs=True, n_repeats=5, q_abnormal_thres=1.0, fixed_kjl=False,
@@ -1409,7 +1455,7 @@ def main(n_init_train=500, gs=True, kjl=True, std=True):
         # # # # Fridge:
         # subdatasets1 = (abnormal2, normal2)  # normal(browse) + abnormal (idle2)
         # subdatasets2 = (abnormal1, normal1)  # normal(open_shut) + abnormal(idle1)
-        'FRIG_IDLE12': f'{in_dir}/FRIG_IDLE12/Xy-normal-abnormal.dat',
+        # 'FRIG_IDLE12': f'{in_dir}/FRIG_IDLE12/Xy-normal-abnormal.dat',
 
         # # # # Fridge:
         # subdatasets1 = (normal1, abnormal2)  # normal(idle1) + abnormal(browse)
@@ -1493,7 +1539,7 @@ def main(n_init_train=500, gs=True, kjl=True, std=True):
     overwrite = False
     verbose = VERBOSE
 
-    ratios = [0.5, 0.8, 0.9, 0.95, 1.0]  # [0.5, 0.8, 0.9, 0.95, 1.0]
+    ratios = [1.0]  # [0.5, 0.8, 0.9, 0.95, 1.0]
     # gs=True
     ms = False
     fixed_kjl = False
@@ -1547,7 +1593,7 @@ def main(n_init_train=500, gs=True, kjl=True, std=True):
 
     # in parallel
     # get the number of cores. Note that, one cpu might have more than one core.
-    n_jobs = int(joblib.cpu_count() // 4)
+    n_jobs = int(joblib.cpu_count() // 1)
     print(f'n_job: {n_jobs}')
     parallel = Parallel(n_jobs=n_jobs, verbose=30)
     with parallel:
@@ -1565,7 +1611,7 @@ def main(n_init_train=500, gs=True, kjl=True, std=True):
 
 
 if __name__ == '__main__':
-    demo = False
+    demo = True
     if demo:
         init_sizes = [500]  # [100, 200, 500, 700]
         gses = [True]

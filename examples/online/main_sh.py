@@ -25,7 +25,7 @@ def run(in_file, out_file):
     return 0
 
 
-in_file = '/Users/kunyang/PycharmProjects/kjl/examples/demo.py'
+in_file = '/online/demo.py'
 in_file = '/main_gmm.py'
 out_file = f'{in_file}-log.txt'
 run(in_file, out_file)

@@ -15,14 +15,15 @@ from joblib import delayed, Parallel
 from sklearn import metrics
 from sklearn.metrics import pairwise_distances, average_precision_score, roc_curve
 from sklearn.preprocessing import StandardScaler
-
-from kjl.model.gmm import GMM, quickshift_seek_modes, meanshift_seek_modes
+from kjl.model.gmm import GMM
+from kjl.model.seek_mode import  quickshift_seek_modes, meanshift_seek_modes
 from kjl.model.kjl import kernelJLInitialize, getGaussianGram
 from kjl.model.nystrom import nystromInitialize
 from kjl.model.ocsvm import OCSVM
 from kjl.utils.data import data_info, split_train_test, load_data, extract_data, dump_data, save_each_result, \
-    save_result
-from kjl.utils.utils import execute_time
+    dat2csv
+from kjl.utils.tool import execute_time
+from speedup.ratio_variance import dat2xlxs, improvement, dat2latex
 
 RANDOM_STATE = 42
 
@@ -410,7 +411,7 @@ class OCSVM_MAIN(BASE):
         return self
 
 
-def _model_train_test(normal_data, abnormal_data, params, **kargs):
+def _model_train_test(X, y, params, **kargs):
     """
 
     Parameters
@@ -435,8 +436,8 @@ def _model_train_test(normal_data, abnormal_data, params, **kargs):
         # keep that all the algorithms have the same input data by setting random_state
         for i in range(n_repeats):
             print(f"\n\n==={i + 1}/{n_repeats}(n_repeats): {params}===")
-            X_train, y_train, X_test, y_test = split_train_test(normal_data, abnormal_data,
-                                                                train_size=0.8, test_size=-1, random_state=i * 100)
+            X_train, y_train, X_test, y_test = split_train_test(X, y,
+                                                                train_size=5000,  random_state=(i+1) * 100)
 
             if "GMM" in params['detector_name']:
                 model = GMM_MAIN(params)
@@ -462,7 +463,7 @@ def _model_train_test(normal_data, abnormal_data, params, **kargs):
 
 
 @execute_time
-def get_best_results(normal_data, abnormal_data, case, random_state=42):
+def get_best_results(X, y, case, random_state=42):
     """
 
     Parameters
@@ -488,7 +489,7 @@ def get_best_results(normal_data, abnormal_data, case, random_state=42):
             if not params['kjl'] and not params['nystrom']:  # only GMM
                 # GMM-gs:True
                 with parallel:
-                    outs = parallel(delayed(_model_train_test)(normal_data, abnormal_data, params,
+                    outs = parallel(delayed(_model_train_test)(X, y, copy.deepcopy(params),
                                                                n_components=n_components) for n_components, _ in
                                     list(itertools.product(n_components_arr, [0])))
 
@@ -503,7 +504,7 @@ def get_best_results(normal_data, abnormal_data, case, random_state=42):
                     # GMM-gs:True-kjl:True
                     with parallel:
                         outs = parallel(
-                            delayed(_model_train_test)(normal_data, abnormal_data, params, kjl_d=kjl_d, kjl_n=kjl_n,
+                            delayed(_model_train_test)(X, y, copy.deepcopy(params), kjl_d=kjl_d, kjl_n=kjl_n,
                                                        kjl_q=kjl_q,
                                                        n_components=n_components) for kjl_d, kjl_n, kjl_q, n_components
                             in
@@ -517,7 +518,7 @@ def get_best_results(normal_data, abnormal_data, case, random_state=42):
                     if 'quickshift_betas' in params.keys(): del params['quickshift_betas']
                     with parallel:
                         outs = parallel(
-                            delayed(_model_train_test)(normal_data, abnormal_data, params,
+                            delayed(_model_train_test)(X, y, copy.deepcopy(params),
                                                        kjl_d=kjl_d, kjl_n=kjl_n, kjl_q=kjl_q,
                                                        quickshift_k=quickshift_k, quickshift_beta=quickshift_beta)
                             for kjl_d, kjl_n, kjl_q, quickshift_k, quickshift_beta in
@@ -528,12 +529,12 @@ def get_best_results(normal_data, abnormal_data, case, random_state=42):
                     meanshift_qs = params[
                         'meanshift_qs']  # meanshift uses the same kjl_qs, and only needs to tune one of them
                     with parallel:
-                        # outs = parallel(delayed(_model_train_test)(normal_data, abnormal_data, params, kjl_d=kjl_d,
+                        # outs = parallel(delayed(_model_train_test)(X, y, params, kjl_d=kjl_d,
                         #                                            kjl_n=kjl_n, kjl_q=kjl_q, n_components=n_components)
                         #                 for kjl_d, kjl_n, kjl_q, n_components in
                         #                 list(itertools.product(kjl_ds, kjl_ns, kjl_qs, n_components_arr)))
 
-                        outs = parallel(delayed(_model_train_test)(normal_data, abnormal_data, params, kjl_d=kjl_d,
+                        outs = parallel(delayed(_model_train_test)(X, y, copy.deepcopy(params), kjl_d=kjl_d,
                                                                    kjl_n=kjl_n, kjl_q=kjl_q)
                                         for kjl_d, kjl_n, kjl_q in
                                         list(itertools.product(kjl_ds, kjl_ns, kjl_qs)))
@@ -550,7 +551,7 @@ def get_best_results(normal_data, abnormal_data, case, random_state=42):
                 if 'nystrom_ds' in params.keys(): del params['nystrom_ds']
                 if 'nystrom_qs' in params.keys(): del params['nystrom_qs']
                 with parallel:
-                    outs = parallel(delayed(_model_train_test)(normal_data, abnormal_data, params, nystrom_n=nystrom_n,
+                    outs = parallel(delayed(_model_train_test)(X, y, copy.deepcopy(params), nystrom_n=nystrom_n,
                                                                nystrom_d=nystrom_d, nystrom_q=nystrom_q,
                                                                n_components=n_components) for
                                     nystrom_n, nystrom_d, nystrom_q, n_components in
@@ -574,7 +575,7 @@ def get_best_results(normal_data, abnormal_data, case, random_state=42):
                     if 'model_qs' in params.keys(): del params['model_qs']
                     if 'model_nus' in params.keys(): del params['model_nus']
 
-                    outs = parallel(delayed(_model_train_test)(normal_data, abnormal_data, params, model_q=model_q,
+                    outs = parallel(delayed(_model_train_test)(X, y, copy.deepcopy(params), model_q=model_q,
                                                                model_nu=model_nu) for _, _, _, model_q, model_nu in
                                     list(itertools.product([0], [0], [0], model_qs, model_nus)))
         else:
@@ -597,7 +598,7 @@ def get_best_results(normal_data, abnormal_data, case, random_state=42):
 
     print('---get accurate time of training and testing with the best params---')
     best_params = best_results['params']
-    out = _model_train_test(normal_data, abnormal_data, params=best_params)
+    out = _model_train_test(X, y, params=best_params)
     # double check the results if you can
     # assert best_avg_auc == np.mean(out['aucs'])
     # print(best_avg_auc, np.mean(out['aucs']), best_results, out)
@@ -605,6 +606,24 @@ def get_best_results(normal_data, abnormal_data, case, random_state=42):
 
     return best_results, middle_results
 
+
+def results2speedup(results, out_dir):
+    out_file = f'{out_dir}/all_results.csv'
+    print(f'\n\n***{out_file}***')
+    out_dat = os.path.splitext(out_file)[0] + '.dat'
+    dump_data(results, out_dat)
+    print(out_dat)
+    out_csv = dat2csv(results, out_file)
+
+    out_file = dat2xlxs(out_dat, out_file=out_dat + '.xlsx')
+    out_xlsx = improvement(out_file, feat_set='iat_size', out_file=os.path.splitext(out_file)[0] + '-ratio.xlsx')
+    print(out_xlsx)
+
+    # for paper
+    out_latex = dat2latex(out_xlsx, out_file=os.path.splitext(out_file)[0] + '-latex.xlsx')
+    print(out_latex)
+
+    return out_xlsx
 
 @execute_time
 def main(random_state, n_jobs=-1, n_repeats=1):
@@ -641,43 +660,81 @@ def main(random_state, n_jobs=-1, n_repeats=1):
         # #
 
     ]
+    feat = 'iat_size'
+    in_dir = f'speedup/data/{feat}'
+    dataname_path_mappings = {
+        # # 'mimic_GMM': f'{in_dir}/mimic_GMM/Xy-normal-abnormal.dat',
+        # # 'mimic_GMM1': f'{in_dir}/mimic_GMM1/Xy-normal-abnormal.dat',
+        # # 'UNB1': f'{in_dir}/UNB1/Xy-normal-abnormal.dat',
+        'UNB2': f'{in_dir}/UNB2/Xy-normal-abnormal.dat',
+        #     # 'DS10_UNB_IDS/DS13-srcIP_192.168.10.9',
+        #     # 'DS10_UNB_IDS/DS14-srcIP_192.168.10.14',
+        #     # 'DS10_UNB_IDS/DS15-srcIP_192.168.10.15',
+        #     # # # # #
+        #     # # # # 'DS20_PU_SMTV/DS21-srcIP_10.42.0.1',
+        #     # # # # # #
+        #     'DS40_CTU_IoT/DS41-srcIP_10.0.2.15',
+        'CTU1': f'{in_dir}/CTU1/Xy-normal-abnormal.dat',
+        # #     # # #
+        # #     # # # # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50',
+        # #     # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50',
+        'MAWI1': f'{in_dir}/MAWI1/Xy-normal-abnormal.dat',
+        # #     # 'DS50_MAWI_WIDE/DS53-srcIP_203.78.4.32',
+        # #     # 'DS50_MAWI_WIDE/DS54-srcIP_222.117.214.171',
+        # #     # 'DS50_MAWI_WIDE/DS55-srcIP_101.27.14.204',
+        # #     # 'DS50_MAWI_WIDE/DS56-srcIP_18.178.219.109',
+        # #     # #
+        # #     # # #
+        # #     # 'WRCCDC/2020-03-20',
+        # #     # 'DEFCON/ctf26',
+        'ISTS1': f'{in_dir}/ISTS1/Xy-normal-abnormal.dat',
+        'MACCDC1': f'{in_dir}/MACCDC1/Xy-normal-abnormal.dat',
+        #
+        # #     # # # # 'DS60_UChi_IoT/DS61-srcIP_192.168.143.20',
+        'SCAM1': f'{in_dir}/SCAM1/Xy-normal-abnormal.dat',
+        # #     # # # 'DS60_UChi_IoT/DS63-srcIP_192.168.143.43',
+        # #     # # # 'DS60_UChi_IoT/DS64-srcIP_192.168.143.48'
+        # #
+
+    }
     feat_set = 'iat_size'
     header = False
 
     in_dir = 'data/data_kjl'
     out_dir = 'out/data_kjl'
     results = {}
-    for data_name in datasets:
-        # 1. get data params
+    for data_name, data_file in dataname_path_mappings.items():
+        # # 1. get data params
         in_expand_dir = pt.join(in_dir, data_name, feat_set, f'header:{header}')
         out_expand_dir = pt.join(out_dir, data_name, feat_set, f'header:{header}')
-        normal_file = f'{in_expand_dir}/normal.dat'
-        abnormal_file = f'{in_expand_dir}/abnormal.dat'
-        print(normal_file, abnormal_file)
+        # normal_file = f'{in_expand_dir}/normal.dat'
+        # abnormal_file = f'{in_expand_dir}/abnormal.dat'
+        # print(normal_file, abnormal_file)
+        #
+        # if not pt.exists(normal_file) or not pt.exists(abnormal_file):
+        #     _normal_file = pt.splitext(normal_file)[0] + '.csv'
+        #     _abnormal_file = pt.splitext(abnormal_file)[0] + '.csv'
+        #     # extract data from csv file
+        #     normal_data, abnormal_data = extract_data(_normal_file, _abnormal_file,
+        #                                               meta_data={'idxs_feat': [0, -1],
+        #                                                          'train_size': -1,
+        #                                                          'test_size': -1})
+        #     # transform data format
+        #     dump_data(normal_data, normal_file)
+        #     dump_data(abnormal_data, abnormal_file)
+        # else:
+        #     normal_data = load_data(normal_file)
+        #     abnormal_data = load_data(abnormal_file)
 
-        if not pt.exists(normal_file) or not pt.exists(abnormal_file):
-            _normal_file = pt.splitext(normal_file)[0] + '.csv'
-            _abnormal_file = pt.splitext(abnormal_file)[0] + '.csv'
-            # extract data from csv file
-            normal_data, abnormal_data = extract_data(_normal_file, _abnormal_file,
-                                                      meta_data={'idxs_feat': [0, -1],
-                                                                 'train_size': -1,
-                                                                 'test_size': -1})
-            # transform data format
-            dump_data(normal_data, normal_file)
-            dump_data(abnormal_data, abnormal_file)
-        else:
-            normal_data = load_data(normal_file)
-            abnormal_data = load_data(abnormal_file)
-
+        X, y = load_data(data_file)
         # try to make case more smaller and specific
         gs = True
 
         cases = [  # OCSVM-gs:True
-            {'detector_name': 'OCSVM', 'gs': gs},
+            # {'detector_name': 'OCSVM', 'gs': gs},
 
             # # GMM-gs:True
-            # {'detector_name': 'GMM', 'covariance_type': 'full', 'gs': gs},
+            {'detector_name': 'GMM', 'covariance_type': 'full', 'gs': gs},
             # {'detector_name': 'GMM', 'covariance_type': 'diag', 'gs': gs},
             #
             # # # GMM-gs:True-kjl:True
@@ -700,9 +757,15 @@ def main(random_state, n_jobs=-1, n_repeats=1):
         for case in cases:
             case['n_repeats'] = n_repeats
             case['n_jobs'] = n_jobs
-            if 'gs' not in case.keys():
-                case['gs'] = False
-            else:
+            if not case['gs']:
+                if case['detector_name'] == 'OCSVM':
+                    case['model_qs'] = [0.3]
+                    case['model_nus'] = [0.5]
+                elif case['detector_name'] == 'GMM':
+                    case['n_components'] = [1]
+                else:
+                    raise ValueError(f'Error: {case}')
+            else: # gs = True
                 case['gs_search_type'] = 'grid_search'
                 if case['detector_name'] == 'OCSVM':
                     case['model_qs'] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
@@ -716,18 +779,27 @@ def main(random_state, n_jobs=-1, n_repeats=1):
 
             if 'kjl' not in case.keys():
                 case['kjl'] = False
+                case['kjl_ns'] = [100]
+                case['kjl_ds'] = [10]
+                case['kjl_qs'] = [0.3]
             else:
                 if case['kjl']:
                     case['kjl_ns'] = [100]
                     case['kjl_ds'] = [10]
                     case['kjl_qs'] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-                                      0.95]  # [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
+                                      0.95]  if case['gs'] else [0.3] # [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
 
             if 'quickshift' not in case.keys():
                 case['quickshift'] = False
+                case['quickshift_ks'] = [100]
+                case['quickshift_betas'] = [0.9]
             else:
-                case['quickshift_ks'] = [100, 1000]
-                case['quickshift_betas'] = [0.1, 0.3, 0.5, 0.7, 0.9]
+                if case['gs']:
+                    case['quickshift_ks'] = [100, 1000]
+                    case['quickshift_betas'] = [0.1, 0.3, 0.5, 0.7, 0.9]
+                else:
+                    case['quickshift_ks'] = [100]
+                    case['quickshift_betas'] = [0.9]
 
             if 'meanshift' not in case.keys():
                 case['meanshift'] = False
@@ -736,20 +808,24 @@ def main(random_state, n_jobs=-1, n_repeats=1):
 
             if 'nystrom' not in case.keys():
                 case['nystrom'] = False
+                case['nystrom_ns'] = [100]
+                case['nystrom_ds'] = [10]
+                case['nystrom_qs'] = [0.3]
             else:
                 if case['nystrom']:
                     case['nystrom_ns'] = [100]
                     case['nystrom_ds'] = [10]
                     case['nystrom_qs'] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-                                          0.95]  # [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
+                                          0.95]  if case['gs'] else [0.3] # [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
 
             case_str = '-'.join([f'{k}_{v}' for k, v in case.items() if
                                  k in ['detector_name', 'covariance_type', 'gs', 'kjl', 'nystrom', 'quickshift',
                                        'meanshift']])
             try:
+                case['gs'] = True
                 # get each result
                 print(f"\n\n\n***{case}***, {case_str}")
-                _best_results, _middle_results = get_best_results(normal_data, abnormal_data, case, random_state)
+                _best_results, _middle_results = get_best_results(X, y, case, random_state)
 
                 # save each result first
                 out_file = pt.abspath(f'{out_expand_dir}/{case_str}.csv')
@@ -767,9 +843,11 @@ def main(random_state, n_jobs=-1, n_repeats=1):
     out_file = f'{out_dir}/all_results.csv'
     print(f'\n\n***{out_file}***')
     # Todo: format the results
-    save_result(results, out_file)
+    dump_data(results, out_file=out_file+'.dat')
+    dat2csv(results, out_file)
+    results2speedup(results, out_dir)
     print("\n\n---finish succeeded!")
 
 
 if __name__ == '__main__':
-    main(random_state=RANDOM_STATE, n_jobs=-1, n_repeats=1)
+    main(random_state=RANDOM_STATE, n_jobs=-1, n_repeats=5)

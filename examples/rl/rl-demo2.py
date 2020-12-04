@@ -13,15 +13,15 @@ class Environment():
 
     def step(self, action):
 
-        if action == 'pass':
+        if action == 'pass': # normal
             reward = 0
-            done = False
-        elif action == 'alarm':
-            reward = -1
-            done = False
-        else:   # FP and FN
-            reward = -20
             done = True
+        elif action == 'alarm': # abnormal
+            reward = -1
+            done = True
+        else: # action=='wait'  # FP and FN #
+            reward = -20
+            done = False
 
         return None, reward, done, None
 
