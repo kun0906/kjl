@@ -391,7 +391,9 @@ def dat2latex(in_file, out_file = None):
                     vs = []
                     headers = ['UNB', 'CTU', 'MAWI', 'ISTS', 'MACCDC', 'SCAM']
                     for i in range(3): # acu, training, testing
-                        vs.append(np.asarray([values[j+i].replace('+/-', '$\\pm$') for j in range(0, len(values), 3)]))
+                        # vs.append(np.asarray([values[j+i].replace('+/-', '$\\pm$') for j in range(0, len(values), 3)]))
+                        vs.append(
+                            np.asarray([values[j + i].replace('+/-', '+/-') for j in range(0, len(values), 3)]))
 
                     headers = np.asarray(headers).reshape(1, -1)
                     values = np.asarray(vs)
@@ -679,7 +681,7 @@ if __name__ == '__main__':
     #     out_file = os.path.splitext(result_xlsl)[0] + '-ratio.xlsx'
     #     improvement(result_xlsl, feat_set='iat_size', out_file=out_file)
 
-    in_file = 'speedup/out/all_results.dat'
+    in_file = 'speedup/out/iat_size-gs_False-diag-std_False_center_False/all_results.dat'
     out_file = dat2xlxs(in_file, out_file=in_file+'.xlsx')
     out_xlsx = improvement(out_file, feat_set='iat_size', out_file=os.path.splitext(out_file)[0] + '-ratio.xlsx')
     #

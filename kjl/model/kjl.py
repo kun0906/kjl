@@ -29,7 +29,7 @@ np.random.seed(100)
 
 # __all__= ['_grow_tree'] # allow private functions (start with _) can be imported by using "import *"
 
-def getGaussianGram(Xrow, Xcol, sigma, goFast=0):
+def getGaussianGram(Xrow, Xcol, sigma, goFast=1):
     """ get kernel (Gaussian) gram matrix
     The Gram matrix K is deﬁned as $K_ij = K(X_i , X_j) over a (sub) sample X = {X _i}, i=1,...,,n
     Parameters

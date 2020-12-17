@@ -62,7 +62,7 @@ def _generate_datasets(overwrite=False):
         # 'mimic_GMM': f'{in_dir}/mimic_GMM/Xy-normal-abnormal.dat',
         # 'mimic_GMM1': f'{in_dir}/mimic_GMM1/Xy-normal-abnormal.dat',
         # 'UNB1': f'{in_dir}/UNB1/Xy-normal-abnormal.dat',
-        # 'UNB2': f'{in_dir}/UNB2/Xy-normal-abnormal.dat',
+        'UNB2': f'{in_dir}/UNB2/Xy-normal-abnormal.dat',
         #     # 'DS10_UNB_IDS/DS13-srcIP_192.168.10.9',
         #     # 'DS10_UNB_IDS/DS14-srcIP_192.168.10.14',
         #     # 'DS10_UNB_IDS/DS15-srcIP_192.168.10.15',
@@ -70,7 +70,7 @@ def _generate_datasets(overwrite=False):
         #     # # # # 'DS20_PU_SMTV/DS21-srcIP_10.42.0.1',
         #     # # # # # #
         #     'DS40_CTU_IoT/DS41-srcIP_10.0.2.15',
-        # 'CTU1': f'{in_dir}/CTU1/Xy-normal-abnormal.dat',
+        'CTU1': f'{in_dir}/CTU1/Xy-normal-abnormal.dat',
         # #     # # #
         # #     # # # # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50',
         # #     # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50',
@@ -83,11 +83,11 @@ def _generate_datasets(overwrite=False):
         # #     # # #
         # #     # 'WRCCDC/2020-03-20',
         # #     # 'DEFCON/ctf26',
-        # 'ISTS1': f'{in_dir}/ISTS1/Xy-normal-abnormal.dat',
-        # 'MACCDC1': f'{in_dir}/MACCDC1/Xy-normal-abnormal.dat',
+        'ISTS1': f'{in_dir}/ISTS1/Xy-normal-abnormal.dat',
+        'MACCDC1': f'{in_dir}/MACCDC1/Xy-normal-abnormal.dat',
         #
         # #     # # # # 'DS60_UChi_IoT/DS61-srcIP_192.168.143.20',
-        # 'SCAM1': f'{in_dir}/SCAM1/Xy-normal-abnormal.dat',
+        'SCAM1': f'{in_dir}/SCAM1/Xy-normal-abnormal.dat',
         # # # #     # # # 'DS60_UChi_IoT/DS63-srcIP_192.168.143.43',
         # # # #     # # # 'DS60_UChi_IoT/DS64-srcIP_192.168.143.48'
         # # # #
@@ -226,72 +226,72 @@ def _main(is_gs=False, is_std=False, covariance_type='diag', n_jobs=16):
     datasets = _generate_datasets(overwrite=False)
 
     for dataset in datasets:
-        # # 1. get best_qs for OCSVM
-        # # # # # case 1: OCSVM-gs:True
-        # case = 'case1'
-        # experiment = _generate_experiment(case, is_gs=is_gs, is_std=is_std, covariance_type=covariance_type, n_jobs=n_jobs,
-        #                                   n_repeats=n_repeats, random_state=random_state,
-        #                                   verbose=verbose, overwrite=overwrite)
-        # ocsvm_results = single_main(data=dataset, params=(case, experiment))
-        # k, v = ocsvm_results[0], ocsvm_results[1]
-        # results[k] = v
+        # 1. get best_qs for OCSVM
+        # # # # case 1: OCSVM-gs:True
+        case = 'case1'
+        experiment = _generate_experiment(case, is_gs=is_gs, is_std=is_std, covariance_type=covariance_type, n_jobs=n_jobs,
+                                          n_repeats=n_repeats, random_state=random_state,
+                                          verbose=verbose, overwrite=overwrite)
+        ocsvm_results = single_main(data=dataset, params=(case, experiment))
+        k, v = ocsvm_results[0], ocsvm_results[1]
+        results[k] = v
 
-        # # 2. use the best_qs for GMM
-        # # case 2: GMM-gs:True
-        # case = 'case2'
-        # experiment = _generate_experiment(case, is_gs=is_gs, is_std=is_std, covariance_type=covariance_type, n_jobs=n_jobs,
-        #                                   n_repeats=n_repeats, random_state=random_state,
-        #                                   verbose=verbose, overwrite=overwrite)
-        # _new_results = single_main(data=dataset, params=(case, experiment))
-        # k, v = _new_results[0], _new_results[1]
-        # results[k] = v
+        # 2. use the best_qs for GMM
+        # case 2: GMM-gs:True
+        case = 'case2'
+        experiment = _generate_experiment(case, is_gs=is_gs, is_std=is_std, covariance_type=covariance_type, n_jobs=n_jobs,
+                                          n_repeats=n_repeats, random_state=random_state,
+                                          verbose=verbose, overwrite=overwrite)
+        _new_results = single_main(data=dataset, params=(case, experiment))
+        k, v = _new_results[0], _new_results[1]
+        results[k] = v
 
         # case 3: GMM-gs:True-kjl:True
         case = 'case3'
         experiment = _generate_experiment(case, is_gs=is_gs,is_std=is_std, covariance_type=covariance_type, n_jobs=n_jobs,
                                           n_repeats=n_repeats, random_state=random_state,
                                           verbose=verbose, overwrite=overwrite)
-        # (_, _), (_best_result, _) = ocsvm_results
-        # experiment['kjl_qs'] = [_best_result['params']['OCSVM_q']]
-        experiment['kjl_qs'] = [0.1]
+        (_, _), (_best_result, _) = ocsvm_results
+        experiment['kjl_qs'] = [_best_result['params']['OCSVM_q']]
+        # experiment['kjl_qs'] = [0.9]
         _new_results = single_main(data=dataset, params=(case, experiment))
         k, v = _new_results[0], _new_results[1]
         results[k] = v
-        #
-        # # case 4: GMM-gs:True-nystrom:True   # nystrom will take more time than kjl
-        # case = 'case4'
-        # experiment = _generate_experiment(case, is_gs=is_gs, is_std=is_std, covariance_type=covariance_type, n_jobs=n_jobs,
-        #                                   n_repeats=n_repeats, random_state=random_state,
-        #                                   verbose=verbose, overwrite=overwrite)
-        # (_, _), (_best_result, _) = ocsvm_results
-        # experiment['nystrom_qs'] = [_best_result['params']['OCSVM_q']]
-        # _new_results = single_main(data=dataset, params=(case, experiment))
-        # k, v = _new_results[0], _new_results[1]
-        # results[k] = v
-        #
-        # # # case 5: GMM-gs:True-kjl:True-quickshift:True
-        # case = 'case5'
-        # experiment = _generate_experiment(case, is_gs=is_gs,is_std=is_std, covariance_type=covariance_type, n_jobs=n_jobs,
-        #                                   n_repeats=n_repeats, random_state=random_state,
-        #                                   verbose=verbose, overwrite=overwrite)
-        # (_, _), (_best_result, _) = ocsvm_results
-        # # experiment['quickshift_betas'] = [_best_result['params']['OCSVM_q']]
-        # experiment['kjl_qs'] = [_best_result['params']['OCSVM_q']]
-        # _new_results = single_main(data=dataset, params=(case, experiment))
-        # k, v = _new_results[0], _new_results[1]
-        # results[k] = v
-        #
-        # # case 6: GMM-gs:True-kjl:True-meanshift:True
-        # case = 'case6'
-        # experiment = _generate_experiment(case, is_gs=is_gs, is_std=is_std, covariance_type=covariance_type, n_jobs=n_jobs,
-        #                                   n_repeats=n_repeats, random_state=random_state,
-        #                                   verbose=verbose, overwrite=overwrite)
-        # (_, _), (_best_result, _) = ocsvm_results
-        # experiment['meanshift_qs'] = [_best_result['params']['OCSVM_q']]
-        # experiment['kjl_qs'] = [_best_result['params']['OCSVM_q']]
-        # _new_results = single_main(data=dataset, params=(case, experiment))
-        # k, v = _new_results[0], _new_results[1]
-        # results[k] = v
+
+        # case 4: GMM-gs:True-nystrom:True   # nystrom will take more time than kjl
+        case = 'case4'
+        experiment = _generate_experiment(case, is_gs=is_gs, is_std=is_std, covariance_type=covariance_type, n_jobs=n_jobs,
+                                          n_repeats=n_repeats, random_state=random_state,
+                                          verbose=verbose, overwrite=overwrite)
+        (_, _), (_best_result, _) = ocsvm_results
+        experiment['nystrom_qs'] = [_best_result['params']['OCSVM_q']]
+        _new_results = single_main(data=dataset, params=(case, experiment))
+        k, v = _new_results[0], _new_results[1]
+        results[k] = v
+
+        # # case 5: GMM-gs:True-kjl:True-quickshift:True
+        case = 'case5'
+        experiment = _generate_experiment(case, is_gs=is_gs,is_std=is_std, covariance_type=covariance_type, n_jobs=n_jobs,
+                                          n_repeats=n_repeats, random_state=random_state,
+                                          verbose=verbose, overwrite=overwrite)
+        (_, _), (_best_result, _) = ocsvm_results
+        # experiment['quickshift_betas'] = [_best_result['params']['OCSVM_q']]
+        experiment['kjl_qs'] = [_best_result['params']['OCSVM_q']]
+        _new_results = single_main(data=dataset, params=(case, experiment))
+        k, v = _new_results[0], _new_results[1]
+        results[k] = v
+
+        # case 6: GMM-gs:True-kjl:True-meanshift:True
+        case = 'case6'
+        experiment = _generate_experiment(case, is_gs=is_gs, is_std=is_std, covariance_type=covariance_type, n_jobs=n_jobs,
+                                          n_repeats=n_repeats, random_state=random_state,
+                                          verbose=verbose, overwrite=overwrite)
+        (_, _), (_best_result, _) = ocsvm_results
+        experiment['meanshift_qs'] = [_best_result['params']['OCSVM_q']]
+        experiment['kjl_qs'] = [_best_result['params']['OCSVM_q']]
+        _new_results = single_main(data=dataset, params=(case, experiment))
+        k, v = _new_results[0], _new_results[1]
+        results[k] = v
 
         # avoid missing results
         data_str, case = k
@@ -312,9 +312,9 @@ def _main(is_gs=False, is_std=False, covariance_type='diag', n_jobs=16):
 
 @execute_time
 def main():
-    gses = [False]
-    covariance_types = ['diag']
-    stds = [True, False]
+    gses = [True]
+    covariance_types = ['diag', 'full']
+    stds = [False, True]
     combs = len(list(itertools.product(gses, stds, covariance_types)))
     for i, (is_gs, is_std, covariance_type) in enumerate(itertools.product(gses, stds, covariance_types)):
         print(f'\n\n***{i + 1}/{combs}: is_gs:{is_gs}, is_std:{is_std}, covariance_type: {covariance_type}***')

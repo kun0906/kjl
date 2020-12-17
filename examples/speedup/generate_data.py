@@ -647,7 +647,7 @@ def generate_data_speed_up(data_name='', out_file='', random_state = 42, overwri
     in_dir = f'../../Datasets'
     if data_name in ['mimic_GMM', 'mimic_GMM1']:
         out_file = _generate_mimic_data(data_type=data_type, random_state=random_state, out_file=out_file)
-    elif data_name in ['UNB1', 'UNB2', 'UNB1_UNB4', 'UNB1_UNB5',
+    elif data_name in ['UNB1', 'UNB2','UNB3', 'UNB4', 'UNB5',
                        'UNB2_UNB1', 'UNB2_UNB3']:  # mix UNB1 and UNB2
         # pcaps and flows directory
         # in_dir = f'./data/data_reprst/pcaps'
@@ -659,6 +659,22 @@ def generate_data_speed_up(data_name='', out_file='', random_state = 42, overwri
             subdatasets = (
                 'UNB/CIC_IDS_2017/pc_192.168.10.8',
                 )  # each_data has normal and abnormal
+
+        elif data_name == 'UNB3':
+            subdatasets = (
+                'UNB/CIC_IDS_2017/pc_192.168.10.9',
+                )  # each_data has normal and abnormal
+        elif data_name == 'UNB4':
+            subdatasets = (
+                'UNB/CIC_IDS_2017/pc_192.168.10.14',
+            )  # each_data has normal and abnormal
+
+        elif data_name == 'UNB5':
+            subdatasets = (
+                'UNB/CIC_IDS_2017/pc_192.168.10.15',
+                )  # each_data has normal and abnormal
+
+
         # elif data_name == 'UNB1_UNB4':
         #     subdatasets = ('UNB/CIC_IDS_2017/pc_192.168.10.5',
         #                    'UNB/CIC_IDS_2017/pc_192.168.10.14')  # each_data has normal and abnormal

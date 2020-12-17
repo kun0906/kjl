@@ -8,6 +8,7 @@ import itertools
 import os
 import os.path as pth
 import traceback
+from collections import Counter
 from datetime import datetime
 
 import numpy as np
@@ -467,7 +468,7 @@ class OCSVM_MAIN(BASE):
         return self
 
 
-def _model_train_test(X, y, params, **kwargs):
+def _model_train_test_backup(X, y, params, **kwargs):
     """
 
     Parameters
@@ -499,8 +500,10 @@ def _model_train_test(X, y, params, **kwargs):
                 model = GMM_MAIN(params)
             elif "OCSVM" in params['detector_name']:
                 model = OCSVM_MAIN(params)
-
-            model.train_test_intf(X_train, y_train, X_test, y_test)
+            if params['mode'] =='best':
+                model.train_test_intf(X_train, y_train, X_val, y_val)
+            elif params['mode'] == 'default':
+                model.train_test_intf(X_train, y_train, X_test, y_test)
 
             train_times.append(model.train_time)
             test_times.append(model.test_time)
@@ -517,9 +520,219 @@ def _model_train_test(X, y, params, **kwargs):
                 'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
     return info
 
+#
+# @execute_time
+# def get_best_results_backup(X, y, params, random_state=42):
+#     """
+#
+#     Parameters
+#     ----------
+#     normal_data
+#     abnormal_data
+#     case
+#
+#     Returns
+#     -------
+#
+#     """
+#     params_copy = params
+#     params = copy.deepcopy(params_copy)
+#     X_copy = X
+#     X =  copy.deepcopy(X_copy)
+#     y_copy = y
+#     y = copy.deepcopy(y_copy)
+#     random_state_copy = random_state
+#     random_state = copy.deepcopy(random_state_copy)
+#     params['random_state'] = random_state
+#
+#     parallel = Parallel(n_jobs=25, verbose=30)
+#
+#     if not params['is_gs']:
+#         params['mode'] = 'default'  # evaluate on the test_set to find the best params
+#     else:
+#         params['mode'] = 'best'    # evaluate on the val_set to find the best params
+#     # best params and defaults params use the same API
+#     if params['detector_name'] == 'GMM':
+#         # GMM with grid search
+#         n_components_arr = params['GMM_n_components']
+#         if 'GMM_n_components' in params.keys(): del params['GMM_n_components']
+#         if not params['is_kjl'] and not params['is_nystrom']:  # only GMM
+#             # GMM-gs:True
+#             with parallel:
+#                 outs = parallel(delayed(_model_train_test)(X, y, copy.deepcopy(params),
+#                                                            GMM_n_components=n_components) for n_components, _ in
+#                                 list(itertools.product(n_components_arr, [0])))
+#
+#         elif params['is_kjl']:
+#             kjl_ds = params['kjl_ds']
+#             kjl_ns = params['kjl_ns']
+#             kjl_qs = params['kjl_qs']
+#             if 'kjl_ds' in params.keys(): del params['kjl_ds']
+#             if 'kjl_ns' in params.keys(): del params['kjl_ns']
+#             if 'kjl_qs' in params.keys(): del params['kjl_qs']
+#             if not params['is_quickshift'] and not params['is_meanshift']:
+#                 # GMM-gs:True-kjl:True
+#                 with parallel:
+#                     outs = parallel(
+#                         delayed(_model_train_test)(X, y, copy.deepcopy(params), kjl_d=kjl_d, kjl_n=kjl_n,
+#                                                    kjl_q=kjl_q,
+#                                                    GMM_n_components=n_components) for kjl_d, kjl_n, kjl_q, n_components
+#                         in
+#                         list(itertools.product(kjl_ds, kjl_ns, kjl_qs, n_components_arr)))
+#
+#             elif params['is_quickshift']:
+#                 # GMM-gs:True-kjl:True-quickshift:True
+#                 quickshift_ks = params['quickshift_ks']
+#                 quickshift_betas = params['quickshift_betas']
+#                 if 'quickshift_ks' in params.keys(): del params['quickshift_ks']
+#                 if 'quickshift_betas' in params.keys(): del params['quickshift_betas']
+#                 with parallel:
+#                     outs = parallel(
+#                         delayed(_model_train_test)(X, y, copy.deepcopy(params),
+#                                                    kjl_d=kjl_d, kjl_n=kjl_n, kjl_q=kjl_q,
+#                                                    quickshift_k=quickshift_k, quickshift_beta=quickshift_beta)
+#                         for kjl_d, kjl_n, kjl_q, quickshift_k, quickshift_beta in
+#                         list(itertools.product(kjl_ds, kjl_ns, kjl_qs, quickshift_ks, quickshift_betas)))
+#
+#             elif params['is_meanshift']:
+#                 # GMM-gs:True-kjl:True-meanshift:True
+#                 meanshift_qs = params[
+#                     'meanshift_qs']  # meanshift uses the same kjl_qs, and only needs to tune one of them
+#                 if 'meanshift_qs' in params.keys(): del params['meanshift_qs']
+#                 with parallel:
+#                     # outs = parallel(delayed(_model_train_test)(X, y, params, kjl_d=kjl_d,
+#                     #                                            kjl_n=kjl_n, kjl_q=kjl_q, n_components=n_components)
+#                     #                 for kjl_d, kjl_n, kjl_q, n_components in
+#                     #                 list(itertools.product(kjl_ds, kjl_ns, kjl_qs, n_components_arr)))
+#
+#                     outs = parallel(delayed(_model_train_test)(X, y, copy.deepcopy(params), kjl_d=kjl_d,
+#                                                                kjl_n=kjl_n, kjl_q=kjl_q)
+#                                     for kjl_d, kjl_n, kjl_q in
+#                                     list(itertools.product(kjl_ds, kjl_ns, kjl_qs)))
+#             else:
+#                 msg = params['is_kjl']
+#                 raise NotImplementedError(f'Error: kjl={msg}')
+#
+#         elif params['is_nystrom']:
+#             # GMM-gs:True-nystrom:True
+#             nystrom_ns = params['nystrom_ns']
+#             nystrom_ds = params['nystrom_ds']
+#             nystrom_qs = params['nystrom_qs']
+#             if 'nystrom_ns' in params.keys(): del params['nystrom_ns']
+#             if 'nystrom_ds' in params.keys(): del params['nystrom_ds']
+#             if 'nystrom_qs' in params.keys(): del params['nystrom_qs']
+#             with parallel:
+#                 outs = parallel(delayed(_model_train_test)(X, y, copy.deepcopy(params), nystrom_n=nystrom_n,
+#                                                            nystrom_d=nystrom_d, nystrom_q=nystrom_q,
+#                                                            GMM_n_components=n_components) for
+#                                 nystrom_n, nystrom_d, nystrom_q, n_components in
+#                                 list(itertools.product(nystrom_ns, nystrom_ds, nystrom_qs, n_components_arr)))
+#         else:
+#             msg = params['is_kjl']
+#             raise NotImplementedError(f'Error: kjl={msg}')
+#
+#     elif params['detector_name'] == 'OCSVM':
+#         if not params['is_kjl']:
+#             # msg = params['is_kjl']
+#             # raise NotImplementedError(f'Error: kjl={msg}')
+#             with parallel:
+#                 model_qs = params['OCSVM_qs']
+#                 model_nus = params['OCSVM_nus']
+#                 if 'OCSVM_qs' in params.keys(): del params['OCSVM_qs']
+#                 if 'OCSVM_nus' in params.keys(): del params['OCSVM_nus']
+#
+#                 outs = parallel(delayed(_model_train_test)(X, y, copy.deepcopy(params), OCSVM_q=OCSVM_q,
+#                                                            OCSVM_nu=OCSVM_nu) for _, _, _, OCSVM_q, OCSVM_nu in
+#                                 list(itertools.product([0], [0], [0], model_qs, model_nus)))
+#         else:  # gs=True, kjl = True and for OCSVM ('linear')
+#             with parallel:
+#
+#                 kjl_ds = params['kjl_ds']
+#                 kjl_ns = params['kjl_ns']
+#                 kjl_qs = params['kjl_qs']
+#                 if 'kjl_ds' in params.keys(): del params['kjl_ds']
+#                 if 'kjl_ns' in params.keys(): del params['kjl_ns']
+#                 if 'kjl_qs' in params.keys(): del params['kjl_qs']
+#                 model_nus = params['OCSVM_nus']
+#                 if 'OCSVM_nus' in params.keys(): del params['OCSVM_nus']
+#                 if not params['is_quickshift'] and not params['is_meanshift']:
+#                     # GMM-gs:True-kjl:True
+#                     with parallel:
+#                         outs = parallel(
+#                             delayed(_model_train_test)(X, y, copy.deepcopy(params), kjl_d=kjl_d, kjl_n=kjl_n,
+#                                                        kjl_q=kjl_q,
+#                                                        OCSVM_nu=OCSVM_nu) for
+#                             kjl_d, kjl_n, kjl_q, OCSVM_nu
+#                             in
+#                             list(itertools.product(kjl_ds, kjl_ns, kjl_qs, model_nus)))
+#
+#
+#     else:
+#         msg = params['detector_name']
+#         raise NotImplementedError(f'Error: detector_name={msg}')
+#
+#     # get the best avg auc from n_repeats experiments
+#     best_avg_auc = -1
+#     for out in outs:
+#         if np.mean(out['aucs']) > best_avg_auc:
+#             best_avg_auc = np.mean(out['aucs'])
+#             best_results = copy.deepcopy(out)
+#
+#     # it's better to save all middle results too
+#     middle_results = outs
+#
+#     print('---get accurate time of training and testing with the best params---')
+#     best_params = best_results['params']
+#     params['mode'] = 'default'  # evaluate on the test_set to get the final results
+#     out = _model_train_test(X, y, params=best_params)
+#     # double check the results if you can
+#     # assert best_avg_auc == np.mean(out['aucs'])
+#     # print(best_avg_auc, np.mean(out['aucs']), best_results, out)
+#     best_results = out
+#
+#     return best_results, middle_results
+
+
+def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
+    """
+
+    Parameters
+    ----------
+    normal_data
+    abnormal_data
+    params
+    args
+
+    Returns
+    -------
+
+    """
+    try:
+        for k, v in kwargs.items():
+            params[k] = v
+
+        if "GMM" in params['detector_name']:
+            model = GMM_MAIN(params)
+        elif "OCSVM" in params['detector_name']:
+            model = OCSVM_MAIN(params)
+        model.train_test_intf(X_train, y_train, X_test, y_test)
+
+
+        info = {'train_time': model.train_time, 'test_time': model.test_time, 'auc': model.auc, 'apc': '',
+                'params': model.params,
+                'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
+
+    except Exception as e:
+        traceback.print_exc()
+        info = {'train_time': 0.0, 'test_time': 0.0, 'auc': 0.0, 'apc': '',
+                'params': params,
+                'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
+
+    return info
+
 
 @execute_time
-def get_best_results(X, y, params, random_state=42):
+def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, random_state=42):
     """
 
     Parameters
@@ -532,18 +745,33 @@ def get_best_results(X, y, params, random_state=42):
     -------
 
     """
+    is_gs = params['is_gs']
+    if is_gs:
+        # pass
+        print(f'--is_gs: {is_gs}, X_val != X_test')
+    else:
+        X_val = X_test
+        y_val = y_test
+        print(f'--is_gs: {is_gs}, X_val == X_test')
+    print(f'X_train.shape: {X_train.shape}, y_train: {Counter(y_train)}')
+    print(f'X_val.shape: {X_val.shape}, y_val: {Counter(y_val)}')
+    print(f'X_test.shape: {X_test.shape}, y_test: {Counter(y_test)}')
     params_copy = params
     params = copy.deepcopy(params_copy)
-    X_copy = X
-    X =  copy.deepcopy(X_copy)
-    y_copy = y
-    y = copy.deepcopy(y_copy)
+    # X_copy = X
+    # X =  copy.deepcopy(X_copy)
+    # y_copy = y
+    # y = copy.deepcopy(y_copy)
     random_state_copy = random_state
     random_state = copy.deepcopy(random_state_copy)
     params['random_state'] = random_state
 
-    parallel = Parallel(n_jobs=25, verbose=30)
+    parallel = Parallel(n_jobs=params['n_jobs'], verbose=30)
 
+    # if not params['is_gs']:
+    #     params['mode'] = 'default'  # evaluate on the test_set to find the best params
+    # else:
+    #     params['mode'] = 'best'    # evaluate on the val_set to find the best params
     # best params and defaults params use the same API
     if params['detector_name'] == 'GMM':
         # GMM with grid search
@@ -552,7 +780,7 @@ def get_best_results(X, y, params, random_state=42):
         if not params['is_kjl'] and not params['is_nystrom']:  # only GMM
             # GMM-gs:True
             with parallel:
-                outs = parallel(delayed(_model_train_test)(X, y, copy.deepcopy(params),
+                outs = parallel(delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params),
                                                            GMM_n_components=n_components) for n_components, _ in
                                 list(itertools.product(n_components_arr, [0])))
 
@@ -567,7 +795,7 @@ def get_best_results(X, y, params, random_state=42):
                 # GMM-gs:True-kjl:True
                 with parallel:
                     outs = parallel(
-                        delayed(_model_train_test)(X, y, copy.deepcopy(params), kjl_d=kjl_d, kjl_n=kjl_n,
+                        delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params), kjl_d=kjl_d, kjl_n=kjl_n,
                                                    kjl_q=kjl_q,
                                                    GMM_n_components=n_components) for kjl_d, kjl_n, kjl_q, n_components
                         in
@@ -581,7 +809,7 @@ def get_best_results(X, y, params, random_state=42):
                 if 'quickshift_betas' in params.keys(): del params['quickshift_betas']
                 with parallel:
                     outs = parallel(
-                        delayed(_model_train_test)(X, y, copy.deepcopy(params),
+                        delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params),
                                                    kjl_d=kjl_d, kjl_n=kjl_n, kjl_q=kjl_q,
                                                    quickshift_k=quickshift_k, quickshift_beta=quickshift_beta)
                         for kjl_d, kjl_n, kjl_q, quickshift_k, quickshift_beta in
@@ -598,7 +826,7 @@ def get_best_results(X, y, params, random_state=42):
                     #                 for kjl_d, kjl_n, kjl_q, n_components in
                     #                 list(itertools.product(kjl_ds, kjl_ns, kjl_qs, n_components_arr)))
 
-                    outs = parallel(delayed(_model_train_test)(X, y, copy.deepcopy(params), kjl_d=kjl_d,
+                    outs = parallel(delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params), kjl_d=kjl_d,
                                                                kjl_n=kjl_n, kjl_q=kjl_q)
                                     for kjl_d, kjl_n, kjl_q in
                                     list(itertools.product(kjl_ds, kjl_ns, kjl_qs)))
@@ -615,7 +843,7 @@ def get_best_results(X, y, params, random_state=42):
             if 'nystrom_ds' in params.keys(): del params['nystrom_ds']
             if 'nystrom_qs' in params.keys(): del params['nystrom_qs']
             with parallel:
-                outs = parallel(delayed(_model_train_test)(X, y, copy.deepcopy(params), nystrom_n=nystrom_n,
+                outs = parallel(delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params), nystrom_n=nystrom_n,
                                                            nystrom_d=nystrom_d, nystrom_q=nystrom_q,
                                                            GMM_n_components=n_components) for
                                 nystrom_n, nystrom_d, nystrom_q, n_components in
@@ -634,7 +862,7 @@ def get_best_results(X, y, params, random_state=42):
                 if 'OCSVM_qs' in params.keys(): del params['OCSVM_qs']
                 if 'OCSVM_nus' in params.keys(): del params['OCSVM_nus']
 
-                outs = parallel(delayed(_model_train_test)(X, y, copy.deepcopy(params), OCSVM_q=OCSVM_q,
+                outs = parallel(delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params), OCSVM_q=OCSVM_q,
                                                            OCSVM_nu=OCSVM_nu) for _, _, _, OCSVM_q, OCSVM_nu in
                                 list(itertools.product([0], [0], [0], model_qs, model_nus)))
         else:  # gs=True, kjl = True and for OCSVM ('linear')
@@ -652,7 +880,7 @@ def get_best_results(X, y, params, random_state=42):
                     # GMM-gs:True-kjl:True
                     with parallel:
                         outs = parallel(
-                            delayed(_model_train_test)(X, y, copy.deepcopy(params), kjl_d=kjl_d, kjl_n=kjl_n,
+                            delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params), kjl_d=kjl_d, kjl_n=kjl_n,
                                                        kjl_q=kjl_q,
                                                        OCSVM_nu=OCSVM_nu) for
                             kjl_d, kjl_n, kjl_q, OCSVM_nu
@@ -667,8 +895,8 @@ def get_best_results(X, y, params, random_state=42):
     # get the best avg auc from n_repeats experiments
     best_avg_auc = -1
     for out in outs:
-        if np.mean(out['aucs']) > best_avg_auc:
-            best_avg_auc = np.mean(out['aucs'])
+        if np.mean(out['auc']) > best_avg_auc:
+            best_avg_auc = np.mean(out['auc'])
             best_results = copy.deepcopy(out)
 
     # it's better to save all middle results too
@@ -676,14 +904,14 @@ def get_best_results(X, y, params, random_state=42):
 
     print('---get accurate time of training and testing with the best params---')
     best_params = best_results['params']
-    out = _model_train_test(X, y, params=best_params)
+    params['mode'] = 'default'  # evaluate on the test_set to get the final results
+    out = _model_train_test(X_train, y_train, X_test, y_test, params=best_params)
     # double check the results if you can
     # assert best_avg_auc == np.mean(out['aucs'])
     # print(best_avg_auc, np.mean(out['aucs']), best_results, out)
     best_results = out
 
     return best_results, middle_results
-
 
 #
 # def main(random_state, n_jobs=-1, n_repeats=1):
