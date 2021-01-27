@@ -299,7 +299,7 @@ void cluster_remaining(
      int * initial_memberships,
      int * result) {
 
-//    printf("\nmaximum of %d and %d is = %d",a,b,c); // instead of cout
+//    printf("\nmaximum of %d and %d is = %d",a,b,c); // instead of cout, using print
     printf("0, n: %d\n", n);
 
     int ** knn_neighbors = new int*[n];
