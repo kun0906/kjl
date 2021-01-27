@@ -253,11 +253,11 @@ class NYSTROM():
             # project train data
             self.Eigvec, self.Lambda, self.subX = nystromInitialize(X_train, self.sigma, n, d,
                                                                     random_state=self.random_state)
-            # Phix = nystromFeatures(X_train, subX, sigma, Eigvec, Lambda)
-            X_train = np.matmul(np.matmul(getGaussianGram(X_train, self.subX, self.sigma), self.Eigvec),
-                                np.diag(1. / np.sqrt(np.diag(self.Lambda))))
+            # # Phix = nystromFeatures(X_train, subX, sigma, Eigvec, Lambda)
+            # X_train = np.matmul(np.matmul(getGaussianGram(X_train, self.subX, self.sigma), self.Eigvec),
+            #                     np.diag(1. / np.sqrt(np.diag(self.Lambda))))
 
-            if self.debug: data_info(X_train, name='after nystrom, X_train')
+            # if self.debug: data_info(X_train, name='after nystrom, X_train')
 
             end = datetime.now()
             nystrom_train_time = (end - start).total_seconds()

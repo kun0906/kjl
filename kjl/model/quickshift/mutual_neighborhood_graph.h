@@ -177,8 +177,10 @@ struct GraphBasic {
     }
 
     void add_edge(const int n1, const int n2) {
+//        printf("add_edge: %d %d\n", n1, n2);
         NodeBasic * r1 = get_root(M[n1]);
         NodeBasic * r2 = get_root(M[n2]);
+//         printf("add_edge1: %d %d\n", n1, n2);
         if (!r1 || !r2) return;
         if (r1 != r2) {
             if (r1->rank > r2->rank) {
@@ -297,8 +299,8 @@ void cluster_remaining(
      int * initial_memberships,
      int * result) {
 
-//   printf("\nmaximum of %d and %d is = %d",a,b,c); // instead of cout
-//    printf("0, n_chosen_clusters: %d\n", n_chosen_clusters);
+//    printf("\nmaximum of %d and %d is = %d",a,b,c); // instead of cout
+    printf("0, n: %d\n", n);
 
     int ** knn_neighbors = new int*[n];
     double ** data;
@@ -347,7 +349,7 @@ void cluster_remaining(
             H.add_edge(modal_sets[c][i], modal_sets[c][i+1]);
         }
     }
-
+//    printf("1, n: %d\n", n);
     int next = -1;
     double dt, best_distance = 0.;
     for (int i = 0; i < n; ++i) {
@@ -356,12 +358,13 @@ void cluster_remaining(
         }
         next = -1;
         for (int j = 0; j < k; ++j) {
+//         printf("j: %d %d %d %d", j, k, radii[knn_neighbors[i][j]], radii[i]);
             if (radii[knn_neighbors[i][j]] < radii[i]) {
                 next = knn_neighbors[i][j];
                 break;
             }
         }
-
+//        printf("i: %d ", i);
         if (next < 0) {
             best_distance = 1000000000.;
             for (int j = 0; j < n; ++j) {
@@ -378,11 +381,16 @@ void cluster_remaining(
                 }
             }
         }
-        H.add_edge(i, next);
+//        printf("i2: %d %d", i, next);
+        if (next >= 0){
+            H.add_edge(i, next);
+//        printf("i3: %d ", i);
+        }
     }
     for (int i = 0; i < n; ++i) {
         result[i] = -1;
     }
+//    printf("12, n: %d\n", n);
     int n_clusters = 0;
     map<int, int> label_mapping;
     for (int i = 0; i < n; ++i) {
@@ -397,4 +405,5 @@ void cluster_remaining(
             }
         }
     }
+     printf("qs, n: %d\n", n);
 }

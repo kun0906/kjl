@@ -10,8 +10,11 @@ import os.path as pth
 import traceback
 from collections import Counter
 from datetime import datetime
+import tracemalloc
+import time
 
 import numpy as np
+import sklearn
 from joblib import delayed, Parallel
 from sklearn import metrics
 from sklearn.metrics import pairwise_distances, average_precision_score, roc_curve
@@ -128,6 +131,7 @@ class BASE:
                                 np.diag(1. / np.sqrt(np.diag(Lambda))))
 
             if debug: data_info(X_train, name='after nystrom, X_train')
+            eigvec_lambda = np.matmul(Eigvec, np.diag(1. / np.sqrt(np.diag(Lambda))))
 
             end = datetime.now()
             nystrom_train_time = (end - start).total_seconds()
@@ -143,7 +147,8 @@ class BASE:
             start = datetime.now()
             print("Projecting test data")
             K = getGaussianGram(X_test, subX, sigma)  # get kernel matrix using rbf
-            X_test = np.matmul(np.matmul(K, Eigvec), np.diag(1. / np.sqrt(np.diag(Lambda))))
+            # X_test = np.matmul(np.matmul(K, Eigvec), np.diag(1. / np.sqrt(np.diag(Lambda))))    # Lambda is dxd, np.diag(Lambda) = 1xd,  ? double-check here why np.diag() twice?
+            X_test = np.matmul(K, eigvec_lambda)
             if debug: data_info(X_test, name='after nystrom, X_test')
             end = datetime.now()
             nystrom_test_time = (end - start).total_seconds()
@@ -288,25 +293,26 @@ class GMM_MAIN(BASE):
         self.train_time += self.std_train_time
         self.test_time += self.std_test_time
 
-        self.thres_n = 10  # used to filter clusters which have less than 100 datapoints
-        if 'is_meanshift' in self.params.keys() and self.params['is_meanshift']:
-            dists = pairwise_distances(X_train)
-            self.sigma = np.quantile(dists, self.params['kjl_q'])  # also used for kjl
-            self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = meanshift_seek_modes(
-                X_train, bandwidth=self.sigma, thres_n=self.thres_n)
-            self.params['GMM_n_components'] = self.n_components
-            self.seek_test_time = 0
-        elif 'is_quickshift' in self.params.keys() and self.params['is_quickshift']:
-            self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
-                X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
-                thres_n=self.thres_n)
-            self.params['GMM_n_components'] = self.n_components
-            self.seek_test_time = 0
-        else:
-            self.seek_train_time = 0
-            self.seek_test_time = 0
-        self.train_time += self.seek_train_time
-        self.test_time += self.seek_test_time  # self.seek_test_time = 0
+        if self.params['before_proj']:
+            self.thres_n = 10  # used to filter clusters which have less than 100 datapoints
+            if 'is_meanshift' in self.params.keys() and self.params['is_meanshift']:
+                dists = pairwise_distances(X_train)
+                self.sigma = np.quantile(dists, self.params['kjl_q'])  # also used for kjl
+                self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = meanshift_seek_modes(
+                    X_train, bandwidth=self.sigma, thres_n=self.thres_n)
+                self.params['GMM_n_components'] = self.n_components
+                self.seek_test_time = 0
+            elif 'is_quickshift' in self.params.keys() and self.params['is_quickshift']:
+                self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
+                    X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
+                    thres_n=self.thres_n)
+                self.params['GMM_n_components'] = self.n_components
+                self.seek_test_time = 0
+            else:
+                self.seek_train_time = 0
+                self.seek_test_time = 0
+            self.train_time += self.seek_train_time
+            self.test_time += self.seek_test_time  # self.seek_test_time = 0
 
         if 'is_kjl' in self.params.keys() and self.params['is_kjl']:
             # self.sigma = np.sqrt(X_train.shape[0]* X_train.var())
@@ -325,25 +331,26 @@ class GMM_MAIN(BASE):
         self.train_time += self.proj_train_time
         self.test_time += self.proj_test_time
 
-        # self.thres_n = 10  # used to filter clusters which have less than 100 datapoints
-        # if 'is_meanshift' in self.params.keys() and self.params['is_meanshift']:
-        #     dists = pairwise_distances(X_train)
-        #     self.sigma = np.quantile(dists, self.params['kjl_q'])  # also used for kjl
-        #     self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = meanshift_seek_modes(
-        #         X_train, bandwidth=self.sigma, thres_n=self.thres_n)
-        #     self.params['GMM_n_components'] = self.n_components
-        #     self.seek_test_time = 0
-        # elif 'is_quickshift' in self.params.keys() and self.params['is_quickshift']:
-        #     self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
-        #         X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
-        #         thres_n=self.thres_n)
-        #     self.params['GMM_n_components'] = self.n_components
-        #     self.seek_test_time = 0
-        # else:
-        #     self.seek_train_time = 0
-        #     self.seek_test_time = 0
-        # self.train_time += self.seek_train_time
-        # self.test_time += self.seek_test_time  # self.seek_test_time = 0
+        if self.params['after_proj']:
+            self.thres_n = 10  # used to filter clusters which have less than 100 datapoints
+            if 'is_meanshift' in self.params.keys() and self.params['is_meanshift']:
+                dists = pairwise_distances(X_train)
+                self.sigma = np.quantile(dists, self.params['kjl_q'])  # also used for kjl
+                self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = meanshift_seek_modes(
+                    X_train, bandwidth=self.sigma, thres_n=self.thres_n)
+                self.params['GMM_n_components'] = self.n_components
+                self.seek_test_time = 0
+            elif 'is_quickshift' in self.params.keys() and self.params['is_quickshift']:
+                self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
+                    X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
+                    thres_n=self.thres_n)
+                self.params['GMM_n_components'] = self.n_components
+                self.seek_test_time = 0
+            else:
+                self.seek_train_time = 0
+                self.seek_test_time = 0
+            self.train_time += self.seek_train_time
+            self.test_time += self.seek_test_time  # self.seek_test_time = 0
 
         model = GMM()
         model_params = {'n_components': self.params['GMM_n_components'], 'covariance_type': self.params['GMM_covariance_type'],
@@ -352,7 +359,12 @@ class GMM_MAIN(BASE):
         model.set_params(**model_params)
         print(f'model.get_params(): {model.get_params()}')
         # train model
-        self.model, self.model_train_time = self._train(model, X_train)
+        try:
+            self.model, self.model_train_time = self._train(model, X_train)
+        except:
+            model.reg_covar = 1e-5
+            print(f'retrain with a larger reg_covar')
+            self.model, self.model_train_time = self._train(model, X_train)
 
         self.train_time += self.model_train_time
 
@@ -707,6 +719,13 @@ def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
     -------
 
     """
+    # ##################### memory allocation snapshot
+    #
+    # tracemalloc.start()
+    #
+    # start_time = time.time()
+    # snapshot1 = tracemalloc.take_snapshot()
+
     try:
         for k, v in kwargs.items():
             params[k] = v
@@ -722,11 +741,20 @@ def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
                 'params': model.params,
                 'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
 
-    except Exception as e:
+    except:
         traceback.print_exc()
         info = {'train_time': 0.0, 'test_time': 0.0, 'auc': 0.0, 'apc': '',
                 'params': params,
                 'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
+
+    # ################### Second memory allocation snapshot
+    #
+    # snapshot2 = tracemalloc.take_snapshot()
+    # top_stats = snapshot2.compare_to(snapshot1, 'lineno')
+    #
+    # print("[ Top 10 ]")
+    # for stat in top_stats[:5]:
+    #     print(stat)
 
     return info
 
@@ -749,6 +777,9 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, ran
     if is_gs:
         # pass
         print(f'--is_gs: {is_gs}, X_val != X_test')
+        if len(y_val) < 10:
+            print('just for avoiding error for gs=True')
+            X_val, y_val = sklearn.utils.resample(X_test, y_test, n_samples=10, stratify=y_test)
     else:
         X_val = X_test
         y_val = y_test
@@ -842,12 +873,45 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, ran
             if 'nystrom_ns' in params.keys(): del params['nystrom_ns']
             if 'nystrom_ds' in params.keys(): del params['nystrom_ds']
             if 'nystrom_qs' in params.keys(): del params['nystrom_qs']
-            with parallel:
-                outs = parallel(delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params), nystrom_n=nystrom_n,
+            if not params['is_quickshift'] and not params['is_meanshift']:
+                with parallel:
+                    outs = parallel(delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params),nystrom_n=nystrom_n,
                                                            nystrom_d=nystrom_d, nystrom_q=nystrom_q,
-                                                           GMM_n_components=n_components) for
-                                nystrom_n, nystrom_d, nystrom_q, n_components in
-                                list(itertools.product(nystrom_ns, nystrom_ds, nystrom_qs, n_components_arr)))
+                                                               GMM_n_components=n_components) for
+                                    nystrom_n, nystrom_d, nystrom_q, n_components in
+                                    list(itertools.product(nystrom_ns, nystrom_ds, nystrom_qs, n_components_arr)))
+
+            elif params['is_quickshift']:
+                # GMM-gs:True-kjl:True-quickshift:True
+                quickshift_ks = params['quickshift_ks']
+                quickshift_betas = params['quickshift_betas']
+                if 'quickshift_ks' in params.keys(): del params['quickshift_ks']
+                if 'quickshift_betas' in params.keys(): del params['quickshift_betas']
+                with parallel:
+                    outs = parallel(
+                        delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params),
+                                                   nystrom_n=nystrom_n,
+                                                   nystrom_d=nystrom_d, nystrom_q=nystrom_q,
+                                                   quickshift_k=quickshift_k, quickshift_beta=quickshift_beta)
+                        for nystrom_n, nystrom_d, nystrom_q, quickshift_k, quickshift_beta in
+                        list(itertools.product(nystrom_ns, nystrom_ds, nystrom_qs, quickshift_ks, quickshift_betas)))
+
+            elif params['is_meanshift']:
+                # GMM-gs:True-kjl:True-meanshift:True
+                meanshift_qs = params[
+                    'meanshift_qs']  # meanshift uses the same kjl_qs, and only needs to tune one of them
+                if 'meanshift_qs' in params.keys(): del params['meanshift_qs']
+                with parallel:
+                    # outs = parallel(delayed(_model_train_test)(X, y, params, kjl_d=kjl_d,
+                    #                                            kjl_n=kjl_n, kjl_q=kjl_q, n_components=n_components)
+                    #                 for kjl_d, kjl_n, kjl_q, n_components in
+                    #                 list(itertools.product(kjl_ds, kjl_ns, kjl_qs, n_components_arr)))
+
+                    outs = parallel(
+                        delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params), nystrom_n=nystrom_n,
+                                                           nystrom_d=nystrom_d, nystrom_q=nystrom_q, kjl_q = nystrom_q)
+                        for nystrom_n, nystrom_d, nystrom_q in
+                        list(itertools.product(nystrom_ns, nystrom_ds, nystrom_qs)))
         else:
             msg = params['is_kjl']
             raise NotImplementedError(f'Error: kjl={msg}')

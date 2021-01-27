@@ -4,10 +4,12 @@ from collections import OrderedDict
 
 # from pdf2image import convert_from_bytes
 from PIL import Image
+import pickle
 
 from kjl.utils.tool import load_data
 import numpy as np
 import matplotlib.pyplot as plt
+import os.path as pth
 
 plt.ioff()
 import matplotlib as mpl
@@ -815,16 +817,44 @@ def _pdf2img(pdf_pth, img_pth):
     return img_pth
 
 
-def imgs2xlsx(dataname_file_mappings, outfile='out/imgs.xlsx'):
+def find_img(out_dataname, out_ratio, out_key, root_dir, outs):
+    img = ''
+    for i, v1 in enumerate(outs):
+        for (dataset_name, data_file), v2 in v1.items():
+            for ratio, v3 in v2.items():
+                for experiment_case, v4 in v3.items():
+                    # online = v3['online']
+                    # batch = v3['batch']
+                    p = v4['online'][0]['params']
+                    sub_dir = f'gs={p.gs}-std={p.std}_center={p.with_means_std}-' \
+                              f'kjl={p.kjl}-d_kjl={p.d_kjl}-n_kjl={p.n_kjl}-c_kjl={p.centering_kjl}-' \
+                              f'ms={p.meanshift}-before_kjl={p.before_kjl_meanshift}-fixed_kjl={p.fixed_kjl}-seed={p.random_state}'
+                    tmp_dir = f'{root_dir}/out/{pth.dirname(data_file)}/{sub_dir}'
+                    tmp_dir_key =  f'{root_dir}/out/{pth.dirname(pth.dirname(data_file))}/{sub_dir}'
+                    if tmp_dir_key in out_key and out_dataname == dataset_name and out_ratio == ratio:
+                        # # display(v4, out_file, key)
+                        # res[tmp_dir]
+                        img = tmp_dir + f'/case0-ratio_{ratio}.dat.pdf.png'
+                        return img
+    return img
+
+def imgs2xlsx(in_file, data_path_mappings,  outfile='out/imgs.xlsx', root_dir='online'):
     if not os.path.exists(os.path.dirname(outfile)):
         os.makedirs(os.path.dirname(outfile))
+
+    with open(in_file, 'rb') as f:
+        outs = pickle.load(f)
+
+    res = []
+    # find key = os.path.dirname(out_file)
+    out_key = os.path.dirname(outfile)
     res = OrderedDict()
     for i, ratio in enumerate([0.5, 0.8, 0.9, 0.95, 1.0]):
         img_lst = []
-        for key, value in dataname_file_mappings.items():
-            img = 'online/out/online/' + value + f'-case0-ratio_{ratio}.dat.pdf'
-            # img_lst.append(_pdf2img(img, img + '.png'))
-            img_lst.append(img + '.png')
+        for data_name, value in data_path_mappings.items():
+            # img = 'online/out/online/' + value + f'-case0-ratio_{ratio}.dat.pdf'
+            # # img_lst.append(_pdf2img(img, img + '.png'))
+            img_lst.append(find_img(data_name, ratio, out_key, root_dir, outs))
         res[ratio] = img_lst
         _imgs2xls(outfile, res)
 
@@ -921,6 +951,196 @@ def main2():
     imgs2xlsx(dataname_file_mappings, outfile)
 
 
+def display(info, out_file, key=(), is_show=False):
+
+    online_info = info['online']
+    batch_info = info['batch']
+    dataset_name, data_file, ratio, experiment_case = key
+
+    def get_values_of_key(info, name='train_times'):
+        vs = []
+        for i_repeat, res in info.items():
+            # train_times = res['train_times']
+            # test_times = res['test_times']
+            # acus = res['aucs']
+            # n_components = res['n_components']
+            if name == 'train_times':
+                v = [_v['train_time'] for _v in res[name]]
+            elif name == 'test_times':
+                v = [_v['test_time'] for _v in res[name]]
+            elif name == 'n_components':
+                v = [_v[name] for _v in res['model_params']]
+            else:
+                v = res[name]
+            vs.append(np.asarray(v))
+
+        return np.asarray(vs)
+
+    def _plot(ax, online_train_times, batch_train_times, xlabel, ylabel, title, out_file, ylim=[],
+              legend_position='upper right'):
+
+        y = batch_train_times
+        x = range(y.shape[1])
+        yerr = np.std(y, axis=0)
+        y = np.mean(y, axis=0)
+        ax.errorbar(x, y, yerr, ecolor='r', capsize=2, linestyle='-', marker='.', color='green',
+                    markeredgecolor='green', markerfacecolor='green', label=f'Batch', alpha=0.9)  # marker='*',
+
+        y = online_train_times
+        yerr = np.std(y, axis=0)
+        y = np.mean(y, axis=0)
+        ax.errorbar(x, y, yerr, ecolor='m', capsize=2, linestyle='-', marker='.', color='blue',
+                    markeredgecolor='blue', markerfacecolor='blue', label=f'Online', alpha=0.9)  # marker='*',
+
+        # plt.xlim([0.0, 1.0])
+        if len(ylim) == 2:
+            ax.set_ylim(ylim)  # [0.0, 1.05]
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        # plt.xticks(x)
+        # plt.yticks(y)
+        ax.legend(loc=legend_position)
+        # ax.set_title(title)
+        out_file += '.png'
+        if pth.exists(out_file): os.remove(out_file)
+        if not pth.exists(os.path.dirname(out_file)): os.makedirs(os.path.dirname(out_file))
+        print(out_file)
+        ax.figure.savefig(out_file, format='png', dpi=300)
+
+    params = online_info[0]['params']
+    print(f'\n***{dataset_name}, {experiment_case}')
+    if 'online:False' in experiment_case:
+        online = False
+        params.incorporated_points = 0
+        params.fixed_U_size = False
+    else:
+        online = True
+
+    n_point = params.incorporated_points
+    n_point = f'{n_point}' if n_point > 1 else f'{n_point}'
+
+    fixed_kjl = params.fixed_kjl
+    fixed_U_size = params.fixed_U_size
+    n_components_init = int(
+        np.mean([online_info[i]['model_params'][0]['n_components'] for i in range(params.n_repeats)]))
+    gs = params.gs
+    covariance_type = params.covariance_type
+    meanshift = params.meanshift
+    q_kjl = params.q_kjl
+    n_kjl = params.n_kjl
+    d_kjl = params.d_kjl
+    c_kjl = params.centering_kjl
+    std = params.std
+    random_state = params.random_state
+    with_means_std = params.with_means_std
+    kjl = params.kjl
+    n_repeats = params.n_repeats
+    # dataset_name, data_file = k_dataset
+    dataset_name = f'{dataset_name} (init_set={int(params.percent_first_init * 100)}:{int(round((1 - params.percent_first_init) * 100))}-{params.X_init_train.shape})'
+    if gs:
+        init_val_set = f'{params.X_init_test.shape[0]}'
+    else:
+        init_val_set = f'=X_test'
+    arrival_set = f'{params.X_arrival.shape[0]}'
+    test_set = f'{params.X_test.shape[0]}'
+    if kjl:
+        # {covariance_type};
+        title = f'n_cp={n_components_init}, {covariance_type}; gs={gs}; std={std}_c={with_means_std}; KJL={kjl}, n={n_kjl}, d={d_kjl}, q={q_kjl}, c={c_kjl}; ms={meanshift}'
+        if fixed_kjl:
+            title = f'Fixed KJL on {dataset_name};\ninit_val(test)={init_val_set},arrival_set={arrival_set},test_set={test_set};n_rp={n_repeats};seed={random_state}\n{title}'
+        elif fixed_U_size:
+            # (replace {n_point} cols and rows of U)
+            title = f'Fixed U size on {dataset_name};\ninit_val(test)={init_val_set},arrival_set={arrival_set},test_set={test_set};n_rp={n_repeats};seed={random_state}\n{title}'
+        else:  # increased_U
+            title = f'Increased U size on {dataset_name};\ninit_val(test)={init_val_set},arrival_set={arrival_set},test_set={test_set};n_rp={n_repeats};seed={random_state}\n{title}'
+    else:
+        #  {covariance_type};
+        title = f'n_cp={n_components_init}, {covariance_type}; gs={gs}; std={std}_ctr={with_means_std}; KJL={kjl},  c={c_kjl}; ms={meanshift}'
+        title = f'{dataset_name};\ninit_val={init_val_set},arrival_set={arrival_set},test_set={test_set};n_rp={n_repeats};seed={random_state}\n({title})'
+
+    title = title.replace('False', 'F')
+    title = title.replace('True', 'T')
+    batch_size = params.batch_size
+    xlabel = f'The ith batch: i * batch_size({batch_size}) datapoints'
+
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    # ax = ax.reshape(1, 1)
+    # train_times
+    online_train_times = get_values_of_key(online_info, name='train_times')
+    batch_train_times = get_values_of_key(batch_info, name='train_times')
+    _plot(ax, online_train_times, batch_train_times, xlabel=xlabel, ylabel='Training time (s)', title=title,
+          out_file= out_file +'/train_times.pdf')
+    # test times
+    online_test_times = get_values_of_key(online_info, name='test_times')
+    batch_test_times = get_values_of_key(batch_info, name='test_times')
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    # ax = ax.reshape(1, 1)
+    _plot(ax, online_test_times, batch_test_times, xlabel=xlabel, ylabel='Testing time (s)', title=title,
+          out_file= out_file + '/test_times.pdf')
+
+    # aucs
+    online_aucs = get_values_of_key(online_info, name='aucs')
+    batch_aucs = get_values_of_key(batch_info, name='aucs')
+    print(f'online_aucs: {online_aucs}')
+    print(f'batch_aucs: {batch_aucs}')
+    print(f'online_aucs-batch_aucs: {online_aucs - batch_aucs}')
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    _plot(ax, online_aucs, batch_aucs, xlabel=xlabel, ylabel='AUCs', title=title,
+          legend_position='lower right', ylim=[0.0, 1.05],
+          out_file= out_file + '/aucs.pdf')
+
+    # n_components
+    online_n_components = get_values_of_key(online_info, name='n_components')
+    batch_n_components = get_values_of_key(batch_info, name='n_components')
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    _plot(ax, online_n_components, batch_n_components, xlabel=xlabel, ylabel='n_components', title=title,
+          legend_position='lower right',
+          out_file= out_file + '/n_components.pdf')
+
+    # fig.suptitle(title, fontsize=11)
+    #
+    # plt.tight_layout()  # rect=[0, 0, 1, 0.95]
+    # try:
+    #     plt.subplots_adjust(top=0.85, bottom=0.1, right=0.975, left=0.12)
+    # except Warning as e:
+    #     raise ValueError(e)
+    #
+    # # fig.text(.5, 15, "total label", ha='center')
+    # plt.figtext(0.5, 0.01, f'X-axis:({xlabel})', fontsize=11, va="bottom", ha="center")
+    # print(out_file)
+    # if not pth.exists(os.path.dirname(out_file)): os.makedirs(os.path.dirname(out_file))
+    # if pth.exists(out_file): os.remove(out_file)
+    # fig.savefig(out_file, format='pdf', dpi=300)
+    # out_file += '.png'
+    # if pth.exists(out_file): os.remove(out_file)
+    # fig.savefig(out_file, format='png', dpi=300)
+    # if is_show: plt.show()
+    # plt.close(fig)
+
+    return out_file
+
+def individual_img(in_file='out.dat',    root_dir = 'online'):
+
+    with open(in_file, 'rb') as f:
+        outs = pickle.load(f)
+
+    for i, v1 in enumerate(outs):
+        for (dataset_name, data_file), v2 in v1.items():
+            for ratio, v3 in v2.items():
+                for experiment_case, v4 in v3.items():
+                    # online = v3['online']
+                    # batch = v3['batch']
+                    key = (dataset_name, data_file, ratio, experiment_case)
+                    p = v4['online'][0]['params']
+                    out_file = f'{root_dir}/out/{pth.dirname(data_file)}/gs={p.gs}-std={p.std}_center={p.with_means_std}-' \
+                               f'kjl={p.kjl}-d_kjl={p.d_kjl}-n_kjl={p.n_kjl}-c_kjl={p.centering_kjl}-' \
+                               f'ms={p.meanshift}-before_kjl={p.before_kjl_meanshift}-fixed_kjl={p.fixed_kjl}-seed={p.random_state}/case0-ratio_{ratio}.dat-single'
+                    display(v4, out_file, key)
+
+
+
 if __name__ == '__main__':
     # main(online=False)
-    main2()
+    # main2()
+    out_file = 'online/out/online/data/src_dst/iat_size/n_init_train_500/gs=True-std=False_center=False-kjl=True-d_kjl=5-n_kjl=100-c_kjl=False-ms=False-before_kjl=False-fixed_kjl=False-seed=10/res.dat'
+    individual_img(out_file, root_dir = 'online')

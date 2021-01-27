@@ -138,8 +138,8 @@ def quickshift_seek_modes(X, k=None, beta=0.9, thres_n=100):
     """Initialize GMM
             1) Download quickshift++ from github
             2) unzip and move the folder to your project
-            3) python3 setup.py build
-            4) python3 setup.py install
+            3) python3.7 setup.py build
+            4) python3.7 setup.py install
             5) from QuickshiftPP import QuickshiftPP
         :param X_train:
         :param k:
@@ -158,7 +158,9 @@ def quickshift_seek_modes(X, k=None, beta=0.9, thres_n=100):
 
     # Note the try catch cannot capture the model.fit() error because it is cython. How to capture the exception?
     try:
+        print(f'before qs: k={k}, beta={beta}')
         model.fit(X)
+        print('after qs')
     except Exception as e:
         msg = f'quickshift++ fit error: {e}'
         raise ValueError(msg)

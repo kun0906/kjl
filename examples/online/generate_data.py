@@ -3,10 +3,14 @@
 """
 import os
 import os.path as pth
+import subprocess
+
 import numpy as np
 import sklearn
 from sklearn.datasets import make_blobs
 from sklearn.utils import shuffle
+import pickle
+from shutil import copyfile
 
 from kjl.dataset import uchicago
 from kjl.utils.data import load_data, dump_data
@@ -15,9 +19,141 @@ from odet.pparser.parser import PCAP, _get_flow_duration, _get_split_interval, _
 from matplotlib import pyplot as plt, cm
 from collections import Counter
 from online.config import *
+from kjl.dataset.uchicago import split_by_activity
 
 RANDOM_STATE = 42
 
+
+def load_data(in_file):
+    with open(in_file, 'rb') as f:
+        data = pickle.load(f)
+
+    return data
+
+
+def keep_ip(in_file, out_file='', kept_ips=[''], direction='src_dst'):
+    if out_file == '':
+        ips_str = '-'.join(kept_ips)
+        out_file = os.path.splitext(in_file)[0] + f'-src_{ips_str}.pcap'  # Split a path in root and extension.
+    if os.path.exists(out_file):
+        return out_file
+    if not os.path.exists(os.path.dirname(out_file)):
+        os.makedirs(os.path.dirname(out_file))
+    print(out_file)
+    # only keep srcIPs' traffic
+    if direction == 'src':
+        srcIP_str = " or ".join([f'ip.src=={srcIP}' for srcIP in kept_ips])
+    else:  # default
+        srcIP_str = " or ".join([f'ip.addr=={srcIP}' for srcIP in kept_ips])
+    cmd = f"tshark -r {in_file} -w {out_file} {srcIP_str}"
+
+    print(f'{cmd}')
+    try:
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True).stdout.decode('utf-8')
+    except Exception as e:
+        print(f'{e}, {result}')
+        return -1
+
+    return out_file
+
+
+def keep_csv_ip(label_file, out_file, ips=[], direction='src_dst', header=True, keep_original=True, verbose=10):
+    # from shutil import copyfile
+    # copyfile(label_file, out_file)
+
+    # print(label_file_lst, mrg_label_path)
+    # if os.path.exists(mrg_label_path):
+    #     os.remove(mrg_label_path)
+
+    if not os.path.exists(os.path.dirname(out_file)):
+        os.makedirs(os.path.dirname(out_file))
+
+    with open(out_file, 'w') as out_f:
+        with open(label_file, 'r') as in_f:
+            line = in_f.readline()
+            while line:
+                if line.strip().startswith('Flow') and header:
+                    if header:
+                        header = False
+                        print(line)
+                        out_f.write(line.strip('\n') + '\n')
+                    else:
+                        pass
+                    line = in_f.readline()
+                    continue
+                if line.strip() == '':
+                    line = in_f.readline()
+                    continue
+
+                exist = False
+                for ip in ips:
+                    if ip in line:
+                        exist = True
+                        break
+                if exist:
+                    out_f.write(line.strip('\n') + '\n')
+                line = in_f.readline()
+
+    return out_file
+
+
+def merge_pcaps(in_files, out_file):
+    if not os.path.exists(os.path.dirname(out_file)):
+        os.makedirs(os.path.dirname(out_file))
+    cmd = f"mergecap -w {out_file} " + ' '.join(in_files)
+
+    print(f'{cmd}')
+    try:
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True).stdout.decode('utf-8')
+    except Exception as e:
+        print(f'{e}, {result}')
+        return -1
+
+    return out_file
+
+
+def merge_csvs(in_files=[], out_file=''):
+    print(in_files, out_file)
+    if os.path.exists(out_file):
+        os.remove(out_file)
+
+    if not os.path.exists(os.path.dirname(out_file)):
+        os.makedirs(os.path.dirname(out_file))
+    # # combine all label files in the list
+    # # combined_csv = pd.concat([pd.read_csv(f, header=None, usecols=[3,6]) for f in label_file_lst])
+    # result_lst = []
+    # for i, f in enumerate(label_file_lst):
+    #     if i == 0:
+    #         result_lst.append(pd.read_csv(f))
+    #     else:
+    #         result_lst.append(pd.read_csv(f, skiprows=0))
+    # combined_csv = pd.concat(result_lst)
+    # # export to csv
+    # print(f'mrg_label_path: {mrg_label_path}')
+    # combined_csv.to_csv(mrg_label_path, index=False, encoding='utf-8-sig')
+
+    with open(out_file, 'w') as out_f:
+        header = True
+        for i, label_file in enumerate(in_files):
+            with open(label_file, 'r') as in_f:
+                line = in_f.readline()
+                while line:
+                    if line.strip().startswith('Flow ID') and header:
+                        if header:
+                            header = False
+                            print(line)
+                            out_f.write(line.strip('\n') + '\n')
+                        else:
+                            pass
+                        line = in_f.readline()
+                        continue
+                    if line.strip() == '':
+                        line = in_f.readline()
+                        continue
+                    out_f.write(line.strip('\n') + '\n')
+                    line = in_f.readline()
+
+    return out_file
 
 def _pcap2fullflows(pcap_file='', label_file=None, label='normal'):
     pp = PCAP(pcap_file=pcap_file)
@@ -59,43 +195,116 @@ def _pcap2fullflows(pcap_file='', label_file=None, label='normal'):
     return normal_flows, normal_labels, abnormal_flows, abnormal_labels
 
 
-def _get_path(dir_in, data_name, overwrite=False):
-    if 'UNB/CIC_IDS_2017' in data_name:
+
+def _get_path(original_dir, in_dir, data_name, overwrite=False, direction='src'):
+    """
+
+    Parameters
+    ----------
+    in_dir
+    data_name
+    overwrite
+    direction: str
+        src_dst: use src + dst data
+        src: only user src data
+
+    Returns
+    -------
+
+    """
+    if 'UNB/CICIDS_2017' in data_name:
         ##############################################################################################################
         # step 1: get path
-        if data_name == 'UNB/CIC_IDS_2017/pc_192.168.10.5':
+        if data_name == 'UNB/CICIDS_2017/pc_192.168.10.5':
             # normal and abormal are mixed together
-            pth_pcap_mixed = pth.join(dir_in, data_name, 'AGMT-WorkingHours/srcIP_192.168.10.5_AGMT.pcap')
-            pth_labels_mixed = pth.join(dir_in, data_name, 'AGMT-WorkingHours/srcIP_192.168.10.5_AGMT.csv')
+            pth_pcap_mixed = pth.join(in_dir, direction, data_name, 'pc_192.168.10.5.pcap')
+            pth_labels_mixed = pth.join(in_dir, direction, data_name, 'pc_192.168.10.5.csv')
+            if not os.path.exists(pth_pcap_mixed) or not os.path.exists(pth_labels_mixed):
+                in_file = pth.join(original_dir, 'UNB/CICIDS_2017', 'pcaps/Friday/Friday-WorkingHours.pcap')
+                keep_ip(in_file, out_file=pth_pcap_mixed, kept_ips=['192.168.10.5'], direction=direction)
+                # label_file
+                in_files = [pth.join(original_dir, 'UNB/CICIDS_2017', 'labels/Friday', v) for v in [
+                    'Friday-WorkingHours-Morning.pcap_ISCX.csv',
+                    'Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv',
+                    'Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv']]
+                out_file = pth.join(in_dir, direction, data_name, 'Friday_labels.csv')
+                merge_csvs(in_files, out_file)
+                keep_csv_ip(out_file, pth_labels_mixed, ips=['192.168.10.5'], direction=direction, keep_original=True,
+                            verbose=10)
+            pth_normal, pth_abnormal, pth_labels_normal, pth_labels_abnormal = pth_pcap_mixed, None, pth_labels_mixed, None
+
+        elif data_name == 'UNB/CICIDS_2017/pc_192.168.10.8':
+            # normal and abormal are mixed together
+            pth_pcap_mixed = pth.join(in_dir, direction, data_name, 'pc_192.168.10.8.pcap')
+            pth_labels_mixed = pth.join(in_dir, direction, data_name, 'pc_192.168.10.8.csv')
+            if not os.path.exists(pth_pcap_mixed) or not os.path.exists(pth_labels_mixed):
+                in_file = pth.join(original_dir, 'UNB/CICIDS_2017', 'pcaps/Friday/Friday-WorkingHours.pcap')
+                keep_ip(in_file, out_file=pth_pcap_mixed, kept_ips=['192.168.10.8'], direction=direction)
+                # label_file
+                in_files = [pth.join(original_dir, 'UNB/CICIDS_2017', 'labels/Friday', v) for v in [
+                    'Friday-WorkingHours-Morning.pcap_ISCX.csv',
+                    'Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv',
+                    'Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv']]
+                out_file = pth.join(in_dir, direction, data_name, 'Friday_labels.csv')
+                merge_csvs(in_files, out_file)
+                keep_csv_ip(out_file, pth_labels_mixed, ips=['192.168.10.8'], direction=direction, keep_original=True,
+                            verbose=10)
 
             pth_normal, pth_abnormal, pth_labels_normal, pth_labels_abnormal = pth_pcap_mixed, None, pth_labels_mixed, None
 
-        elif data_name == 'UNB/CIC_IDS_2017/pc_192.168.10.8':
+        elif data_name == 'UNB/CICIDS_2017/pc_192.168.10.9':
             # normal and abormal are mixed together
-            pth_pcap_mixed = pth.join(dir_in, data_name, 'AGMT-WorkingHours/srcIP_192.168.10.8_AGMT.pcap')
-            pth_labels_mixed = pth.join(dir_in, data_name, 'AGMT-WorkingHours/srcIP_192.168.10.8_AGMT.csv')
-
+            pth_pcap_mixed = pth.join(in_dir, direction, data_name, 'pc_192.168.10.9.pcap')
+            pth_labels_mixed = pth.join(in_dir, direction, data_name, 'pc_192.168.10.9.csv')
+            if not os.path.exists(pth_pcap_mixed) or not os.path.exists(pth_labels_mixed):
+                in_file = pth.join(original_dir, 'UNB/CICIDS_2017', 'pcaps/Friday/Friday-WorkingHours.pcap')
+                keep_ip(in_file, out_file=pth_pcap_mixed, kept_ips=['192.168.10.9'], direction=direction)
+                # label_file
+                in_files = [pth.join(original_dir, 'UNB/CICIDS_2017', 'labels/Friday', v) for v in [
+                    'Friday-WorkingHours-Morning.pcap_ISCX.csv',
+                    'Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv',
+                    'Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv']]
+                out_file = pth.join(in_dir, direction, data_name, 'Friday_labels.csv')
+                merge_csvs(in_files, out_file)
+                keep_csv_ip(out_file, pth_labels_mixed, ips=['192.168.10.9'], direction=direction, keep_original=True,
+                            verbose=10)
             pth_normal, pth_abnormal, pth_labels_normal, pth_labels_abnormal = pth_pcap_mixed, None, pth_labels_mixed, None
 
-        elif data_name == 'UNB/CIC_IDS_2017/pc_192.168.10.9':
-            # normal and abormal are mixed together
-            pth_pcap_mixed = pth.join(dir_in, data_name, 'AGMT-WorkingHours/srcIP_192.168.10.9_AGMT.pcap')
-            pth_labels_mixed = pth.join(dir_in, data_name, 'AGMT-WorkingHours/srcIP_192.168.10.9_AGMT.csv')
 
+        elif data_name == 'UNB/CICIDS_2017/pc_192.168.10.14':
+            # normal and abormal are mixed together
+            pth_pcap_mixed = pth.join(in_dir, direction, data_name, 'pc_192.168.10.14.pcap')
+            pth_labels_mixed = pth.join(in_dir, direction, data_name, 'pc_192.168.10.14.csv')
+            if not os.path.exists(pth_pcap_mixed) or not os.path.exists(pth_labels_mixed):
+                in_file = pth.join(original_dir, 'UNB/CICIDS_2017', 'pcaps/Friday/Friday-WorkingHours.pcap')
+                keep_ip(in_file, out_file=pth_pcap_mixed, kept_ips=['192.168.10.14'], direction=direction)
+                # label_file
+                in_files = [pth.join(original_dir, 'UNB/CICIDS_2017', 'labels/Friday', v) for v in [
+                    'Friday-WorkingHours-Morning.pcap_ISCX.csv',
+                    'Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv',
+                    'Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv']]
+                out_file = pth.join(in_dir, direction, data_name, 'Friday_labels.csv')
+                merge_csvs(in_files, out_file)
+                keep_csv_ip(out_file, pth_labels_mixed, ips=['192.168.10.14'], direction=direction, keep_original=True,
+                            verbose=10)
             pth_normal, pth_abnormal, pth_labels_normal, pth_labels_abnormal = pth_pcap_mixed, None, pth_labels_mixed, None
 
-
-        elif data_name == 'UNB/CIC_IDS_2017/pc_192.168.10.14':
+        elif data_name == 'UNB/CICIDS_2017/pc_192.168.10.15':
             # normal and abormal are mixed together
-            pth_pcap_mixed = pth.join(dir_in, data_name, 'AGMT-WorkingHours/srcIP_192.168.10.14_AGMT.pcap')
-            pth_labels_mixed = pth.join(dir_in, data_name, 'AGMT-WorkingHours/srcIP_192.168.10.14_AGMT.csv')
-
-            pth_normal, pth_abnormal, pth_labels_normal, pth_labels_abnormal = pth_pcap_mixed, None, pth_labels_mixed, None
-
-        elif data_name == 'UNB/CIC_IDS_2017/pc_192.168.10.15':
-            # normal and abormal are mixed together
-            pth_pcap_mixed = pth.join(dir_in, data_name, 'AGMT-WorkingHours/srcIP_192.168.10.15_AGMT.pcap')
-            pth_labels_mixed = pth.join(dir_in, data_name, 'AGMT-WorkingHours/srcIP_192.168.10.15_AGMT.csv')
+            pth_pcap_mixed = pth.join(in_dir, direction, data_name, 'pc_192.168.10.15.pcap')
+            pth_labels_mixed = pth.join(in_dir, direction, data_name, 'pc_192.168.10.15.csv')
+            if not os.path.exists(pth_pcap_mixed) or not os.path.exists(pth_labels_mixed):
+                in_file = pth.join(original_dir, 'UNB/CICIDS_2017', 'pcaps/Friday/Friday-WorkingHours.pcap')
+                keep_ip(in_file, out_file=pth_pcap_mixed, kept_ips=['192.168.10.15'], direction=direction)
+                # label_file
+                in_files = [pth.join(original_dir, 'UNB/CICIDS_2017', 'labels/Friday', v) for v in [
+                    'Friday-WorkingHours-Morning.pcap_ISCX.csv',
+                    'Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv',
+                    'Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv']]
+                out_file = pth.join(in_dir, direction, data_name, 'Friday_labels.csv')
+                merge_csvs(in_files, out_file)
+                keep_csv_ip(out_file, pth_labels_mixed, ips=['192.168.10.15'], direction=direction, keep_original=True,
+                            verbose=10)
 
             pth_normal, pth_abnormal, pth_labels_normal, pth_labels_abnormal = pth_pcap_mixed, None, pth_labels_mixed, None
         else:
@@ -121,157 +330,364 @@ def _get_path(dir_in, data_name, overwrite=False):
         # step 1: get path
         if data_name == 'DS20_PU_SMTV/DS21-srcIP_10.42.0.1':
             # normal and abormal are independent
-            pth_normal = pth.join(dir_in, data_name, 'srcIP_10.42.0.1_normal.pcap')
-            pth_abnormal = pth.join(dir_in, data_name, 'srcIP_10.42.0.119_anomaly.pcap')
+            pth_normal = pth.join(in_dir, data_name, 'srcIP_10.42.0.1_normal.pcap')
+            pth_abnormal = pth.join(in_dir, data_name, 'srcIP_10.42.0.119_anomaly.pcap')
             pth_labels_normal, pth_labels_abnormal = None, None
 
-        elif data_name == 'DS30_OCS_IoT/DS31-srcIP_192.168.0.13':
+        elif data_name == 'OCS1/IOT_2018/pc_192.168.0.13':
             # normal and abormal are independent
-            pth_normal = pth.join(dir_in, data_name, 'MIRAI/benign-dec-EZVIZ-ip_src-192.168.0.13-normal.pcap')
-            pth_abnormal = pth.join(dir_in, data_name,
-                                    'MIRAI/mirai-udpflooding-1-dec-EZVIZ-ip_src-192.168.0.13-anomaly.pcap')
+            pth_normal = pth.join(in_dir, direction, data_name, 'pc_192.168.0.13-normal.pcap')
+            pth_abnormal = pth.join(in_dir, direction, data_name, 'pc_192.168.0.13-anomaly.pcap')
+            if not os.path.exists(pth_normal) or not os.path.exists(pth_abnormal):
+                # normal
+                in_file = pth.join(original_dir, 'OCS/IOT_2018', 'pcaps',
+                                   'benign-dec.pcap')
+                keep_ip(in_file, out_file=pth_normal, kept_ips=['192.168.0.13'], direction=direction)
+                # abnormal
+                in_file = pth.join(original_dir, 'OCS/IOT_2018', 'pcaps',
+                                   'mirai-udpflooding-2-dec.pcap')
+                keep_ip(in_file, out_file=pth_abnormal, kept_ips=['192.168.0.13'], direction=direction)
             pth_labels_normal, pth_labels_abnormal = None, None
 
         elif data_name == 'DS40_CTU_IoT/DS41-srcIP_10.0.2.15':
             # normal and abormal are independent
-            pth_normal = pth.join(dir_in, data_name,
-                                  '2019-01-09-22-46-52-src_192.168.1.196_CTU_IoT_CoinMiner_anomaly.pcap')
-            pth_abnormal = pth.join(dir_in, data_name,
-                                    '2018-12-21-15-50-14-src_192.168.1.195-CTU_IoT_Mirai_normal.pcap')
+            pth_normal = pth.join(in_dir, direction, data_name,
+                                  '2019-01-09-22-46-52-pc_192.168.1.196_CTU_IoT_CoinMiner_anomaly.pcap')
+            pth_abnormal = pth.join(in_dir, direction, data_name,
+                                    '2018-12-21-15-50-14-pc_192.168.1.195-CTU_IoT_Mirai_normal.pcap')
             pth_labels_normal, pth_labels_abnormal = None, None
 
         elif data_name == 'CTU/IOT_2017/pc_192.168.1.196':
             # normal and abormal are independent
-            # pth_normal = pth.join(dir_in, data_name,
-            #                       '2018-12-21-15-50-14-src_192.168.1.195-CTU_IoT_Mirai_normal.pcap')
-            pth_normal = pth.join(dir_in, data_name,
-                                  '2019-01-09-22-46-52-src_192.168.1.196_CTU_IoT_CoinMiner_anomaly.pcap')
-            pth_abnormal = pth.join(dir_in, data_name,
-                                    '2018-12-21-15-50-14-src_192.168.1.195-CTU_IoT_Mirai_normal.pcap')
+            pth_normal = pth.join(in_dir, direction, data_name,
+                                  '2019-01-09-22-46-52-pc_192.168.1.196_CTU_IoT_CoinMiner_normal.pcap')
+            pth_abnormal = pth.join(in_dir, direction, data_name,
+                                    '2018-12-21-15-50-14-pc_192.168.1.195-CTU_IoT_Mirai_abnormal.pcap')
+            if not os.path.exists(pth_normal) or not os.path.exists(pth_abnormal):
+                # normal
+                in_file = pth.join(original_dir, 'CTU/IOT_2017',
+                                   'CTU-IoT-Malware-Capture-41-1_2019-01-09-22-46-52-192.168.1.196.pcap')
+                keep_ip(in_file, out_file=pth_normal, kept_ips=['192.168.1.196'], direction=direction)
+                # abnormal
+                in_file = pth.join(original_dir, 'CTU/IOT_2017',
+                                   'CTU-IoT-Malware-Capture-34-1_2018-12-21-15-50-14-192.168.1.195.pcap')
+                keep_ip(in_file, out_file=pth_abnormal, kept_ips=['192.168.1.195'], direction=direction)
+
             pth_labels_normal, pth_labels_abnormal = None, None
 
         elif data_name == 'MAWI/WIDE_2019/pc_202.171.168.50':
+            # editcap -c 30000000 samplepoint-F_201912071400.pcap samplepoint-F_201912071400.pcap
+            # file_name = 'samplepoint-F_201912071400_00000_20191207000000.pcap'
             # normal and abormal are independent
-            pth_normal = pth.join(dir_in, data_name, '201912071400-10000000pkts_00000_src_202_171_168_50_normal.pcap')
-            pth_abnormal = pth.join(dir_in, data_name,
-                                    '201912071400-10000000pkts_00000_src_202_4_27_109_anomaly.pcap')
+            pth_normal = pth.join(in_dir, direction, data_name,
+                                  '201912071400-pc_202.171.168.50_normal.pcap')
+            pth_abnormal = pth.join(in_dir, direction, data_name,
+                                    '201912071400-pc_202.4.27.109_anomaly.pcap')
+            if not os.path.exists(pth_normal) or not os.path.exists(pth_abnormal):
+                if direction =='src_dst':
+                    in_file = pth.join(original_dir, 'MAWI/WIDE_2019',
+                                       'samplepoint-F_201912071400-src_dst_202.171.168.50-5000000.pcap')
+                    # editcap -c 5000000 samplepoint-F_201912071400-src_dst_202.171.168.50.pcap samplepoint-F_201912071400-src_dst_202.171.168.50-.pcap
+                else:
+                    in_file = pth.join(original_dir, 'MAWI/WIDE_2019',
+                                           'samplepoint-F_201912071400-src_dst_202.171.168.50.pcap')
+                keep_ip(in_file, out_file=pth_normal, kept_ips=['202.171.168.50'], direction=direction)
+
+                # in_file = pth.join(original_dir, 'MAWI/WIDE_2019',
+                #                    'samplepoint-F_201912071400_00000_20191207000000.pcap')
+                in_file = pth.join(original_dir, 'MAWI/WIDE_2019',
+                                   'samplepoint-F_201912071400-src_dst_202.4.27.109.pcap')
+                keep_ip(in_file, out_file=pth_abnormal, kept_ips=['202.4.27.109'], direction=direction)
+
             pth_labels_normal, pth_labels_abnormal = None, None
 
-        elif data_name == 'MAWI/WIDE_2019/pc_203.78.7.165':
+        elif data_name == 'MAWI/WIDE_2020/pc_203.78.7.165':
             # normal and abormal are independent
-            pth_normal = pth.join(dir_in, data_name, '202007011400-srcIP_203.78.7.165.pcap')
-            pth_abnormal = pth.join(dir_in, data_name,
-                                    '202007011400-srcIP_185.8.54.240.pcap')
+            # editcap -c 30000000 samplepoint-F_202007011400.pcap samplepoint-F_202007011400.pcap
+            # tshark -r samplepoint-F_202007011400.pcap -w 202007011400-pc_203.78.7.165.pcap ip.addr==203.78.7.165
+            pth_normal = pth.join(in_dir, direction, data_name, '202007011400-pc_203.78.7.165.pcap')
+            pth_abnormal = pth.join(in_dir,direction, data_name,
+                                    '202007011400-pc_185.8.54.240.pcap')
+            if not os.path.exists(pth_normal) or not os.path.exists(pth_abnormal):
+                # normal
+                in_file = pth.join(original_dir, 'MAWI/WIDE_2020',
+                                   'samplepoint-F_202007011400_00000_20200701010000.pcap')
+                keep_ip(in_file, out_file=pth_normal, kept_ips=['203.78.7.165'], direction=direction)
+
+                in_file = pth.join(original_dir, 'MAWI/WIDE_2020',
+                                   'samplepoint-F_202007011400_00000_20200701010000.pcap')
+                keep_ip(in_file, out_file=pth_abnormal, kept_ips=['185.8.54.240'], direction=direction)
             pth_labels_normal, pth_labels_abnormal = None, None
 
         elif data_name == 'MAWI/WIDE_2019/pc_203.78.4.32':
             # normal and abormal are independent
-            pth_normal = pth.join(dir_in, data_name, '202007011400-srcIP_203.78.4.32.pcap')
-            pth_abnormal = pth.join(dir_in, data_name,
+            pth_normal = pth.join(in_dir, data_name, '202007011400-srcIP_203.78.4.32.pcap')
+            pth_abnormal = pth.join(in_dir, data_name,
                                     '202007011400-srcIP_203.78.7.165.pcap')
             pth_labels_normal, pth_labels_abnormal = None, None
 
         elif data_name == 'MAWI/WIDE_2019/pc_222.117.214.171':
             # normal and abormal are independent
-            pth_normal = pth.join(dir_in, data_name, '202007011400-srcIP_203.78.7.165.pcap')
-            pth_abnormal = pth.join(dir_in, data_name,
+            pth_normal = pth.join(in_dir, data_name, '202007011400-srcIP_203.78.7.165.pcap')
+            pth_abnormal = pth.join(in_dir, data_name,
                                     '202007011400-srcIP_222.117.214.171.pcap')
             pth_labels_normal, pth_labels_abnormal = None, None
 
         elif data_name == 'MAWI/WIDE_2019/pc_101.27.14.204':
             # normal and abormal are independent
-            pth_normal = pth.join(dir_in, data_name, '202007011400-srcIP_203.78.7.165.pcap')
-            pth_abnormal = pth.join(dir_in, data_name,
+            pth_normal = pth.join(in_dir, data_name, '202007011400-srcIP_203.78.7.165.pcap')
+            pth_abnormal = pth.join(in_dir, data_name,
                                     '202007011400-srcIP_101.27.14.204.pcap')
             pth_labels_normal, pth_labels_abnormal = None, None
 
         elif data_name == 'MAWI/WIDE_2019/pc_18.178.219.109':
             # normal and abormal are independent
-            pth_normal = pth.join(dir_in, data_name, '202007011400-srcIP_203.78.4.32.pcap')
-            pth_abnormal = pth.join(dir_in, data_name,
+            pth_normal = pth.join(in_dir, data_name, '202007011400-srcIP_203.78.4.32.pcap')
+            pth_abnormal = pth.join(in_dir, data_name,
                                     '202007011400-srcIP_18.178.219.109.pcap')
             pth_labels_normal, pth_labels_abnormal = None, None
 
         elif data_name == 'UCHI/IOT_2019/ghome_192.168.143.20':
             # normal and abormal are independent
-            pth_normal = pth.join(dir_in, data_name, 'google_home-2daysactiv-src_192.168.143.20-normal.pcap')
-            pth_abnormal = pth.join(dir_in, data_name,
-                                    'google_home-2daysactiv-src_192.168.143.20-anomaly.pcap')
+            pth_normal = pth.join(in_dir, direction, data_name, 'ghome_192.168.143.20-normal.pcap')
+            pth_abnormal = pth.join(in_dir, direction, data_name, 'ghome_192.168.143.20-anomaly.pcap')
+            if not os.path.exists(pth_normal) or not os.path.exists(pth_abnormal):
+                # normal
+                in_file = pth.join(original_dir, 'UCHI/IOT_2019/ghome_192.168.143.20',
+                                   'fridge_cam_sound_ghome_2daysactiv-ghome_normal.pcap')
+                keep_ip(in_file, out_file=pth_normal, kept_ips=['192.168.143.20'], direction=direction)
+                # abnormal
+                in_file = pth.join(original_dir, 'UCHI/IOT_2019/ghome_192.168.143.20',
+                                   'fridge_cam_sound_ghome_2daysactiv-ghome_abnormal.pcap')
+                keep_ip(in_file, out_file=pth_abnormal, kept_ips=['192.168.143.20'], direction=direction)
             pth_labels_normal, pth_labels_abnormal = None, None
 
         elif data_name == 'UCHI/IOT_2019/scam_192.168.143.42':
             # normal and abormal are independent
-            pth_normal = pth.join(dir_in, data_name, 'samsung_camera-2daysactiv-src_192.168.143.42-normal.pcap')
-            pth_abnormal = pth.join(dir_in, data_name,
-                                    'samsung_camera-2daysactiv-src_192.168.143.42-anomaly.pcap')
+            pth_normal = pth.join(in_dir, direction, data_name, 'scam_192.168.143.42-normal.pcap')
+            pth_abnormal = pth.join(in_dir, direction, data_name,
+                                    'scam_192.168.143.42-anomaly.pcap')
+            if not os.path.exists(pth_normal) or not os.path.exists(pth_abnormal):
+                # normal
+                in_file = pth.join(original_dir, 'UCHI/IOT_2019/scam_192.168.143.42',
+                                   'fridge_cam_sound_ghome_2daysactiv-scam_normal.pcap')
+                keep_ip(in_file, out_file=pth_normal, kept_ips=['192.168.143.42'], direction=direction)
+                # abnormal
+                in_file = pth.join(original_dir, 'UCHI/IOT_2019/scam_192.168.143.42',
+                                   'fridge_cam_sound_ghome_2daysactiv-scam_abnormal.pcap')
+                keep_ip(in_file, out_file=pth_abnormal, kept_ips=['192.168.143.42'], direction=direction)
             pth_labels_normal, pth_labels_abnormal = None, None
 
-        elif data_name == 'DS60_UChi_IoT/DS63-srcIP_192.168.143.43':
+        elif data_name == 'UCHI/IOT_2019/sfrig_192.168.143.43':
             # normal and abormal are independent
-            pth_normal = pth.join(dir_in, data_name, 'samsung_fridge-2daysactiv-src_192.168.143.43-normal.pcap')
-            pth_abnormal = pth.join(dir_in, data_name,
-                                    'samsung_fridge-2daysactiv-src_192.168.143.43-anomaly.pcap')
+            pth_normal = pth.join(in_dir, direction, data_name, 'sfrig_192.168.143.43-normal.pcap')
+            pth_abnormal = pth.join(in_dir, direction, data_name,
+                                    'sfrig_192.168.143.43-anomaly.pcap')
+            if not os.path.exists(pth_normal) or not os.path.exists(pth_abnormal):
+                # normal
+                in_file = pth.join(original_dir, 'UCHI/IOT_2019/sfrig_192.168.143.43',
+                                   'fridge_cam_sound_ghome_2daysactiv-sfrig_normal.pcap')
+                keep_ip(in_file, out_file=pth_normal, kept_ips=['192.168.143.43'], direction=direction)
+                # abnormal
+                in_file = pth.join(original_dir, 'UCHI/IOT_2019/sfrig_192.168.143.43',
+                                                 'fridge_cam_sound_ghome_2daysactiv-sfrig_abnormal.pcap')
+                keep_ip(in_file, out_file=pth_abnormal, kept_ips=['192.168.143.43'], direction=direction)
             pth_labels_normal, pth_labels_abnormal = None, None
 
-        elif data_name == 'DS60_UChi_IoT/DS64-srcIP_192.168.143.48':
+        elif data_name == 'UCHI/IOT_2019/bstch_192.168.143.48':
             # normal and abormal are independent
-            pth_normal = pth.join(dir_in, data_name, 'bose_soundtouch-2daysactiv-src_192.168.143.48-normal.pcap')
-            pth_abnormal = pth.join(dir_in, data_name,
-                                    'bose_soundtouch-2daysactiv-src_192.168.143.48-anomaly.pcap')
+            pth_normal = pth.join(in_dir, direction, data_name, 'bstch_192.168.143.48-normal.pcap')
+            pth_abnormal = pth.join(in_dir, direction, data_name,
+                                    'bstch_192.168.143.48-anomaly.pcap')
+            if not os.path.exists(pth_normal) or not os.path.exists(pth_abnormal):
+                # normal
+                in_file = pth.join(original_dir, 'UCHI/IOT_2019/bstch_192.168.143.48',
+                                   'fridge_cam_sound_ghome_2daysactiv-bstch_normal.pcap')
+                keep_ip(in_file, out_file=pth_normal, kept_ips=['192.168.143.48'], direction=direction)
+                # abnormal
+                in_file = pth.join(original_dir, 'UCHI/IOT_2019/bstch_192.168.143.48',
+                                                 'fridge_cam_sound_ghome_2daysactiv-bstch_abnormal.pcap')
+                keep_ip(in_file, out_file=pth_abnormal, kept_ips=['192.168.143.48'], direction=direction)
             pth_labels_normal, pth_labels_abnormal = None, None
 
-        elif data_name == 'DS60_UChi_IoT/iotlab_open_shut_fridge_192.168.143.43':
+        # elif data_name == 'UCHI/IOT_2019/pc_192.168.143.43':
+        #     # normal and abormal are independent
+        #     # 'idle'
+        #     # 'iotlab_open_shut_fridge_192.168.143.43/open_shut'
+        #     pth_normal = pth.join(in_dir, data_name, 'bose_soundtouch-2daysactiv-src_192.168.143.48-normal.pcap')
+        #     pth_abnormal = pth.join(in_dir, data_name,
+        #                             'bose_soundtouch-2daysactiv-src_192.168.143.48-anomaly.pcap')
+        #     pth_labels_normal, pth_labels_abnormal = None, None
+
+        elif data_name == 'UCHI/IOT_2020/aecho_192.168.143.74':
             # normal and abormal are independent
-            'idle'
-            'iotlab_open_shut_fridge_192.168.143.43/open_shut'
-            pth_normal = pth.join(dir_in, data_name, 'bose_soundtouch-2daysactiv-src_192.168.143.48-normal.pcap')
-            pth_abnormal = pth.join(dir_in, data_name,
-                                    'bose_soundtouch-2daysactiv-src_192.168.143.48-anomaly.pcap')
+            pth_normal = pth.join(in_dir, direction, data_name, 'idle-normal.pcap')
+            pth_abnormal = pth.join(in_dir, direction, data_name, 'shop-anomaly.pcap')
+            # pth_abnormal = pth.join(in_dir, direction, data_name)   # directory
+            if not os.path.exists(pth_normal) or not os.path.exists(pth_abnormal):
+                idle_pcap = pth.join(in_dir, direction, data_name, 'idle-merged.pcap')
+                if not os.path.exists(idle_pcap):
+                    idle_files = [keep_ip(pth.join(original_dir, 'UCHI/IOT_2020','idle', v),
+                                          out_file=os.path.dirname(idle_pcap) + f'/{v}-filtered.pcap',
+                                          kept_ips=['192.168.143.74'], direction=direction)
+                                  for v in os.listdir(pth.join(original_dir, 'UCHI/IOT_2020','idle')) if not v.startswith('.')]
+                    merge_pcaps(in_files=idle_files, out_file=idle_pcap)
+                copyfile(idle_pcap, pth_normal)
+                # abnormal
+                # abnormal_file = pth.join(original_dir, data_name, 'echo_song.pcap')
+                # Can not use the whole abnormal pcap directly because when we split it to subpcap,
+                # one flow will split to multi-flows.
+                # pth_abnormal = keep_ip(abnormal_file, out_file=pth_abnormal, kept_ips=['192.168.143.74'],
+                #                        direction=direction)
+                activity = 'shop'
+                whole_abnormal = pth.join(original_dir, data_name, f'echo_{activity}.pcap')
+                num= split_by_activity(whole_abnormal, out_dir = os.path.dirname(whole_abnormal), activity=activity)
+                idle_pcap = pth.join(in_dir, direction, data_name, 'abnormal-merged.pcap')
+                if not os.path.exists(idle_pcap):
+                    idle_files = [keep_ip(pth.join(original_dir, data_name, v),
+                                          out_file=pth.join(os.path.dirname(idle_pcap), v),
+                                          kept_ips=['192.168.143.74'], direction=direction)
+                                  for v in [f'{activity}/capture{i}.seq/deeplens_{activity}_{i}.' \
+                                            f'pcap' for i in range(num)]
+                                  ]
+                    merge_pcaps(in_files=idle_files, out_file=idle_pcap)
+                copyfile(idle_pcap, pth_abnormal)
+
+            pth_labels_normal, pth_labels_abnormal = None, None
+
+        elif data_name == 'UCHI/IOT_2020/sfrig_192.168.143.43':
+            # normal and abormal are independent
+            pth_normal = pth.join(in_dir, direction, data_name, 'idle.pcap')
+            pth_abnormal = pth.join(in_dir, direction, data_name, 'open_shut.pcap')
+            # pth_abnormal = pth.join(in_dir, direction, data_name, 'browse.pcap')
+            if not os.path.exists(pth_normal) or not os.path.exists(pth_abnormal):
+                # normal
+                idle_pcap = pth.join(in_dir, direction, data_name, 'idle-merged.pcap')
+                if not os.path.exists(idle_pcap):
+                    idle_files = [keep_ip(pth.join(original_dir, 'UCHI/IOT_2020','idle', v),
+                                          out_file=os.path.dirname(idle_pcap) + f'/{v}-filtered.pcap',
+                                          kept_ips=['192.168.143.43'], direction=direction)
+                                  for v in os.listdir(pth.join(original_dir, 'UCHI/IOT_2020', 'idle')) if not v.startswith('.')]
+                    merge_pcaps(in_files=idle_files, out_file=idle_pcap)
+                copyfile(idle_pcap, pth_normal)
+
+                # abnormal
+                idle_pcap = pth.join(in_dir, direction, data_name, 'abnormal-merged.pcap')
+                if not os.path.exists(idle_pcap):
+                    idle_files = [keep_ip(pth.join(original_dir, data_name, v),
+                                          out_file=pth.join(os.path.dirname(idle_pcap), v),
+                                          kept_ips=['192.168.143.43'], direction=direction)
+                                  for v in [f'open_shut/capture{i}.seq/deeplens_open_shut_fridge_batch_{i}.' \
+                                            f'pcap_filtered.pcap' for i in range(9)]
+                                  ]
+                    merge_pcaps(in_files=idle_files, out_file=idle_pcap)
+                copyfile(idle_pcap, pth_abnormal)
+            pth_labels_normal, pth_labels_abnormal = None, None
+
+        elif data_name == 'UCHI/IOT_2020/wshr_192.168.143.100':
+            # normal and abormal are independent
+            pth_normal = pth.join(in_dir, direction, data_name, 'idle.pcap')
+            pth_abnormal = pth.join(in_dir, direction, data_name, 'open_wshr.pcap')
+            # pth_abnormal = pth.join(in_dir, direction, data_name, 'browse.pcap')
+            if not os.path.exists(pth_normal) or not os.path.exists(pth_abnormal):
+                # normal
+                idle_pcap = pth.join(in_dir, direction, data_name, 'idle-merged.pcap')
+                if not os.path.exists(idle_pcap):
+                    idle_files = [keep_ip(pth.join(original_dir, 'UCHI/IOT_2020','idle', v),
+                                          out_file=os.path.dirname(idle_pcap) + f'/{v}-filtered.pcap',
+                                          kept_ips=['192.168.143.100'], direction=direction)
+                                  for v in os.listdir(pth.join(original_dir, 'UCHI/IOT_2020', 'idle')) if not v.startswith('.')]
+                    merge_pcaps(in_files=idle_files, out_file=idle_pcap)
+                copyfile(idle_pcap, pth_normal)
+
+                # abnormal
+                idle_pcap = pth.join(in_dir, direction, data_name, 'abnormal-merged.pcap')
+                if not os.path.exists(idle_pcap):
+                    idle_files = [keep_ip(pth.join(original_dir, data_name, v),
+                                          out_file=pth.join(os.path.dirname(idle_pcap), v),
+                                          kept_ips=['192.168.143.100'], direction=direction)
+                                  for v in [f'open_wshr/capture{i}.seq/deeplens_open_washer_{i}.' \
+                                            f'pcap' for i in range(31)]
+                                  ]
+                    merge_pcaps(in_files=idle_files, out_file=idle_pcap)
+                copyfile(idle_pcap, pth_abnormal)
+            pth_labels_normal, pth_labels_abnormal = None, None
+
+        elif data_name == 'UCHI/IOT_2020/ghome_192.168.143.20':
+            # normal and abormal are independent
+            pth_normal = pth.join(in_dir, data_name, 'google_home-2daysactiv-src_192.168.143.20-normal.pcap')
+            pth_abnormal = pth.join(in_dir, data_name,
+                                    'google_home-2daysactiv-src_192.168.143.20-anomaly.pcap')
             pth_labels_normal, pth_labels_abnormal = None, None
 
         elif data_name == 'WRCCDC/2020-03-20':
             # normal and abormal are independent
-            pth_normal = pth.join(dir_in, data_name, 'wrccdc.2020-03-20.174351000000002-172.16.16.30-normal.pcap')
-            # pth_abnormal = pth.join(dir_in, data_name,
+            pth_normal = pth.join(in_dir, data_name, 'wrccdc.2020-03-20.174351000000002-172.16.16.30-normal.pcap')
+            # pth_abnormal = pth.join(in_dir, data_name,
             #                         'wrccdc.2020-03-20.174351000000002-172.16.16.16.pcap')
-            pth_abnormal = pth.join(dir_in, data_name,
+            pth_abnormal = pth.join(in_dir, data_name,
                                     'wrccdc.2020-03-20.174351000000002-10.183.250.172-abnormal.pcap')
             pth_labels_normal, pth_labels_abnormal = None, None
         elif data_name == 'DEFCON/ctf26':
             # normal and abormal are independent
-            pth_normal = pth.join(dir_in, data_name, 'DEFCON26ctf_packet_captures-src_10.0.0.2-normal.pcap')
-            pth_abnormal = pth.join(dir_in, data_name,
+            pth_normal = pth.join(in_dir, data_name, 'DEFCON26ctf_packet_captures-src_10.0.0.2-normal.pcap')
+            pth_abnormal = pth.join(in_dir, data_name,
                                     'DEFCON26ctf_packet_captures-src_10.13.37.23-abnormal.pcap')
             pth_labels_normal, pth_labels_abnormal = None, None
 
         elif data_name == 'ISTS/ISTS_2015':
             # normal and abormal are independent
-            # pth_normal = pth.join(dir_in, data_name, 'snort.log.1425741051-src_10.128.0.13-normal.pcap')
-            # pth_normal = pth.join(dir_in, data_name, 'snort.log.1425823409-src_10.2.1.80.pcap')
-            # pth_normal = pth.join(dir_in, data_name, 'snort.log.1425824560-src_129.21.3.17.pcap')
-            # pth_normal = pth.join(dir_in, data_name,
+            # pth_normal = pth.join(in_dir, data_name, 'snort.log.1425741051-src_10.128.0.13-normal.pcap')
+            # pth_normal = pth.join(in_dir, data_name, 'snort.log.1425823409-src_10.2.1.80.pcap')
+            # pth_normal = pth.join(in_dir, data_name, 'snort.log.1425824560-src_129.21.3.17.pcap')
+            # pth_normal = pth.join(in_dir, data_name,
             #                       'snort.log-merged-srcIP_10.128.0.13-10.0.1.51-10.0.1.4-10.2.12.40.pcap')
             #
-            # pth_abnormal = pth.join(dir_in, data_name,
+            # pth_abnormal = pth.join(in_dir, data_name,
             #                         'snort.log-merged-srcIP_10.2.12.50.pcap')
-            pth_normal = pth.join(dir_in, data_name, 'snort.log-merged-3pcaps.pcap'
-                                  )
-            # pth_abnormal = pth.join(dir_in, data_name, 'snort.log.1425824164.pcap')
-            pth_abnormal = pth.join(dir_in, data_name, 'snort.log-merged-srcIP_10.2.4.30.pcap')
+
+            pth_normal = pth.join(in_dir, direction, data_name, 'snort.log-merged-3pcaps-normal.pcap')
+            pth_abnormal = pth.join(in_dir, direction, data_name, 'snort.log.1425824164.pcap')
+            if not pth.exists(pth_normal) or not pth.exists(pth_abnormal):
+                in_files = [
+                    'snort.log.1425741002.pcap',
+                    'snort.log.1425741051.pcap',
+                    'snort.log.1425823409.pcap',
+                    # 'snort.log.1425842738.pcap',
+                    # 'snort.log.1425824560.pcap',
+
+                ]
+                # in_file = 'data/data_reprst/pcaps/ISTS/2015/snort.log.1425824164.pcap' # for abnormal dataset
+                in_files = [os.path.join(original_dir, data_name, v) for v in in_files]
+                out_file = os.path.join(in_dir, direction, data_name, 'snort.log-merged-3pcaps.pcap')
+                merge_pcaps(in_files, out_file)
+                copyfile(out_file, pth_normal)
+                in_file = pth.join(original_dir, data_name, 'snort.log.1425824164.pcap')
+                copyfile(in_file, pth_abnormal)
+            # pth_abnormal = pth.join(in_dir, data_name, 'snort.log-merged-srcIP_10.2.4.30.pcap')
+            # if not pth.exists(pth_abnormal):
+            #     out_file = keep_ip(pth_normal, out_file=pth_abnormal, kept_ips=['10.2.4.30'])
             pth_labels_normal, pth_labels_abnormal = None, None
 
         elif data_name == 'MACCDC/MACCDC_2012/pc_192.168.202.79':
             # normal and abormal are independent
-            # pth_normal = pth.join(dir_in, data_name, 'maccdc2012_00000-srcIP_192.168.229.153.pcap')   # the result does beat OCSVM.
-            pth_normal = pth.join(dir_in, data_name, 'maccdc2012_00000-srcIP_192.168.202.79.pcap')
-            pth_abnormal = pth.join(dir_in, data_name,
-                                    'maccdc2012_00000-srcIP_192.168.202.76.pcap')
+            # pth_normal = pth.join(in_dir, data_name, 'maccdc2012_00000-srcIP_192.168.229.153.pcap')
+            # the result does beat OCSVM.
+            pth_normal = pth.join(in_dir, direction, data_name, 'maccdc2012_00000-pc_192.168.202.79.pcap')
+            pth_abnormal = pth.join(in_dir, direction, data_name, 'maccdc2012_00000-pc_192.168.202.76.pcap')
+            if not os.path.exists(pth_normal) or not os.path.exists(pth_abnormal):
+                # normal
+                in_file = pth.join(original_dir, 'MACCDC/MACCDC_2012', 'maccdc2012_00000.pcap')
+                keep_ip(in_file, out_file=pth_normal, kept_ips=['192.168.202.79'], direction=direction)
+                # abnormal
+                in_file = pth.join(original_dir, 'MACCDC/MACCDC_2012', 'maccdc2012_00000.pcap')
+                keep_ip(in_file, out_file=pth_abnormal, kept_ips=['192.168.202.76'], direction=direction)
             pth_labels_normal, pth_labels_abnormal = None, None
 
         elif data_name == 'CTU_IOT23/CTU-IoT-Malware-Capture-7-1':
             # normal and abormal are mixed together
-            pth_pcap_mixed = pth.join(dir_in, data_name, '2018-07-20-17-31-20-192.168.100.108.pcap')
-            pth_labels_mixed = pth.join(dir_in, data_name,
+            pth_pcap_mixed = pth.join(in_dir, data_name, '2018-07-20-17-31-20-192.168.100.108.pcap')
+            pth_labels_mixed = pth.join(in_dir, data_name,
                                         'CTU-IoT-Malware-Capture-7-1-conn.log.labeled.txt.csv-src_192.168.100.108.csv')
 
             pth_normal, pth_abnormal, pth_labels_normal, pth_labels_abnormal = pth_pcap_mixed, None, pth_labels_mixed, None
@@ -280,8 +696,8 @@ def _get_path(dir_in, data_name, overwrite=False):
             print('debug')
             data_name = 'DEMO_IDS/DS-srcIP_192.168.10.5'
             # normal and abormal are mixed together
-            pth_pcap_mixed = pth.join(dir_in, data_name, 'AGMT-WorkingHours/srcIP_192.168.10.5_AGMT.pcap')
-            pth_labels_mixed = pth.join(dir_in, data_name, 'AGMT-WorkingHours/srcIP_192.168.10.5_AGMT.csv')
+            pth_pcap_mixed = pth.join(in_dir, data_name, 'AGMT-WorkingHours/srcIP_192.168.10.5_AGMT.pcap')
+            pth_labels_mixed = pth.join(in_dir, data_name, 'AGMT-WorkingHours/srcIP_192.168.10.5_AGMT.csv')
 
             pth_normal, pth_abnormal, pth_labels_normal, pth_labels_abnormal = pth_pcap_mixed, None, pth_labels_mixed, None
 
@@ -301,8 +717,8 @@ def _get_path(dir_in, data_name, overwrite=False):
             dump_data((normal_flows, normal_labels), out_file=normal_file)
             dump_data((abnormal_flows, abnormal_labels), out_file=abnormal_file)
 
-    print(f'normal_file: {normal_file}')
-    print(f'abnormal_file: {abnormal_file}')
+    print(f'normal_file: {normal_file}, exists: {pth.exists(normal_file)}')
+    print(f'abnormal_file: {abnormal_file}, exists: {pth.exists(abnormal_file)}')
 
     return normal_file, abnormal_file
 
@@ -333,14 +749,16 @@ class PCAP2FEATURES():
 
         if not os.path.exists(self.out_dir): os.makedirs(self.out_dir)
 
-    def get_path(self, datasets, in_dir):
+    def get_path(self, datasets, original_dir, in_dir, direction):
         normal_files = []
         abnormal_files = []
         for _idx, _name in enumerate(datasets):
-            normal_file, abnormal_file = _get_path(in_dir, data_name=_name, overwrite=self.overwrite)
+            normal_file, abnormal_file = _get_path(original_dir, in_dir, data_name=_name, direction=direction,
+                                                   overwrite=self.overwrite)
             normal_files.append(normal_file)
             abnormal_files.append(abnormal_file)
-
+        print(f'normal_files: {normal_files}')
+        print(f'abnormal_files: {abnormal_files}')
         return normal_files, abnormal_files
 
     @execute_time
@@ -493,6 +911,103 @@ class PCAP2FEATURES():
         print(f'Xy_file: {self.Xy_file}')
 
 
+def split_left_test(X, y, params):
+
+    def random_select(X, y, n=100, random_state=100):
+        X, y = shuffle(X, y, random_state=random_state)
+        X0 = X[:n, :]
+        y0 = y[:n]
+
+        rest_X = X[n:, :]
+        rest_y = y[n:]
+        # X_nm_1, y_nm_1 = sklearn.utils.resample(X, y, n_samples=n, replace=False,
+        #                                         random_state=random_state)
+        # if n <=0:
+        #     _, dim = X.shape
+        #     X0, rest_X, y0, rest_y = np.empty((0, dim)), X, np.empty((0,)), y
+        # else:
+        #     X0, rest_X, y0, rest_y = train_test_split(X, y, train_size=n, random_state=random_state, shuffle=True)
+        return X0, y0, rest_X, rest_y
+
+    random_state = params.random_state
+    verbose = params.verbose
+    mprint(f'X: {X.shape}, in which, y is {Counter(y)}', verbose, INFO)
+    # Step 1. Shuffle data first
+    X, y = shuffle(X, y, random_state=random_state)
+    if verbose >= DEBUG: data_info(X, name='X')
+
+    n_init_train = params.n_init_train  # 5000
+    n_init_test_abnm_0 = 125  # 50
+    n_arrival = params.n_init_train   # params.n_init_train # 5000
+    # n_test_abnm_0 = 100
+
+    idx_nm_0 = y == 'normal_0'
+    X_nm_0, y_nm_0 = X[idx_nm_0], y[idx_nm_0]
+    idx_abnm_0 = y == 'abnormal_0'
+    X_abnm_0, y_abnm_0 = X[idx_abnm_0], y[idx_abnm_0]
+
+    if params.data_type == 'one_dataset':
+        X_nm_1, y_nm_1 = X_nm_0, y_nm_0
+        X_abnm_1, y_abnm_1 = X_abnm_0, y_abnm_0
+    elif params.data_type == 'two_datasets':
+        idx_nm_1 = y == 'normal_1'
+        X_nm_1, y_nm_1 = X[idx_nm_1], y[idx_nm_1]
+        idx_abnm_1 = y == 'abnormal_1'
+        X_abnm_1, y_abnm_1 = X[idx_abnm_1], y[idx_abnm_1]
+
+        if len(y_abnm_1) == 0:
+            # split X_abnm_0 into X_abnm_0 and X_abnm_1
+            X_abnm_0, y_abnm_0, X_abnm_1, y_abnm_1 = random_select(X_abnm_0, y_abnm_0,
+                                                                   n=int(len(y_abnm_0) // 2), random_state=random_state)
+
+    else:
+        raise NotImplementedError()
+
+
+
+    X_normal = np.concatenate([X_nm_0, X_nm_1], axis=0)
+    X_abnormal = np.concatenate([X_abnm_0, X_abnm_1], axis=0)
+    if verbose >= DEBUG: data_info(X_normal, name='X_normal')
+    if verbose >= DEBUG:   data_info(X_abnormal, name='X_abnormal')
+
+    ########################################################################################################
+    # Step 2.1. Get test_set
+    # 2) get init_test: normal + abnormal
+    X_init_test_nm_0, y_init_test_nm_0, X_nm_0, y_nm_0 = random_select(X_nm_0, y_nm_0, n=n_init_test_abnm_0,
+                                                                       random_state=random_state)
+    X_init_test_nm_1, y_init_test_nm_1, X_nm_1, y_nm_1 = random_select(X_nm_1, y_nm_1, n=n_init_test_abnm_0,
+                                                                       random_state=random_state)
+    X_init_test_abnm_0, y_init_test_abnm_0, X_abnm_0, y_abnm_0 = random_select(X_abnm_0, y_abnm_0,
+                                                                               n=n_init_test_abnm_0,
+                                                                               random_state=random_state)
+    X_init_test_abnm_1, y_init_test_abnm_1, X_abnm_1, y_abnm_1 = random_select(X_abnm_1, y_abnm_1,
+                                                                               n=n_init_test_abnm_0,
+                                                                               random_state=random_state)
+    X_test = np.concatenate([X_init_test_nm_0, X_init_test_nm_1,
+                                  X_init_test_abnm_0, X_init_test_abnm_1,
+                                  ], axis=0)
+    y_test = np.concatenate([y_init_test_nm_0, y_init_test_nm_1,
+                                  y_init_test_abnm_0, y_init_test_abnm_1,
+                                  ], axis=0)
+
+    X_left = np.concatenate([X_nm_0,X_nm_1,
+                             X_abnm_0, X_abnm_1,
+                             ], axis=0)
+    y_left = np.concatenate([y_nm_0, y_nm_1,
+                             y_abnm_0, y_abnm_1,
+                             ], axis=0)
+
+    X_test, y_test = shuffle(X_test, y_test, random_state=random_state)
+
+    mprint(f'X_left: {X_left.shape}, in which, y_left is {Counter(y_left)}', verbose, INFO)
+    mprint(f'X_test: {X_test.shape}, in which, y_test is {Counter(y_test)}', verbose, INFO)
+
+    if verbose >= INFO:
+        data_info(X_left, name='X_left')
+        data_info(X_test, name='X_test')
+
+    return X_left, y_left, X_test, y_test
+
 def split_train_arrival_test(X, y, params):
     """
 
@@ -530,9 +1045,9 @@ def split_train_arrival_test(X, y, params):
     if verbose >= DEBUG: data_info(X, name='X')
 
     n_init_train = params.n_init_train  # 5000
-    n_init_test_abnm_0 = 1  # 50
+    n_init_test_abnm_0 = 30  # 50
     n_arrival = params.n_init_train   # params.n_init_train # 5000
-    n_test_abnm_0 = 100
+    n_test_abnm_0 = 1
 
     idx_nm_0 = y == 'normal_0'
     X_nm_0, y_nm_0 = X[idx_nm_0], y[idx_nm_0]
@@ -651,16 +1166,16 @@ def split_train_arrival_test(X, y, params):
     X_arrival, y_arrival = shuffle(X_arrival, y_arrival, random_state=random_state)
     X_test, y_test = shuffle(X_test, y_test, random_state=random_state)
 
-    mprint(f'X_init_train: {X_init_train.shape}, in which, y_init_train is {Counter(y_init_train)}', verbose, INFO)
-    mprint(f'X_init_test: {X_init_test.shape}, in which, y_init_test is {Counter(y_init_test)}', verbose, INFO)
-    mprint(f'X_arrival: {X_arrival.shape}, in which, y_arrival is {Counter(y_arrival)}', verbose, INFO)
-    mprint(f'X_test: {X_test.shape}, in which, y_test is {Counter(y_test)}', verbose, INFO)
-
-    if verbose >= INFO:
-        data_info(X_init_train, name='X_init_train')
-        data_info(X_init_test, name='X_init_test')
-        data_info(X_arrival, name='X_arrival')
-        data_info(X_test, name='X_test')
+    # mprint(f'X_init_train: {X_init_train.shape}, in which, y_init_train is {Counter(y_init_train)}', verbose, INFO)
+    # mprint(f'X_init_test: {X_init_test.shape}, in which, y_init_test is {Counter(y_init_test)}', verbose, INFO)
+    # mprint(f'X_arrival: {X_arrival.shape}, in which, y_arrival is {Counter(y_arrival)}', verbose, INFO)
+    # mprint(f'X_test: {X_test.shape}, in which, y_test is {Counter(y_test)}', verbose, INFO)
+    #
+    # if verbose >= INFO:
+    #     data_info(X_init_train, name='X_init_train')
+    #     data_info(X_init_test, name='X_init_test')
+    #     data_info(X_arrival, name='X_arrival')
+    #     data_info(X_test, name='X_test')
 
     return X_init_train, y_init_train, X_init_test, y_init_test, X_arrival, y_arrival, X_test, y_test
 
@@ -682,8 +1197,8 @@ def plot_data(X, y, title='Data'):
 
 def _generate_mimic_data(data_type='', random_state=42, out_file=''):
     if data_type == 'two_datasets':
-        X, y = make_blobs(n_samples=[12000, 200, 12000, 200],
-                          centers=[(-1, -2), (0, 0), (5, 5), (7.5, 7.5)], cluster_std=[(1, 1), (1, 1), (1, 1), (1, 1)],
+        X, y = make_blobs(n_samples=[12000, 500, 12000],
+                          centers=[(-5, -5), (0, 0), (5, 5)], cluster_std=[(1, 1), (1, 1), (1, 1)],
                           # cluster_std=[(2, 10), (1,1), (2,3)
                           n_features=2,
                           random_state=random_state)  # generate data from multi-variables normal distribution
@@ -692,7 +1207,7 @@ def _generate_mimic_data(data_type='', random_state=42, out_file=''):
         y[y == '0'] = 'normal_0'
         y[y == '1'] = 'abnormal_0'
         y[y == '2'] = 'normal_1'
-        y[y == '3'] = 'abnormal_1'
+        # y[y == '3'] = 'abnormal_1'  # two normals and one abnormal
 
     else:
         msg = out_file
@@ -705,36 +1220,94 @@ def _generate_mimic_data(data_type='', random_state=42, out_file=''):
     return out_file
 
 
-def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrite=False, random_state=42):
+def generate_data(data_name, data_type='two_datasets', out_file='.dat',
+                  direction='src_dst', overwrite=False, random_state=42):
     if overwrite and pth.exists(out_file): os.remove(out_file)
 
-    in_dir = f'../../Datasets'
+    original_dir = f'../../Datasets'
+    in_dir = f'online/data'
     if data_name == 'mimic_GMM':
         out_file = _generate_mimic_data(data_type=data_type, random_state=random_state, out_file=out_file)
     elif data_name in ['UNB1_UNB2', 'UNB1_UNB3', 'UNB1_UNB4', 'UNB1_UNB5',
-                       'UNB2_UNB1', 'UNB2_UNB3']:  # mix UNB1 and UNB2
+                       'UNB2_UNB1', 'UNB2_UNB3', 'UNB2_UNB4',  'UNB1_UNB4_UNB5']:  # mix UNB1 and UNB2
         # pcaps and flows directory
         # in_dir = f'./data/data_reprst/pcaps'
         if data_name == 'UNB1_UNB2':
             subdatasets = (
-                'UNB/CIC_IDS_2017/pc_192.168.10.5',
-                'UNB/CIC_IDS_2017/pc_192.168.10.8')  # each_data has normal and abnormal
+                'UNB/CICIDS_2017/pc_192.168.10.5',
+                'UNB/CICIDS_2017/pc_192.168.10.8')  # each_data has normal and abnormal
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files, abnormal_files = pf.get_path(subdatasets, original_dir, in_dir,
+                                                       direction)  # pcap to xxx_flows_labels.dat.dat
+            abnormal_files = [abnormal_files[1]]
         elif data_name == 'UNB1_UNB3':
             subdatasets = (
-                'UNB/CIC_IDS_2017/pc_192.168.10.5',
-                'UNB/CIC_IDS_2017/pc_192.168.10.9')  # each_data has normal and abnormal
+                'UNB/CICIDS_2017/pc_192.168.10.5',
+                'UNB/CICIDS_2017/pc_192.168.10.9')  # each_data has normal and abnormal
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files, abnormal_files = pf.get_path(subdatasets, original_dir, in_dir,
+                                                       direction)  # pcap to xxx_flows_labels.dat.dat
+            abnormal_files = [abnormal_files[1]]
         elif data_name == 'UNB1_UNB4':
-            subdatasets = ('UNB/CIC_IDS_2017/pc_192.168.10.5',
-                           'UNB/CIC_IDS_2017/pc_192.168.10.14')  # each_data has normal and abnormal
+            subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.5',
+                           'UNB/CICIDS_2017/pc_192.168.10.14')  # each_data has normal and abnormal
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files, abnormal_files = pf.get_path(subdatasets, original_dir, in_dir,
+                                                       direction)  # pcap to xxx_flows_labels.dat.dat
+            abnormal_files = [abnormal_files[1]]
         elif data_name == 'UNB1_UNB5':
-            subdatasets = ('UNB/CIC_IDS_2017/pc_192.168.10.5',
-                           'UNB/CIC_IDS_2017/pc_192.168.10.15')  # each_data has normal and abnormal
+            subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.5',
+                           'UNB/CICIDS_2017/pc_192.168.10.15')  # each_data has normal and abnormal
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files, abnormal_files = pf.get_path(subdatasets, original_dir, in_dir,
+                                                       direction)  # pcap to xxx_flows_labels.dat.dat
         elif data_name == 'UNB2_UNB3':
-            subdatasets = ('UNB/CIC_IDS_2017/pc_192.168.10.8', 'UNB/CIC_IDS_2017/pc_192.168.10.9')
+            subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.8', 'UNB/CICIDS_2017/pc_192.168.10.9')
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files, abnormal_files = pf.get_path(subdatasets, original_dir, in_dir,
+                                                       direction)  # pcap to xxx_flows_labels.dat.dat
+            abnormal_files = [abnormal_files[0]]
+        elif data_name == 'UNB2_UNB4':
+            subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.8', 'UNB/CICIDS_2017/pc_192.168.10.14')
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files, abnormal_files = pf.get_path(subdatasets, original_dir, in_dir,
+                                                       direction)  # pcap to xxx_flows_labels.dat.dat
+            abnormal_files = [abnormal_files[0]]
         elif data_name == 'UNB3_UNB4':
-            subdatasets = ('UNB/CIC_IDS_2017/pc_192.168.10.9', 'UNB/CIC_IDS_2017/pc_192.168.10.14')
+            subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.9', 'UNB/CICIDS_2017/pc_192.168.10.14')
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files, abnormal_files = pf.get_path(subdatasets, original_dir, in_dir,
+                                                       direction)  # pcap to xxx_flows_labels.dat.dat
+            abnormal_files = [abnormal_files[0]]
+        elif data_name == 'UNB1_UNB4_UNB5':
+            subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.5', 'UNB/CICIDS_2017/pc_192.168.10.14',
+                           'UNB/CICIDS_2017/pc_192.168.10.15')
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files, abnormal_files = pf.get_path(subdatasets, original_dir, in_dir,
+                                                       direction)  # pcap to xxx_flows_labels.dat.dat
+            abnormal_files = [normal_files[2]]
+            normal_files = [normal_files[0], normal_files[1]]
+        pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+        out_file = pf.Xy_file
+    elif data_name in ['UNB1_UNB2_UNB3', 'UNB1_UNB3_UNB2', 'UNB2_UNB3_UNB1']:
+        subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.5', 'UNB/CICIDS_2017/pc_192.168.10.8',
+                       'UNB/CICIDS_2017/pc_192.168.10.9')
         pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
-        normal_files, abnormal_files = pf.get_path(subdatasets, in_dir)  # pcap to xxx_flows_labels.dat.dat
+        normal_files, abnormal_files = pf.get_path(subdatasets, original_dir, in_dir,
+                                                   direction)  # pcap to xxx_flows_labels.dat.dat
+        if data_name =='UNB1_UNB2_UNB3':
+            # abnormal_files = [normal_files[2]]    # not work
+            abnormal_files = [abnormal_files[2]]
+            normal_files = [normal_files[0], normal_files[1]]
+        elif data_name == 'UNB1_UNB3_UNB2':
+            # abnormal_files = [normal_files[1]]    # not work
+            abnormal_files = [abnormal_files[1]]
+            normal_files = [normal_files[0], normal_files[2]]
+        elif data_name == 'UNB2_UNB3_UNB1':
+            # abnormal_files = [normal_files[0]]    # not work
+            abnormal_files = [abnormal_files[0]]
+            normal_files = [normal_files[1], normal_files[2]]
+
         pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
         out_file = pf.Xy_file
     elif data_name in ['UNB1_CTU1', 'UNB1_MAWI1', 'CTU1_MAWI1',
@@ -743,42 +1316,354 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                        'UNB1_SCAM1', 'CTU1_SCAM1', 'MAWI1_SCAM1',
                        'UNB2_CTU1', 'UNB2_MAWI1', 'UNB1_ISTS1']:  # mix UNB1 and others
         if data_name == 'UNB1_CTU1':
-            subdatasets = ('UNB/CIC_IDS_2017/pc_192.168.10.5', 'CTU/IOT_2017/pc_192.168.1.196')
+            subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.5', 'CTU/IOT_2017/pc_192.168.1.196')
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files, abnormal_files = pf.get_path(subdatasets, original_dir, in_dir,
+                                                       direction)  # pcap to xxx_flows_labels.dat.dat
+            abnormal_files = [abnormal_files[1]]
+            pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+            out_file = pf.Xy_file
         elif data_name == 'UNB1_MAWI1':
-            subdatasets = ('UNB/CIC_IDS_2017/pc_192.168.10.5', 'MAWI/WIDE_2019/pc_203.78.7.165')
+            subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.5', 'MAWI/WIDE_2020/pc_203.78.7.165')
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files, abnormal_files = pf.get_path(subdatasets, original_dir, in_dir,
+                                                       direction)  # pcap to xxx_flows_labels.dat.dat
+            abnormal_files = [abnormal_files[1]]
+            pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+            out_file = pf.Xy_file
         elif data_name == 'CTU1_MAWI1':
-            subdatasets = ('CTU/IOT_2017/pc_192.168.1.196', 'MAWI/WIDE_2019/pc_203.78.7.165')
+            subdatasets = ('CTU/IOT_2017/pc_192.168.1.196', 'MAWI/WIDE_2020/pc_203.78.7.165')
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files, abnormal_files = pf.get_path(subdatasets, original_dir, in_dir,
+                                                       direction)  # pcap to xxx_flows_labels.dat.dat
+            abnormal_files = [abnormal_files[0]]
+            pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+            out_file = pf.Xy_file
+
+        elif data_name == 'MAWI1_CTU1':
+            subdatasets = ('MAWI/WIDE_2020/pc_203.78.7.165', 'CTU/IOT_2017/pc_192.168.1.196')
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files, abnormal_files = pf.get_path(subdatasets, original_dir, in_dir,
+                                                       direction)  # pcap to xxx_flows_labels.dat.dat
+            abnormal_files = [abnormal_files[0]]
+            pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+            out_file = pf.Xy_file
+
         elif data_name == 'CTU1_UNB1':
-            subdatasets = ('CTU/IOT_2017/pc_192.168.1.196', 'UNB/CIC_IDS_2017/pc_192.168.10.5',)
+            subdatasets = ('CTU/IOT_2017/pc_192.168.1.196', 'UNB/CICIDS_2017/pc_192.168.10.5')
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files, abnormal_files = pf.get_path(subdatasets, original_dir, in_dir,
+                                                       direction)  # pcap to xxx_flows_labels.dat.dat
+            abnormal_files = [abnormal_files[0]]
+            pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+            out_file = pf.Xy_file
         elif data_name == 'MAWI1_UNB1':
-            subdatasets = ('MAWI/WIDE_2019/pc_203.78.7.165', 'UNB/CIC_IDS_2017/pc_192.168.10.5')
+            subdatasets = ('MAWI/WIDE_2019/pc_203.78.7.165', 'UNB/CICIDS_2017/pc_192.168.10.5')
         elif data_name == 'MAWI1_CTU1':
             subdatasets = ('MAWI/WIDE_2019/pc_203.78.7.165', 'CTU/IOT_2017/pc_192.168.1.196')
         elif data_name == 'MACCDC1_UNB1':
-            subdatasets = ('MACCDC/MACCDC_2012/pc_192.168.202.79', 'UNB/CIC_IDS_2017/pc_192.168.10.5')
+            subdatasets = ('MACCDC/MACCDC_2012/pc_192.168.202.79', 'UNB/CICIDS_2017/pc_192.168.10.5')
         elif data_name == 'MACCDC1_CTU1':
             subdatasets = ('MACCDC/MACCDC_2012/pc_192.168.202.79', 'CTU/IOT_2017/pc_192.168.1.196')
         elif data_name == 'MACCDC1_MAWI1':
             subdatasets = ('MACCDC/MACCDC_2012/pc_192.168.202.79', 'MAWI/WIDE_2019/pc_203.78.7.165')
         elif data_name == 'UNB1_SCAM1':
-            subdatasets = ('UNB/CIC_IDS_2017/pc_192.168.10.5', 'UCHI/IOT_2019/scam_192.168.143.42')
+            subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.5', 'UCHI/IOT_2019/scam_192.168.143.42')
         elif data_name == 'CTU1_SCAM1':
             subdatasets = ('CTU/IOT_2017/pc_192.168.1.196', 'UCHI/IOT_2019/scam_192.168.143.42')
         elif data_name == 'MAWI1_SCAM1':
             subdatasets = ('MAWI/WIDE_2019/pc_203.78.7.165', 'UCHI/IOT_2019/scam_192.168.143.42')
         elif data_name == 'UNB2_CTU1':
-            subdatasets = ('UNB/CIC_IDS_2017/pc_192.168.10.8', 'CTU/IOT_2017/pc_192.168.1.196')
+            subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.8', 'CTU/IOT_2017/pc_192.168.1.196')
         elif data_name == 'UNB2_MAWI1':
-            subdatasets = ('UNB/CIC_IDS_2017/pc_192.168.10.8', 'MAWI/WIDE_2019/pc_203.78.7.165')
+            subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.8', 'MAWI/WIDE_2019/pc_203.78.7.165')
         # elif data_name == 'UNB1_ISTS1':
-        #     subdatasets = ('UNB/CIC_IDS_2017/pc_192.168.10.8', 'MAWI/WIDE_2019/pc_203.78.7.165')
+        #     subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.8', 'MAWI/WIDE_2019/pc_203.78.7.165')
         # elif data_name == 'UNB1_ISTS2':
-        #     subdatasets = ('UNB/CIC_IDS_2017/pc_192.168.10.8', 'MAWI/WIDE_2019/pc_203.78.7.165')
+        #     subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.8', 'MAWI/WIDE_2019/pc_203.78.7.165')
 
         # elif data_name == 'CTU1_MAWI1':
         #     subdatasets = ('CTU/IOT_2017/pc_192.168.1.196', 'MAWI/WIDE_2019/pc_203.78.7.165')
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files, abnormal_files = pf.get_path(subdatasets, original_dir, in_dir, direction) # pcap to xxx_flows_labels.dat.dat
+            normal_files = [normal_files[0]]
+            pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+            out_file = pf.Xy_file
+    elif data_name in ['UNB1_MAWI1_CTU1', 'MAWI1_CTU1_UNB1', 'UNB1_CTU1_MAWI1']:
+
+        subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.5',)
         pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
-        normal_files, abnormal_files = pf.get_path(subdatasets, in_dir)  # pcap to xxx_flows_labels.dat.dat
+        normal_files1, abnormal_files1 = pf.get_path(subdatasets, original_dir, in_dir,
+                                                     direction)  # pcap to xxx_flows_labels.dat.dat
+
+        subdatasets = ('MAWI/WIDE_2020/pc_203.78.7.165', 'CTU/IOT_2017/pc_192.168.1.196')
+        pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+        normal_files2, abnormal_files2 = pf.get_path(subdatasets, original_dir, in_dir,
+                                                     direction)  # pcap to xxx_flows_labels.dat.dat
+        if data_name ==  'UNB1_MAWI1_CTU1':
+            normal_files = [normal_files1[0], normal_files2[0]]
+            abnormal_files = [normal_files2[1]]  #  # CTU1 as abnormal
+        elif data_name ==  'MAWI1_CTU1_UNB1':
+            normal_files = [normal_files2[1], normal_files2[0]]
+            abnormal_files = [normal_files1[0]]  #  UNB 1 as abnormal
+        elif data_name == 'UNB1_CTU1_MAWI1':
+            normal_files = [normal_files1[0], normal_files2[1]]
+            abnormal_files = [normal_files2[0]]  # MAWI1 as abnormal
+        pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+        out_file = pf.Xy_file
+
+    elif data_name in ['UNB1_FRIGIDLE_OPEN', 'FRIGIDLE_OPEN_UNB1']:   # [ 'UNB1_FRIG_BROWSE', 'UNB1_AECHO_SHOP']:
+        # 'UNB'
+        subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.5',)
+        pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+        normal_files1, abnormal_files1 = pf.get_path(subdatasets, original_dir, in_dir,
+                                                     direction)  # pcap to xxx_flows_labels.dat.dat
+        # 'FRIG'
+        normal1 = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle1'
+        abnormal1 = 'UCHI/IOT_2020/sfrig_192.168.143.43/open_shut'
+        ips = ['192.168.143.43']
+        uchicago.filter_ips(in_dir=pth.join(original_dir, 'UCHI/IOT_2020/idle/idle1'),
+                            out_dir=pth.join(in_dir, normal1), ips=ips,
+                            direction=direction, keep_original=True)
+        uchicago.filter_ips(in_dir=pth.join(original_dir, abnormal1), out_dir=pth.join(in_dir, abnormal1), ips=ips,
+                            direction=direction, keep_original=True)
+        if data_name == 'UNB1_FRIGIDLE_OPEN':
+            subdatasets2 = (abnormal1, normal1)  #  abnormal (browse)
+            subdatasets = (subdatasets2, None)
+            normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, in_dir, overwrite=overwrite)
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files = [normal_files1[0], normal_files2[0]]
+            abnormal_files = [abnormal_files2[0]]  # FRIG OPEN_shut as abnormal
+        elif data_name == 'FRIGIDLE_OPEN_UNB1':
+            subdatasets1 = (normal1, None)  # abnormal (UNB)
+            subdatasets2 = (abnormal1, None)  # abnormal (UNB)
+            subdatasets = (subdatasets1, subdatasets2)
+            normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, in_dir, overwrite=overwrite)
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files = [normal_files2[0], normal_files2[1]] #
+            abnormal_files = [normal_files1[0]]  # UNB1 as abnormal
+
+        pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+        out_file = pf.Xy_file
+    elif data_name in ['UNB1_FRIGIDLE_BROWSE', 'FRIGIDLE_BROWSE_UNB1']:   # [ 'UNB1_FRIG_BROWSE', 'UNB1_AECHO_SHOP']:
+        # 'UNB'
+        subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.5',)
+        pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+        normal_files1, abnormal_files1 = pf.get_path(subdatasets, original_dir, in_dir,
+                                                     direction)  # pcap to xxx_flows_labels.dat.dat
+        # 'FRIG'
+        normal1 = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle1'
+        abnormal1 = 'UCHI/IOT_2020/sfrig_192.168.143.43/open_shut'
+        ips = ['192.168.143.43']
+        uchicago.filter_ips(in_dir=pth.join(original_dir, 'UCHI/IOT_2020/idle/idle1'),
+                            out_dir=pth.join(in_dir, normal1), ips=ips,
+                            direction=direction, keep_original=True)
+        uchicago.filter_ips(in_dir=pth.join(original_dir, abnormal1), out_dir=pth.join(in_dir, abnormal1), ips=ips,
+                            direction=direction, keep_original=True)
+
+        normal2 = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle2'
+        abnormal2 = 'UCHI/IOT_2020/sfrig_192.168.143.43/browse'
+        ips = ['192.168.143.43']
+        uchicago.filter_ips(in_dir=pth.join(original_dir, 'UCHI/IOT_2020/idle/idle2'),
+                            out_dir=pth.join(in_dir, normal2), ips=ips,
+                            direction=direction, keep_original=True)
+        uchicago.filter_ips(in_dir=pth.join(original_dir, abnormal2), out_dir=pth.join(in_dir, abnormal2), ips=ips,
+                            direction=direction, keep_original=True)
+
+        if data_name == 'UNB1_FRIGIDLE_BROWSE':
+            subdatasets2 = (abnormal2, normal2)  #  abnormal (browse)
+            subdatasets = (subdatasets2, None)
+            normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, in_dir, overwrite=overwrite)
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files = [normal_files1[0], normal_files2[0]]
+            abnormal_files = [abnormal_files2[0]]  # FRIG OPEN_shut as abnormal
+        elif data_name == 'FRIGIDLE_BROWSE_UNB1':
+            subdatasets1 = (normal2, None)  # abnormal (UNB)
+            subdatasets2 = (abnormal2, None)  # abnormal (UNB)
+            subdatasets = (subdatasets1, subdatasets2)
+            normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, in_dir, overwrite=overwrite)
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files = [normal_files2[0], normal_files2[1]] #
+            abnormal_files = [normal_files1[0]]  # UNB1 as abnormal
+
+        pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+        out_file = pf.Xy_file
+    elif data_name in ['UNB1_FRIGOPEN_BROWSE', 'FRIGOPEN_BROWSE_UNB1']:   # [ 'UNB1_FRIG_BROWSE', 'UNB1_AECHO_SHOP']:
+        # 'UNB'
+        subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.5',)
+        pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+        normal_files1, abnormal_files1 = pf.get_path(subdatasets, original_dir, in_dir,
+                                                     direction)  # pcap to xxx_flows_labels.dat.dat
+        # 'FRIG'
+        normal1 = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle1'
+        abnormal1 = 'UCHI/IOT_2020/sfrig_192.168.143.43/open_shut'
+        ips = ['192.168.143.43']
+        uchicago.filter_ips(in_dir=pth.join(original_dir, 'UCHI/IOT_2020/idle/idle1'),
+                            out_dir=pth.join(in_dir, normal1), ips=ips,
+                            direction=direction, keep_original=True)
+        uchicago.filter_ips(in_dir=pth.join(original_dir, abnormal1), out_dir=pth.join(in_dir, abnormal1), ips=ips,
+                            direction=direction, keep_original=True)
+
+        normal2 = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle2'
+        abnormal2 = 'UCHI/IOT_2020/sfrig_192.168.143.43/browse'
+        ips = ['192.168.143.43']
+        uchicago.filter_ips(in_dir=pth.join(original_dir, 'UCHI/IOT_2020/idle/idle2'),
+                            out_dir=pth.join(in_dir, normal2), ips=ips,
+                            direction=direction, keep_original=True)
+        uchicago.filter_ips(in_dir=pth.join(original_dir, abnormal2), out_dir=pth.join(in_dir, abnormal2), ips=ips,
+                            direction=direction, keep_original=True)
+
+        if data_name == 'UNB1_FRIGOPEN_BROWSE':
+            subdatasets2 = (abnormal1, abnormal2)  #  abnormal (browse)
+            subdatasets = (subdatasets2, None)
+            normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, in_dir, overwrite=overwrite)
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files = [normal_files1[0], normal_files2[0]]
+            abnormal_files = [abnormal_files2[0]]  # FRIG OPEN_shut as abnormal
+        elif data_name == 'FRIGOPEN_BROWSE_UNB1':
+            subdatasets1 = (abnormal1, None)  # abnormal (UNB)
+            subdatasets2 = (abnormal2, None)  # abnormal (UNB)
+            subdatasets = (subdatasets1, subdatasets2)
+            normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, in_dir, overwrite=overwrite)
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files = [normal_files2[0], normal_files2[1]] #
+            abnormal_files = [normal_files1[0]]  # UNB1 as abnormal
+
+        pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+        out_file = pf.Xy_file
+
+    elif data_name in ['UNB1_AECHOIDLE_SHOP', 'AECHOIDLE_SHOP_UNB1']:
+        # 'UNB'
+        subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.5', )
+        pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+        normal_files1, abnormal_files1 = pf.get_path(subdatasets, original_dir, in_dir,
+                                                   direction)  # pcap to xxx_flows_labels.dat.dat
+        # abnormal_files = [abnormal_files[0]]
+        # pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+        # out_file = pf.Xy_file
+
+        normal1 = 'UCHI/IOT_2020/aecho_192.168.143.74/idle1'
+        abnormal1 = 'UCHI/IOT_2020/aecho_192.168.143.74/shop'
+        ips = ['192.168.143.74']
+        uchicago.filter_ips(in_dir=pth.join(original_dir, 'UCHI/IOT_2020/idle/idle1'),
+                            out_dir=pth.join(in_dir, normal1), ips=ips,
+                            direction=direction, keep_original=True)
+        keep_ip(os.path.join(original_dir, 'UCHI/IOT_2020/aecho_192.168.143.74/echo_shop.pcap'),
+                out_file=os.path.join(in_dir, abnormal1, 'day/aecho_shop.pcap'),
+                kept_ips=ips, direction=direction)
+
+        if data_name == 'UNB1_AECHOIDLE_SHOP':
+            subdatasets2 = (normal1, abnormal1)  # normal(idle2) + abnormal (browse)
+            subdatasets = (subdatasets2, None)
+            normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, in_dir, overwrite=overwrite)
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files = [normal_files1[0], normal_files2[0]]
+            abnormal_files = [abnormal_files2[0]]  # AECHO_SHOP as abnormal
+        elif data_name == 'AECHOIDLE_SHOP_UNB1':
+            subdatasets1 = (normal1,None)  # abnormal (UNB)
+            subdatasets2 = (abnormal1,None)  # abnormal (UNB)
+            subdatasets = (subdatasets1, subdatasets2)
+            normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, in_dir, overwrite=overwrite)
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files = [normal_files2[0], normal_files2[1]]  #
+            abnormal_files = [normal_files1[0]]  # UNB1 as abnormal
+        pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+        out_file = pf.Xy_file
+
+    elif data_name in ['UNB1_AECHOIDLE_SONG', 'AECHOIDLE_SONG_UNB1']:
+        # 'UNB'
+        subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.5',)
+        pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+        normal_files1, abnormal_files1 = pf.get_path(subdatasets, original_dir, in_dir,
+                                                     direction)  # pcap to xxx_flows_labels.dat.dat
+        # abnormal_files = [abnormal_files[0]]
+        # pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+        # out_file = pf.Xy_file
+
+        normal1 = 'UCHI/IOT_2020/aecho_192.168.143.74/idle1'
+        abnormal1 = 'UCHI/IOT_2020/aecho_192.168.143.74/shop'
+        ips = ['192.168.143.74']
+        uchicago.filter_ips(in_dir=pth.join(original_dir, 'UCHI/IOT_2020/idle/idle1'),
+                            out_dir=pth.join(in_dir, normal1), ips=ips,
+                            direction=direction, keep_original=True)
+        keep_ip(os.path.join(original_dir, 'UCHI/IOT_2020/aecho_192.168.143.74/echo_shop.pcap'),
+                out_file=os.path.join(in_dir, abnormal1, 'day/aecho_shop.pcap'),
+                kept_ips=ips, direction=direction)
+
+        normal2 = 'UCHI/IOT_2020/aecho_192.168.143.74/idle2'
+        abnormal2 = 'UCHI/IOT_2020/aecho_192.168.143.74/song'
+        uchicago.filter_ips(in_dir=pth.join(original_dir, 'UCHI/IOT_2020/idle/idle2'),
+                            out_dir=pth.join(in_dir, normal2), ips=ips,
+                            direction=direction, keep_original=True)
+        # uchicago.filter_ips(in_dir=pth.join(original_dir, abnormal2), out_dir=pth.join(in_dir, abnormal2), ips=ips,
+        #                     direction=direction, keep_original=True)
+        keep_ip(os.path.join(original_dir, 'UCHI/IOT_2020/aecho_192.168.143.74/echo_song.pcap'),
+                out_file=os.path.join(in_dir, abnormal2, 'day/aecho_song.pcap'),
+                kept_ips=ips, direction=direction)
+
+        if data_name == 'UNB1_AECHOIDLE_SONG':
+            subdatasets2 = (normal2, abnormal2)  # normal(idle2) + abnormal (browse)
+            subdatasets = (subdatasets2, None)
+            normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, in_dir, overwrite=overwrite)
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files = [normal_files1[0], normal_files2[0]]
+            abnormal_files = [abnormal_files2[0]]  # AECHO_SHOP as abnormal
+        elif data_name == 'AECHOIDLE_SONG_UNB1':
+            subdatasets1 = (normal2, None)  # abnormal (UNB)
+            subdatasets2 = (abnormal2, None)  # abnormal (UNB)
+            subdatasets = (subdatasets1, subdatasets2)
+            normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, in_dir, overwrite=overwrite)
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files = [normal_files2[0], normal_files2[1]]  #
+            abnormal_files = [normal_files1[0]]  # UNB1 as abnormal
+        pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+        out_file = pf.Xy_file
+
+    elif data_name in ['UNB1_AECHOSHOP_SONG', 'AECHOSHOP_SONG_UNB1']:
+        # 'UNB'
+        subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.5',)
+        pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+        normal_files1, abnormal_files1 = pf.get_path(subdatasets, original_dir, in_dir,
+                                                     direction)  # pcap to xxx_flows_labels.dat.dat
+        # abnormal_files = [abnormal_files[0]]
+        # pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+        # out_file = pf.Xy_file
+
+        normal1 = 'UCHI/IOT_2020/aecho_192.168.143.74/idle1'
+        abnormal1 = 'UCHI/IOT_2020/aecho_192.168.143.74/shop'
+        ips = ['192.168.143.74']
+        uchicago.filter_ips(in_dir=pth.join(original_dir, 'UCHI/IOT_2020/idle/idle1'),
+                            out_dir=pth.join(in_dir, normal1), ips=ips,
+                            direction=direction, keep_original=True)
+        keep_ip(os.path.join(original_dir, 'UCHI/IOT_2020/aecho_192.168.143.74/echo_shop.pcap'),
+                out_file=os.path.join(in_dir, abnormal1, 'day/aecho_shop.pcap'),
+                kept_ips=ips, direction=direction)
+
+        normal2 = 'UCHI/IOT_2020/aecho_192.168.143.74/idle2'
+        abnormal2 = 'UCHI/IOT_2020/aecho_192.168.143.74/song'
+        uchicago.filter_ips(in_dir=pth.join(original_dir, 'UCHI/IOT_2020/idle/idle2'),
+                            out_dir=pth.join(in_dir, normal2), ips=ips,
+                            direction=direction, keep_original=True)
+        # uchicago.filter_ips(in_dir=pth.join(original_dir, abnormal2), out_dir=pth.join(in_dir, abnormal2), ips=ips,
+        #                     direction=direction, keep_original=True)
+        keep_ip(os.path.join(original_dir, 'UCHI/IOT_2020/aecho_192.168.143.74/echo_song.pcap'),
+                out_file=os.path.join(in_dir, abnormal2, 'day/aecho_song.pcap'),
+                kept_ips=ips, direction=direction)
+        if data_name == 'UNB1_AECHOSHOP_SONG':
+            subdatasets2 = (abnormal1, abnormal2)  # normal(idle2) + abnormal (browse)
+            subdatasets = (subdatasets2, None)
+            normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, in_dir, overwrite=overwrite)
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files = [normal_files1[0], normal_files2[0]]
+            abnormal_files = [abnormal_files2[0]]  # AECHO_SHOP as abnormal
+        elif data_name == 'AECHOSHOP_SONG_UNB1':
+            subdatasets1 = (abnormal1, None)  # abnormal (UNB)
+            subdatasets2 = (abnormal2, None)  # abnormal (UNB)
+            subdatasets = (subdatasets1, subdatasets2)
+            normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, in_dir, overwrite=overwrite)
+            pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+            normal_files = [normal_files2[0], normal_files2[1]]  #
+            abnormal_files = [normal_files1[0]]  # UNB1 as abnormal
         pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
         out_file = pf.Xy_file
 
@@ -792,28 +1677,28 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
         if pth.exists(out_file):
             # pass
             return
-        normal1 = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle'
+        normal1 = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle1'
         abnormal1 = 'UCHI/IOT_2020/sfrig_192.168.143.43/open_shut'
 
         ips = ['192.168.143.43']
-        uchicago.filter_ips(in_dir=pth.join(in_dir, normal1), out_dir=pth.join(in_dir, normal1), ips=ips,
-                            direction='both', keep_original=False)
-        uchicago.filter_ips(in_dir=pth.join(in_dir, abnormal1), out_dir=pth.join(in_dir, abnormal1), ips=ips,
-                            direction='both', keep_original=False)
+        uchicago.filter_ips(in_dir=pth.join(original_dir, 'UCHI/IOT_2020/idle/idle1'), out_dir=pth.join(in_dir, normal1), ips=ips,
+                            direction=direction, keep_original=True)
+        uchicago.filter_ips(in_dir=pth.join(original_dir, abnormal1), out_dir=pth.join(in_dir, abnormal1), ips=ips,
+                            direction=direction, keep_original=True)
         # doesn't have much improvement in auc, so just comment it.
         # tmp_out_dir = pth.join(in_dir, abnormal1+'-filtered/pcaps/')
         # if not os.path.exists(tmp_out_dir):
         #     # only split open_shut and remove part of normal traffic
-        #     uchicago.extract_abnormal_pkts(in_dir=pth.join(in_dir, abnormal1), out_dir=tmp_out_dir)
+        #     uchicago.extract_abnormal_pkts(in_dir=pth.join(original_dir, abnormal1), out_dir=tmp_out_dir)
         # abnormal1 = abnormal1 + '-filtered'
 
-        normal2 = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle1'
+        normal2 = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle2'
         abnormal2 = 'UCHI/IOT_2020/sfrig_192.168.143.43/browse'
         ips = ['192.168.143.43']
-        uchicago.filter_ips(in_dir=pth.join(in_dir, normal2), out_dir=pth.join(in_dir, normal2), ips=ips,
-                            direction='both', keep_original=False)
-        uchicago.filter_ips(in_dir=pth.join(in_dir, abnormal2), out_dir=pth.join(in_dir, abnormal2), ips=ips,
-                            direction='both', keep_original=False)
+        uchicago.filter_ips(in_dir=pth.join(original_dir, 'UCHI/IOT_2020/idle/idle2'), out_dir=pth.join(in_dir, normal2), ips=ips,
+                            direction=direction, keep_original=True)
+        uchicago.filter_ips(in_dir=pth.join(original_dir, abnormal2), out_dir=pth.join(in_dir, abnormal2), ips=ips,
+                            direction=direction, keep_original=True)
 
         # # #Fridge: (normal1: idel1, and abnormal1: open_shut) (normal2: idle2 and abnormal2: browse)
 
@@ -854,16 +1739,70 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
         elif data_name == 'FRIG_BROWSE_IDLE2':
             subdatasets1 = (abnormal2, abnormal1)  # normal(browse) + abnormal (open_shut)
             subdatasets2 = (normal2, None)  # normal(idle2)
+
         else:
             raise NotImplementedError(data_name)
 
         subdatasets = (subdatasets1, subdatasets2)
-        out_dir = 'online/data/iat_size'
-        normal_files, abnormal_files = uchicago.get_flows(in_dir, subdatasets, out_dir, overwrite=overwrite)
+        normal_files, abnormal_files = uchicago.get_flows(in_dir, subdatasets, in_dir, overwrite=overwrite)
         pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
         pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
         out_file = pf.Xy_file
 
+    elif data_name in [ 'AECHO_IDLE_SHOP', 'AECHO_IDLE_SONG',
+        'AECHO_SHOP_SONG', 'AECHO_SONG_SHOP',]:
+        if pth.exists(out_file):
+            # pass
+            return
+        normal1 = 'UCHI/IOT_2020/aecho_192.168.143.74/idle1'
+        abnormal1 = 'UCHI/IOT_2020/aecho_192.168.143.74/shop'
+        ips = ['192.168.143.74']
+        uchicago.filter_ips(in_dir=pth.join(original_dir, 'UCHI/IOT_2020/idle/idle1'),
+                            out_dir=pth.join(in_dir, normal1), ips=ips,
+                            direction=direction, keep_original=True)
+        keep_ip(os.path.join(original_dir, 'UCHI/IOT_2020/aecho_192.168.143.74/echo_shop.pcap'),
+                out_file=os.path.join(in_dir,abnormal1, 'day/aecho_shop.pcap'),
+                kept_ips=ips, direction=direction)
+        # doesn't have much improvement in auc, so just comment it.
+        # tmp_out_dir = pth.join(in_dir, abnormal1+'-filtered/pcapnos/')
+        # if not os.path.exists(tmp_out_dir):
+        #     # only split open_shut and remove part of normal traffic
+        #     uchicago.extract_abnormal_pkts(in_dir=pth.join(original_dir, abnormal1), out_dir=tmp_out_dir)
+        # abnormal1 = abnormal1 + '-filtered'
+
+        normal2 = 'UCHI/IOT_2020/aecho_192.168.143.74/idle2'
+        abnormal2 = 'UCHI/IOT_2020/aecho_192.168.143.74/song'
+        uchicago.filter_ips(in_dir=pth.join(original_dir, 'UCHI/IOT_2020/idle/idle2'),
+                            out_dir=pth.join(in_dir,  normal2), ips=ips,
+                            direction=direction, keep_original=True)
+        # uchicago.filter_ips(in_dir=pth.join(original_dir, abnormal2), out_dir=pth.join(in_dir, abnormal2), ips=ips,
+        #                     direction=direction, keep_original=True)
+        keep_ip(os.path.join(original_dir, 'UCHI/IOT_2020/aecho_192.168.143.74/echo_song.pcap'),
+                out_file=os.path.join(in_dir, abnormal2, 'day/aecho_song.pcap'),
+                kept_ips=ips, direction=direction)
+        if data_name ==   'AECHO_IDLE_SHOP':
+            subdatasets1 = (normal1, abnormal1)  # normal(idle) + abnormal(shop)
+            subdatasets2 = (abnormal2, None)  # normal(song)
+        elif data_name == 'AECHO_IDLE_SONG':
+            subdatasets1 = (normal1, abnormal2)  # normal(idle) + abnormal (song)
+            subdatasets2 = (abnormal1, None)  # normal(shop)
+        elif data_name == 'AECHO_SHOP_SONG':
+            subdatasets1 = (abnormal1, abnormal2)  # normal(shop) + abnormal (song)
+            subdatasets2 = (normal2, None)  # normal(idle2)
+        elif data_name == 'AECHO_SONG_SHOP':
+            subdatasets1 = (abnormal2, abnormal1)  # normal(song) + abnormal (shop)
+            subdatasets2 = (normal2, None)  # normal(idle2)
+
+        else:
+            raise NotImplementedError(data_name)
+
+        subdatasets = (subdatasets1, subdatasets2)
+        normal_files, abnormal_files = uchicago.get_flows(in_dir, subdatasets,
+                                                          out_dir = in_dir,
+                                                          overwrite=overwrite)
+        pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
+        pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
+        out_file = pf.Xy_file
 
     elif data_name in ['UNB1_FRIG1', 'CTU1_FRIG1', 'MAWI1_FRIG1',
                        'FRIG1_UNB1', 'FRIG1_CTU1', 'FRIG1_MAWI1',
@@ -886,23 +1825,23 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
         if pth.exists(out_file):
             pass
         else:
-            out_dir = 'online/data/iat_size'
+
             if data_name in ['UNB1_FRIG1', 'FRIG1_UNB1']:  # Fridge: idle and open_shut
-                subdatasets1 = ('UNB/CIC_IDS_2017/pc_192.168.10.5')
+                subdatasets1 = ('UNB/CICIDS_2017/pc_192.168.10.5')
                 subdatasets = (subdatasets1,)
                 pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
-                normal_files1, abnormal_files1 = pf.get_path(subdatasets, in_dir)  # pcap to xxx_flows_labels.dat.dat
+                normal_files1, abnormal_files1 =pf.get_path(subdatasets, original_dir, in_dir, direction)  # pcap to xxx_flows_labels.dat.dat
 
                 idle = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle'
                 activity = 'UCHI/IOT_2020/sfrig_192.168.143.43/open_shut'
                 ips = ['192.168.143.43']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
-                normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
+                normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, in_dir)
 
                 if data_name == 'UNB1_FRIG1':
                     normal_files = normal_files1 + normal_files2
@@ -912,18 +1851,18 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                     abnormal_files = abnormal_files2 + abnormal_files1
 
             elif data_name in ['UNB2_FRIG1', 'FRIG1_UNB2']:  # Fridge: idle and open_shut
-                subdatasets1 = ('UNB/CIC_IDS_2017/pc_192.168.10.8')
+                subdatasets1 = ('UNB/CICIDS_2017/pc_192.168.10.8')
                 subdatasets = (subdatasets1,)
                 pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
-                normal_files1, abnormal_files1 = pf.get_path(subdatasets, in_dir)  # pcap to xxx_flows_labels.dat.dat
+                normal_files1, abnormal_files1 =pf.get_path(subdatasets, original_dir, in_dir, direction)  # pcap to xxx_flows_labels.dat.dat
 
                 idle = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle'
                 activity = 'UCHI/IOT_2020/sfrig_192.168.143.43/open_shut'
                 ips = ['192.168.143.43']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -941,15 +1880,15 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 subdatasets = (subdatasets1,)
                 pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state,
                                    overwrite=overwrite)
-                normal_files1, abnormal_files1 = pf.get_path(subdatasets, in_dir)  # pcap to xxx_flows_labels.dat.dat
+                normal_files1, abnormal_files1 = pf.get_path(subdatasets, original_dir, in_dir, direction) # pcap to xxx_flows_labels.dat.dat
 
                 idle = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle'
                 activity = 'UCHI/IOT_2020/sfrig_192.168.143.43/open_shut'
                 ips = ['192.168.143.43']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -965,15 +1904,15 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 subdatasets1 = ('MAWI/WIDE_2019/pc_203.78.7.165')
                 subdatasets = (subdatasets1,)
                 pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
-                normal_files1, abnormal_files1 = pf.get_path(subdatasets, in_dir)  # pcap to xxx_flows_labels.dat.dat
+                normal_files1, abnormal_files1 = pf.get_path(subdatasets, original_dir, in_dir, direction) # pcap to xxx_flows_labels.dat.dat
 
                 idle = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle'
                 activity = 'UCHI/IOT_2020/sfrig_192.168.143.43/open_shut'
                 ips = ['192.168.143.43']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -989,12 +1928,12 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 subdatasets1 = ('MAWI/WIDE_2019/pc_203.78.7.165')
                 subdatasets = (subdatasets1,)
                 pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
-                normal_files1, abnormal_files1 = pf.get_path(subdatasets, in_dir)  # pcap to xxx_flows_labels.dat.dat
+                normal_files1, abnormal_files1 = pf.get_path(subdatasets, original_dir, in_dir, direction)  # pcap to xxx_flows_labels.dat.dat
 
-                subdatasets2 = ('UNB/CIC_IDS_2017/pc_192.168.10.8')
+                subdatasets2 = ('UNB/CICIDS_2017/pc_192.168.10.8')
                 subdatasets = (subdatasets2,)
                 pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
-                normal_files2, abnormal_files2 = pf.get_path(subdatasets, in_dir)  # pcap to xxx_flows_labels.dat.dat
+                normal_files2, abnormal_files2 = pf.get_path(subdatasets, original_dir, in_dir, direction)  # pcap to xxx_flows_labels.dat.dat
 
                 if data_name == 'MAWI1_UNB2':
                     normal_files = normal_files1 + normal_files2
@@ -1005,19 +1944,19 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
 
 
             elif data_name in ['UNB1_FRIG2', 'FRIG2_UNB1']:  # Fridge: idle and open_shut
-                subdatasets1 = ('UNB/CIC_IDS_2017/pc_192.168.10.5')
+                subdatasets1 = ('UNB/CICIDS_2017/pc_192.168.10.5')
                 subdatasets = (subdatasets1,)
                 pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state,
                                    overwrite=overwrite)
-                normal_files1, abnormal_files1 = pf.get_path(subdatasets, in_dir)  # pcap to xxx_flows_labels.dat.dat
+                normal_files1, abnormal_files1 = pf.get_path(subdatasets, original_dir, in_dir, direction)  # pcap to xxx_flows_labels.dat.dat
 
                 idle = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle'
                 activity = 'UCHI/IOT_2020/sfrig_192.168.143.43/browse'
                 ips = ['192.168.143.43']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1034,12 +1973,12 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 subdatasets = (subdatasets1,)
                 pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state,
                                    overwrite=overwrite)
-                normal_files1, abnormal_files1 = pf.get_path(subdatasets, in_dir)  # pcap to xxx_flows_labels.dat.dat
+                normal_files1, abnormal_files1 = pf.get_path(subdatasets, original_dir, in_dir, direction)  # pcap to xxx_flows_labels.dat.dat
 
-                subdatasets2 = ('UNB/CIC_IDS_2017/pc_192.168.10.8')
+                subdatasets2 = ('UNB/CICIDS_2017/pc_192.168.10.8')
                 subdatasets = (subdatasets2,)
                 pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
-                normal_files2, abnormal_files2 = pf.get_path(subdatasets, in_dir)  # pcap to xxx_flows_labels.dat.dat
+                normal_files2, abnormal_files2 = pf.get_path(subdatasets, original_dir, in_dir, direction)  # pcap to xxx_flows_labels.dat.dat
 
                 if data_name == 'MAWI1_UNB2':
                     normal_files = normal_files1 + normal_files2
@@ -1053,15 +1992,15 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 subdatasets = (subdatasets1,)
                 pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state,
                                    overwrite=overwrite)
-                normal_files1, abnormal_files1 = pf.get_path(subdatasets, in_dir)  # pcap to xxx_flows_labels.dat.dat
+                normal_files1, abnormal_files1 = pf.get_path(subdatasets, original_dir, in_dir, direction)  # pcap to xxx_flows_labels.dat.dat
 
                 idle = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle'
                 activity = 'UCHI/IOT_2020/sfrig_192.168.143.43/browse'
                 ips = ['192.168.143.43']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1079,15 +2018,15 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 subdatasets = (subdatasets1,)
                 pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state,
                                    overwrite=overwrite)
-                normal_files1, abnormal_files1 = pf.get_path(subdatasets, in_dir)  # pcap to xxx_flows_labels.dat.dat
+                normal_files1, abnormal_files1 = pf.get_path(subdatasets, original_dir, in_dir, direction)  # pcap to xxx_flows_labels.dat.dat
 
                 idle = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle'
                 activity = 'UCHI/IOT_2020/sfrig_192.168.143.43/browse'
                 ips = ['192.168.143.43']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1109,10 +2048,10 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 idle = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle'
                 activity = 'UCHI/IOT_2020/sfrig_192.168.143.43/open_shut'
                 ips = ['192.168.143.43']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1134,10 +2073,10 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 idle = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle'
                 activity = 'UCHI/IOT_2020/sfrig_192.168.143.43/browse'
                 ips = ['192.168.143.43']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1161,10 +2100,10 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 idle = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle'
                 activity = 'UCHI/IOT_2020/sfrig_192.168.143.43/browse'
                 ips = ['192.168.143.43']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1177,18 +2116,18 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                     abnormal_files = abnormal_files2 + abnormal_files1
 
             elif data_name in ['UNB2_FRIG1', 'FRIG1_UNB2']:
-                subdatasets1 = ('UNB/CIC_IDS_2017/pc_192.168.10.8')
+                subdatasets1 = ('UNB/CICIDS_2017/pc_192.168.10.8')
                 subdatasets = (subdatasets1,)
                 pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state, overwrite=overwrite)
-                normal_files1, abnormal_files1 = pf.get_path(subdatasets, in_dir)  # pcap to xxx_flows_labels.dat.dat
+                normal_files1, abnormal_files1 = pf.get_path(subdatasets, original_dir, in_dir, direction)  # pcap to xxx_flows_labels.dat.dat
 
                 idle = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle'
                 activity = 'UCHI/IOT_2020/sfrig_192.168.143.43/open_shut'
                 ips = ['192.168.143.43']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1201,7 +2140,7 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                     abnormal_files = abnormal_files2 + abnormal_files1
 
             elif data_name in ['UNB2_FRIG2', 'FRIG2_UNB2']:
-                subdatasets1 = ('UNB/CIC_IDS_2017/pc_192.168.10.8')
+                subdatasets1 = ('UNB/CICIDS_2017/pc_192.168.10.8')
                 subdatasets = (subdatasets1,)
                 pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state,
                                    overwrite=overwrite)
@@ -1210,10 +2149,10 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 idle = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle'
                 activity = 'UCHI/IOT_2020/sfrig_192.168.143.43/browse'
                 ips = ['192.168.143.43']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1226,7 +2165,7 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                     abnormal_files = abnormal_files2 + abnormal_files1
 
             elif data_name in ['UNB1_DRYER1', 'DRYER1_UNB1']:
-                subdatasets1 = ('UNB/CIC_IDS_2017/pc_192.168.10.5')
+                subdatasets1 = ('UNB/CICIDS_2017/pc_192.168.10.5')
                 subdatasets = (subdatasets1,)
                 pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state,
                                    overwrite=overwrite)
@@ -1236,10 +2175,10 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 idle = 'UCHI/IOT_2020/dryer_192.168.143.99/idle'
                 activity = 'UCHI/IOT_2020/dryer_192.168.143.99/open_dryer'
                 ips = ['192.168.143.99']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1253,7 +2192,7 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
 
 
             elif data_name in ['UNB1_DWSHR1', 'DWSHR1_UNB1']:
-                subdatasets1 = ('UNB/CIC_IDS_2017/pc_192.168.10.5')
+                subdatasets1 = ('UNB/CICIDS_2017/pc_192.168.10.5')
                 subdatasets = (subdatasets1,)
                 pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state,
                                    overwrite=overwrite)
@@ -1263,10 +2202,10 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 idle = 'UCHI/IOT_2020/dwshr_192.168.143.76/idle'
                 activity = 'UCHI/IOT_2020/dwshr_192.168.143.76/open_dwshr'
                 ips = ['192.168.143.76']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1280,7 +2219,7 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
 
 
             elif data_name in ['UNB1_WSHR1', 'WSHR1_UNB1']:
-                subdatasets1 = ('UNB/CIC_IDS_2017/pc_192.168.10.5')
+                subdatasets1 = ('UNB/CICIDS_2017/pc_192.168.10.5')
                 subdatasets = (subdatasets1,)
                 pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), random_state=random_state,
                                    overwrite=overwrite)
@@ -1290,10 +2229,10 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 idle = 'UCHI/IOT_2020/wshr_192.168.143.100/idle'
                 activity = 'UCHI/IOT_2020/wshr_192.168.143.100/open_wshr'
                 ips = ['192.168.143.100']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1311,10 +2250,10 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 normal = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle'
                 abnormal = 'UCHI/IOT_2020/sfrig_192.168.143.43/open_shut'
                 ips = ['192.168.143.43']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, normal), out_dir=pth.join(in_dir, normal), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, abnormal), out_dir=pth.join(in_dir, abnormal), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, normal), out_dir=pth.join(in_dir, normal), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, abnormal), out_dir=pth.join(in_dir, abnormal), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets1 = (normal, abnormal)  # normal and abnormal_0
                 subdatasets = (subdatasets1,)
                 normal_files1, abnormal_files1 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1322,10 +2261,10 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 activity = 'UCHI/IOT_2020/dwshr_192.168.143.76/open_dwshr'
                 idle = 'UCHI/IOT_2020/dwshr_192.168.143.76/idle'
                 ips = ['192.168.143.76']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1342,10 +2281,10 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 idle = 'UCHI/IOT_2020/sfrig_192.168.143.43/idle'
                 activity = 'UCHI/IOT_2020/sfrig_192.168.143.43/browse'
                 ips = ['192.168.143.43']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets1 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets1,)
                 normal_files1, abnormal_files1 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1353,10 +2292,10 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 idle = 'UCHI/IOT_2020/dwshr_192.168.143.76/idle'
                 activity = 'UCHI/IOT_2020/dwshr_192.168.143.76/open_dwshr'
                 ips = ['192.168.143.76']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1378,10 +2317,10 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 idle = 'UCHI/IOT_2020/dwshr_192.168.143.76/idle'
                 activity = 'UCHI/IOT_2020/dwshr_192.168.143.76/open_dwshr'
                 ips = ['192.168.143.76']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1405,10 +2344,10 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 idle = 'UCHI/IOT_2020/dwshr_192.168.143.76/idle'
                 activity = 'UCHI/IOT_2020/dwshr_192.168.143.76/open_dwshr'
                 ips = ['192.168.143.76']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1431,10 +2370,10 @@ def generate_data(data_name, data_type='two_datasets', out_file='.dat', overwrit
                 idle = 'UCHI/IOT_2020/dwshr_192.168.143.76/idle'
                 activity = 'UCHI/IOT_2020/dwshr_192.168.143.76/open_dwshr'
                 ips = ['192.168.143.76']
-                uchicago.filter_ips(in_dir=pth.join(in_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
-                                    direction='both', keep_original=False)
-                uchicago.filter_ips(in_dir=pth.join(in_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
-                                    direction='both', keep_original=False)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, idle), out_dir=pth.join(in_dir, idle), ips=ips,
+                                    direction='both', keep_original=True)
+                uchicago.filter_ips(in_dir=pth.join(original_dir, activity), out_dir=pth.join(in_dir, activity), ips=ips,
+                                    direction='both', keep_original=True)
                 subdatasets2 = (idle, activity)  # normal and abnormal_0
                 subdatasets = (subdatasets2,)
                 normal_files2, abnormal_files2 = uchicago.get_flows(in_dir, subdatasets, out_dir)
@@ -1547,7 +2486,7 @@ def main(random_state, n_jobs=-1, single=False, verbose=10):
         ]
     #
     # # in_dir = 'data/data_kjl'
-    # # dir_in = f'data_{model}'
+    # # in_dir = f'data_{model}'
     # obs_dir = '../../IoT_feature_sets_comparison_20190822/examples/'
     # in_dir = f'{obs_dir}data/data_reprst/pcaps'
     # out_dir = 'out/'

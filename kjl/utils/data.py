@@ -161,7 +161,7 @@ def seperate_normal_abnormal(X, y, random_state=42):
 
     return X_normal, y_normal, X_abnormal, y_abnormal
 
-def split_left_test(X_normal, y_normal, X_abnormal, y_abnormal, test_size=200, random_state=42):
+def split_left_test(X_normal, y_normal, X_abnormal, y_abnormal, test_size=600, random_state=42):
     """Split train and test set
 
     Parameters
@@ -179,8 +179,8 @@ def split_left_test(X_normal, y_normal, X_abnormal, y_abnormal, test_size=200, r
     X_normal, y_normal = sklearn.utils.shuffle(X_normal, y_normal, random_state=random_state)
     X_abnormal, y_abnormal = sklearn.utils.shuffle(X_abnormal, y_abnormal, random_state=random_state)
 
-    n_abnormal = test_size // 2
-    n_abnormal = 300 if len(y_abnormal) > n_abnormal * 2  else 100
+    n_abnormal = int(test_size // 2)
+    # n_abnormal = 300 if len(y_abnormal) > n_abnormal * 2  else 300
 
     # X_normal, y_normal = sklearn.utils.resample(X, y, n_samples=n_abnormal, random_state=random_state, replace=False)
     # X_normal, y_normal = sklearn.utils.resample(X, y, n_samples=n_abnormal, random_state=random_state,
@@ -208,7 +208,7 @@ def split_left_test(X_normal, y_normal, X_abnormal, y_abnormal, test_size=200, r
     return X_normal, y_normal, X_abnormal, y_abnormal, X_test, y_test
 
 
-def split_train_val(X_normal, y_normal, X_abnormal, y_abnormal, train_size=5000, random_state=42):
+def split_train_val(X_normal, y_normal, X_abnormal, y_abnormal, train_size=5000, val_size=100, random_state=42):
     """Split train and test set
 
     Parameters
@@ -225,13 +225,14 @@ def split_train_val(X_normal, y_normal, X_abnormal, y_abnormal, train_size=5000,
     X_abnormal, y_abnormal = sklearn.utils.shuffle(X_abnormal, y_abnormal, random_state=random_state)
 
     n_train_normal = train_size
+    n_val_normal = int(val_size//2)
     ######## get train data
     X_train_normal = X_normal[:n_train_normal, :]
     y_train_normal = y_normal[:n_train_normal].reshape(-1, 1)
     X_train = X_train_normal
     y_train = y_train_normal.flatten()
 
-    n_val_normal = 300 if len(y_abnormal) > 300 else int(len(y_abnormal) * 0.8)
+    n_val_normal = n_val_normal if len(y_abnormal) > n_val_normal else int(len(y_abnormal) * 0.8)
 
     X_val_normal = X_normal[n_train_normal: n_train_normal+n_val_normal, :]
     y_val_normal = y_normal[n_train_normal:n_train_normal+n_val_normal].reshape(-1, 1)
@@ -377,6 +378,7 @@ def _get_line(result_each, feat_set=''):
     try:
         value = result_each
         X_train_shape = str(value['X_train_shape']).replace(', ', '-')
+        X_val_shape = str(value['X_val_shape']).replace(', ', '-')
         X_test_shape = str(value['X_test_shape']).replace(', ', '-')
 
         mu_auc = np.mean(value['aucs'])
@@ -394,13 +396,14 @@ def _get_line(result_each, feat_set=''):
         suffex = ''
     except (Exception, KeyError, ValueError) as e:
         X_train_shape = '(0-0)'
+        X_val_shape = '(0-0)'
         X_test_shape = '(0-0)'
         line = f',{feat_set}(-)'
         suffex = ', '
         msg = f'{_get_line.__name__}, error:{e}, result_each[{feat_set}]: {result_each}'
         print(msg)
 
-    prefix = f'X_train_shape: {X_train_shape}, X_test_shape: {X_test_shape}'
+    prefix = f'X_train_shape: {X_train_shape}|(X_val_shape: {X_val_shape}), X_test_shape: {X_test_shape}'
 
     return prefix, line, suffex
 
@@ -425,26 +428,26 @@ def save_each_result(data, case_str, out_file=None):
 
         f.write(line + '\n')
 
-
-data_mapping = {
-    # 'DS10_UNB_IDS/DS11-srcIP_192.168.10.5':'UNB_PC1',
-    'DS10_UNB_IDS/DS12-srcIP_192.168.10.8': 'UNB_PC2',
-    'DS10_UNB_IDS/DS13-srcIP_192.168.10.9': 'UNB_PC3',
-    'DS10_UNB_IDS/DS14-srcIP_192.168.10.14': 'UNB_PC4',
-    'DS10_UNB_IDS/DS15-srcIP_192.168.10.15': 'UNB_PC5',
-
-    # 'DS20_PU_SMTV/DS21-srcIP_10.42.0.1':'SMTV',
-    # # #
-    'DS40_CTU_IoT/DS41-srcIP_10.0.2.15': 'CTU',
-    #
-    # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50':'MAWI',
-
-    # 'DS60_UChi_IoT/DS61-srcIP_192.168.143.20':'GHom',
-    'DS60_UChi_IoT/DS62-srcIP_192.168.143.42': 'SCam',
-    # 'DS60_UChi_IoT/DS63-srcIP_192.168.143.43':'SFrig',
-    # 'DS60_UChi_IoT/DS64-srcIP_192.168.143.48':'BSTCH'
-}
-
+#
+# data_mapping = {
+#     # 'DS10_UNB_IDS/DS11-srcIP_192.168.10.5':'UNB_PC1',
+#     'DS10_UNB_IDS/DS12-srcIP_192.168.10.8': 'UNB_PC2',
+#     'DS10_UNB_IDS/DS13-srcIP_192.168.10.9': 'UNB_PC3',
+#     'DS10_UNB_IDS/DS14-srcIP_192.168.10.14': 'UNB_PC4',
+#     'DS10_UNB_IDS/DS15-srcIP_192.168.10.15': 'UNB_PC5',
+#
+#     # 'DS20_PU_SMTV/DS21-srcIP_10.42.0.1':'SMTV',
+#     # # #
+#     'DS40_CTU_IoT/DS41-srcIP_10.0.2.15': 'CTU',
+#     #
+#     # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50':'MAWI',
+#
+#     # 'DS60_UChi_IoT/DS61-srcIP_192.168.143.20':'GHom',
+#     'DS60_UChi_IoT/DS62-srcIP_192.168.143.42': 'SCam',
+#     # 'DS60_UChi_IoT/DS63-srcIP_192.168.143.43':'SFrig',
+#     # 'DS60_UChi_IoT/DS64-srcIP_192.168.143.48':'BSTCH'
+# }
+#
 
 def dat2csv(result, out_file):
 
@@ -466,7 +469,7 @@ def dat2csv(result, out_file):
                 try:
                     # best_auc = data['best_auc']
                     aucs = data['aucs']
-                    params = data['params']
+                    params = data['params'][-1]
                     train_times = data['train_times']
                     test_times = data['test_times']
                     # params = data['params']
@@ -478,7 +481,14 @@ def dat2csv(result, out_file):
                     train_times_str = "-".join([str(v) for v in train_times])
                     test_times_str = "-".join([str(v) for v in test_times])
 
-                    line = f'{in_dir}, {case_str}, {_prefix}, {_line}, => aucs:{aucs_str}, train_times:{train_times_str}, test_times:{test_times_str}, with params: {params}: {_suffex}'
+                    try:
+                        n_comps = [int(v['GMM_n_components']) for v in data['params']]
+                        mu_n_comp = np.mean(n_comps)
+                        std_n_comp = np.std(n_comps)
+                        n_comp_str = f'{mu_n_comp:.2f}+/-{std_n_comp:.2f}'
+                    except Exception as e:
+                        n_comp_str = f'-'
+                    line = f'{in_dir}, {case_str}, {_prefix}, {_line}, => aucs:{aucs_str}, train_times:{train_times_str}, test_times:{test_times_str}, n_comp: {n_comp_str}, with params: {params}: {_suffex}'
 
                 except Exception as e:
                     traceback.print_exc()

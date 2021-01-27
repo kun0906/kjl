@@ -21,7 +21,12 @@ class Base:
     def filter_ip(self, pcap_file, out_file, ips=[], direction='both', keep_original = True, verbose=10):
         if not pth.exists(pth.dirname(out_file)):
             os.makedirs(pth.dirname(out_file))
-
+        if pcap_file == out_file:
+            print(f'in_file == out_file: {out_file}')
+            return out_file
+        if os.path.exists(out_file):
+            print(f'out_file exists: {out_file}')
+            return out_file
         if direction == 'src':
             ip_str = " or ".join([f'ip.src=={ip}' for ip in ips])
         elif direction == 'dst':
@@ -30,7 +35,7 @@ class Base:
             ip_str = " or ".join([f'ip.addr=={ip}' for ip in ips])
         cmd = f"tshark -r {pcap_file} -w {out_file} {ip_str}"
 
-        if verbose > 10: print(f'{cmd}')
+        if verbose >= 10: print(f'cmd: {cmd}')
         try:
             result = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True).stdout.decode('utf-8')
             if not keep_original:
@@ -62,3 +67,61 @@ class Base:
             flows.extend(_flows)
 
         return flows
+
+
+
+def process_CIC_IDS_2017(label_file, time_range=['start', 'end'], output_file='_reduced.txt'):
+    """ timezone: ADT in CICIDS_2017 label.csv
+
+    Parameters
+    ----------
+    label_file
+    time_range
+    output_file
+
+    Returns
+    -------
+
+    """
+    with open(output_file, 'w') as out_f:
+        start = 0
+        i = 0
+        start_flg = True
+        end = 0
+        max_sec = -1
+        min_sec = -1
+        with open(label_file, 'r') as in_f:
+            line = in_f.readline()
+            flg = False
+            while line:
+                if line.startswith("Flow"):
+                    line = in_f.readline()
+                    continue
+                arr = line.split(',')
+                # time
+                # print(arr[6])
+                time_str = datetime.strptime(arr[6], "%d/%m/%Y %H:%M")
+                time_str = convert_datetime_timezone(str(time_str), tz1='Canada/Atlantic', tz2='UTC')
+                ts = time_string_to_seconds(str(time_str), '%Y-%m-%d %H:%M:%S')
+                if start_flg:
+                    print(i, ts, start)
+                    start = ts
+                    min_sec = start
+                    start_flg = False
+                else:
+                    if ts > end:
+                        end = ts
+                    if ts < min_sec:
+                        min_sec = ts
+                    if ts > max_sec:
+                        max_sec = ts
+                if ts > time_range[0] and ts < time_range[1]:
+                    out_f.write(line.strip('\n') + '\n')
+                # if ts > time_range[1]:
+                #     break
+
+                line = in_f.readline()
+                i += 1
+        print(start, end, time_range, i, min_sec, max_sec)
+
+    return output_file

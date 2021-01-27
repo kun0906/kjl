@@ -59,11 +59,13 @@ def single_main(**kwargs):
     train_times = []
     test_times = []
     aucs = []
+    _params = []
     _middle_results = []
     for i in range(n_repeats):
         print(f"\n\n==={i + 1}/{n_repeats}(n_repeats): {params}===")
         X_train, y_train, X_val, y_val = split_train_val(X_normal, y_normal, X_abnormal, y_abnormal,
-                                                         train_size=5000, random_state=(i + 1) * 100)
+                                                         train_size=5000, val_size=int(len(y_test)*0.25),
+                                                         random_state=(i + 1) * 100)
         _best_results_i, _middle_results_i = get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params,
                                                               random_state=random_state)
         _middle_results.append(_middle_results_i)
@@ -71,10 +73,15 @@ def single_main(**kwargs):
         train_times.append(_best_results_i['train_time'])
         test_times.append(_best_results_i['test_time'])
         aucs.append(_best_results_i['auc'])
+        _params.append(_best_results_i['params'])
 
+    if is_gs:
+        print(f'--is_gs: {is_gs}, X_val != X_test')
+    else:
+        X_val = X_test
     _best_results = {'train_times': train_times, 'test_times': test_times, 'aucs': aucs, 'apcs': '',
-                     'params': _best_results_i['params'],  # only use the last repeats' params
-                     'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
+                     'params': _params,  # only use the last repeats' params
+                     'X_train_shape': X_train.shape, 'X_val_shape': X_val.shape, 'X_test_shape': X_test.shape}
 
     result = ((f'{data_name}|{data_file}', case), (_best_results, _middle_results))
     # dump each result to disk to avoid runtime error in parallel context.
@@ -102,29 +109,35 @@ def results2speedup(results, out_dir):
     return out_xlsx
 
 
-def _generate_datasets(overwrite=False):
+def _generate_datasets(overwrite=False, direction= 'src_dst'):
     feat = 'iat_size'
-    in_dir = f'speedup/data/{feat}'
+    # direction = 'src_dst'  # src: only use src data; srd_dst: use src+dst data
+    in_dir = f'speedup/data/{direction}/{feat}'
     dataname_path_mappings = {
         # 'mimic_GMM': f'{in_dir}/mimic_GMM/Xy-normal-abnormal.dat',
-        # 'mimic_GMM1': f'{in_dir}/mimic_GMM1/Xy-normal-abnormal.dat',
+        # # 'mimic_GMM1': f'{in_dir}/mimic_GMM1/Xy-normal-abnormal.dat',
         # 'UNB1': f'{in_dir}/UNB1/Xy-normal-abnormal.dat',
-        'UNB2': f'{in_dir}/UNB2/Xy-normal-abnormal.dat',
+        # 'UNB2': f'{in_dir}/UNB2/Xy-normal-abnormal.dat',
         # 'UNB3': f'{in_dir}/UNB3/Xy-normal-abnormal.dat',
-        # 'UNB4': f'{in_dir}/UNB4/Xy-normal-abnormal.dat',
+        # # 'UNB4': f'{in_dir}/UNB4/Xy-normal-abnormal.dat',
         # 'UNB5': f'{in_dir}/UNB5/Xy-normal-abnormal.dat',
-            # 'DS10_UNB_IDS/DS13-srcIP_192.168.10.9',
-            # 'DS10_UNB_IDS/DS14-srcIP_192.168.10.14',
-            # 'DS10_UNB_IDS/DS15-srcIP_192.168.10.15',
-        #     # # # # #
-        #     # # # # 'DS20_PU_SMTV/DS21-srcIP_10.42.0.1',
-        #     # # # # # #
+        # 'UNB12': f'{in_dir}/UNB12/Xy-normal-abnormal.dat',  # pc1: normal; pc2: abnormal
+        # # 'UNB13': f'{in_dir}/UNB13/Xy-normal-abnormal.dat',  # pc1: normal; pc3: abnormal
+        'UNB24': f'{in_dir}/UNB24/Xy-normal-abnormal.dat',  # pc2: normal; pc4: abnormal
+        #     # 'DS10_UNB_IDS/DS13-srcIP_192.168.10.9',
+        #     # 'DS10_UNB_IDS/DS14-srcIP_192.168.10.14',
+        #     # 'DS10_UNB_IDS/DS15-srcIP_192.168.10.15',
+        # #     # # # # #
+        # #     # # # # 'DS20_PU_SMTV/DS21-srcIP_10.42.0.1',
+        # #     # # # # # #
+        # 'OCS1':f'{in_dir}/OCS1/Xy-normal-abnormal.dat',
         #     'DS40_CTU_IoT/DS41-srcIP_10.0.2.15',
         'CTU1': f'{in_dir}/CTU1/Xy-normal-abnormal.dat',
-        # #     # # #
-        # #     # # # # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50',
-        # #     # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50',
-        'MAWI1': f'{in_dir}/MAWI1/Xy-normal-abnormal.dat',
+        # # #     # # #
+        # # #     # # # # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50',
+        # # #     # 'DS50_MAWI_WIDE/DS51-srcIP_202.171.168.50',
+        # 'MAWI1_2019': f'{in_dir}/MAWI1_2019/Xy-normal-abnormal.dat',
+        'MAWI1_2020': f'{in_dir}/MAWI1_2020/Xy-normal-abnormal.dat',
         # #     # 'DS50_MAWI_WIDE/DS53-srcIP_203.78.4.32',
         # #     # 'DS50_MAWI_WIDE/DS54-srcIP_222.117.214.171',
         # #     # 'DS50_MAWI_WIDE/DS55-srcIP_101.27.14.204',
@@ -133,14 +146,18 @@ def _generate_datasets(overwrite=False):
         # #     # # #
         # #     # 'WRCCDC/2020-03-20',
         # #     # 'DEFCON/ctf26',
-        'ISTS1': f'{in_dir}/ISTS1/Xy-normal-abnormal.dat',
+        # 'ISTS1': f'{in_dir}/ISTS1/Xy-normal-abnormal.dat',
         'MACCDC1': f'{in_dir}/MACCDC1/Xy-normal-abnormal.dat',
-        #
-        # #     # # # # 'DS60_UChi_IoT/DS61-srcIP_192.168.143.20',
-        'SCAM1': f'{in_dir}/SCAM1/Xy-normal-abnormal.dat',
-        # # # #     # # # 'DS60_UChi_IoT/DS63-srcIP_192.168.143.43',
+
+        # 'GHOM1':      f'{in_dir}/GHOM1/Xy-normal-abnormal.dat',
+        # # 'SCAM1': f'{in_dir}/SCAM1/Xy-normal-abnormal.dat',
+        # 'SFRIG1':     f'{in_dir}/SFRIG1/Xy-normal-abnormal.dat',
         # # # #     # # # 'DS60_UChi_IoT/DS64-srcIP_192.168.143.48'
-        # # # #
+        'SFRIG1_2020':     f'{in_dir}/SFRIG1_2020/Xy-normal-abnormal.dat',
+        'AECHO1_2020': f'{in_dir}/AECHO1_2020/Xy-normal-abnormal.dat',
+        # 'WSHR_2020': f'{in_dir}/WSHR_2020/Xy-normal-abnormal.dat',
+        # 'DRYER_2020': f'{in_dir}/DRYER_2020/Xy-normal-abnormal.dat',
+        # # #
 
     }
 
@@ -152,7 +169,8 @@ def _generate_datasets(overwrite=False):
             if pth.exists(data_path): os.remove(data_path)
 
         if not pth.exists(data_path):
-            data_path = generate_data_speed_up(data_name, out_file=data_path, overwrite=overwrite)
+            data_path = generate_data_speed_up(data_name, out_file=data_path,
+                                               direction=direction, overwrite=overwrite)
         X, y = load_data(data_path)
         datasets[(data_name, data_path)] = (X, y)
 
@@ -363,18 +381,21 @@ def _generate_datasets(overwrite=False):
 
 
 @execute_time
-def _main_default_single(is_gs=False, is_std=False, covariance_type='diag', n_jobs=16, n_comp_default=1,
-                         q_default=0.5, n_kjl_default=500, d_kjl_default=10):
+def _main_default_single( n_repeats = 5, is_gs=False, is_std=False, covariance_type='diag', n_jobs=16, n_comp_default=1,
+                         q_default=0.5, n_kjl_default=500, d_kjl_default=10, before_proj=False):
     results = {}
-    n_repeats = 5
+
     random_state = 42
     overwrite = False
     verbose = 10
-    datasets = _generate_datasets(overwrite=False)
+    direction = 'src_dst'
+    datasets = _generate_datasets(overwrite=False, direction=direction)
 
     def _generate_experiment(case='', is_gs=True, is_std=False, covariance_type='diag', **kwargs):
         TEMPLATE = {'detector': {'detector_name': 'GMM'},
                     'is_gs': False,
+                    'before_proj': before_proj,
+                    'after_proj': not before_proj,
                     'std': {'is_std': is_std, 'is_std_mean': False},  # default use std
                     'kjl': {'is_kjl': False},
                     'nystrom': {'is_nystrom': False},
@@ -435,8 +456,7 @@ def _main_default_single(is_gs=False, is_std=False, covariance_type='diag', n_jo
             # case 3: GMM-gs:True-kjl:True
             'case3': create_case(template=TEMPLATE,
                                  detector={'detector_name': 'GMM', 'GMM_covariance_type': covariance_type,
-                                           'GMM_n_components': [1, 5, 10, 15, 20, 25, 30, 35, 40,
-                                                                45] if is_gs else [n_comp_default]},
+                                           'GMM_n_components': [1, 4, 6, 8, 10, 12, 14, 16, 18, 20] if is_gs else [n_comp_default]},
                                  is_gs=is_gs,
                                  kjl={'is_kjl': True,
                                       'kjl_qs': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95] if is_gs
@@ -445,8 +465,7 @@ def _main_default_single(is_gs=False, is_std=False, covariance_type='diag', n_jo
             # case 4: GMM-gs:True-nystrom:True   # nystrom will take more time than kjl
             'case4': create_case(template=TEMPLATE,
                                  detector={'detector_name': 'GMM', 'GMM_covariance_type': covariance_type,
-                                           'GMM_n_components': [1, 5, 10, 15, 20, 25, 30, 35, 40,
-                                                                45] if is_gs else [n_comp_default]},
+                                           'GMM_n_components': [1, 4, 6, 8, 10, 12, 14, 16, 18, 20] if is_gs else [n_comp_default]},
                                  is_gs=is_gs,
                                  nystrom={'is_nystrom': True,
                                           'nystrom_qs': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95] if is_gs
@@ -474,6 +493,33 @@ def _main_default_single(is_gs=False, is_std=False, covariance_type='diag', n_jo
                                  kjl={'is_kjl': True,
                                       'kjl_qs': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95] if is_gs
                                       else [q_default], 'kjl_ns': [n_kjl_default], 'kjl_ds': [d_kjl_default]},
+                                 meanshift={'is_meanshift': True,
+                                            'meanshift_qs': [] if is_gs
+                                            else []}),
+
+            # case 7: GMM-gs:True-Nystrom:True-quickshift:True
+            'case7': create_case(template=TEMPLATE,
+                                 detector={'detector_name': 'GMM', 'GMM_covariance_type': covariance_type,
+                                           'GMM_n_components': [] if is_gs else []},
+                                 is_gs=is_gs,
+                                 nystrom={'is_nystrom': True,
+                                          'nystrom_qs': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95] if is_gs
+                                          else [q_default], 'nystrom_ns': [n_kjl_default],
+                                          'nystrom_ds': [d_kjl_default]},
+                                 quickshift={'is_quickshift': True, 'quickshift_ks': [500] if is_gs else [500],
+                                             # [50, 100, 150, 200, 250, 300, 350, 400, 450, 500]
+                                             'quickshift_betas': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
+                                                                  0.95] if is_gs else [0.9]}),
+
+            # case 8: GMM-gs:True-Nystrom:True-meanshift:True
+            'case8': create_case(template=TEMPLATE,
+                                 detector={'detector_name': 'GMM', 'GMM_covariance_type': covariance_type,
+                                           'GMM_n_components': [] if is_gs else []},
+                                 is_gs=is_gs,
+                                 nystrom={'is_nystrom': True,
+                                          'nystrom_qs': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95] if is_gs
+                                          else [q_default], 'nystrom_ns': [n_kjl_default],
+                                          'nystrom_ds': [d_kjl_default]},
                                  meanshift={'is_meanshift': True,
                                             'meanshift_qs': [] if is_gs
                                             else []})
@@ -542,6 +588,26 @@ def _main_default_single(is_gs=False, is_std=False, covariance_type='diag', n_jo
         k, v = _new_results[0], _new_results[1]
         results[k] = v
 
+        # case 7: GMM-gs:True-Nystrom:True-quickshift:True
+        case = 'case7'
+        experiment = _generate_experiment(case, is_gs=is_gs, is_std=is_std, covariance_type=covariance_type,
+                                          n_jobs=n_jobs,
+                                          n_repeats=n_repeats, random_state=random_state,
+                                          verbose=verbose, overwrite=overwrite)
+        _new_results = single_main(data=dataset, params=(case, experiment))
+        k, v = _new_results[0], _new_results[1]
+        results[k] = v
+
+        # case 8: GMM-gs:True-Nystrom:True-meanshift:True
+        case = 'case8'
+        experiment = _generate_experiment(case, is_gs=is_gs, is_std=is_std, covariance_type=covariance_type,
+                                          n_jobs=n_jobs,
+                                          n_repeats=n_repeats, random_state=random_state,
+                                          verbose=verbose, overwrite=overwrite)
+        _new_results = single_main(data=dataset, params=(case, experiment))
+        k, v = _new_results[0], _new_results[1]
+        results[k] = v
+
         # avoid missing results
         data_str, case = k
         data_name, data_file = data_str.split('|')
@@ -553,46 +619,49 @@ def _main_default_single(is_gs=False, is_std=False, covariance_type='diag', n_jo
 
     print(f'\n\nfinal results: {results}')
     # save results first
-    out_dir = f'speedup/out/iat_size-gs_{is_gs}-{covariance_type}-std_{is_std}_center_{is_std_mean}/' \
+    out_dir = f'speedup/out/{direction}/before_proj_{before_proj}/iat_size-gs_{is_gs}-{covariance_type}-std_{is_std}_center_{is_std_mean}/' \
               f'n_comp={n_comp_default}-kjl_q={q_default}-kjl_n={n_kjl_default}-kjl-d={d_kjl_default}'
     out_file = results2speedup(results, out_dir)
     print(f'{out_file}')
     print("\n\n---finish succeeded!")
 
 
-def _main_default(is_gs=False, is_std=False, covariance_type='diag', n_jobs=16):
+def _main_default(n_repeats = 5, is_gs=False, is_std=False, covariance_type='diag', n_jobs=16, before_proj=False):
     is_try = False
     if is_try:
         q_defaults =[0.3] #[0.1, 0.3, 0.5, 0.7, 0.9]
         n_comp_defaults =[1] #[1, 5, 10, 15, 20]
-        n_kjl_defaults =[20, 50, 100, 200] # [100, 500, 1000]
-        d_kjl_defaults =[2, 5, 10] #[10, 50, 100]
+        n_kjl_defaults =[50, 100, 200] # [50, 100, 200, 300,  500, 1000]
+        d_kjl_defaults =[3, 5, 8, 10] #[1, 2, 5, 8, 10, 20, 30, 50, 100]
         combs = len(list(itertools.product(q_defaults, n_comp_defaults)))
         for i, (n_comp_default, q_default, n_kjl_default, d_kjl_default) in enumerate(
                 itertools.product(n_comp_defaults, q_defaults, n_kjl_defaults, d_kjl_defaults)):
             print(f'\n\n--{i + 1}/{combs}: is_gs:{is_gs}, n_comp_default:{n_comp_default}, q_default: {q_default}, '
                   f'n_kjl_defaults: {n_kjl_defaults}, d_kjl_defaults: {d_kjl_defaults},--')
-            _main_default_single(is_gs=is_gs, is_std=is_std, covariance_type=covariance_type,
+            _main_default_single(n_repeats = n_repeats, is_gs=is_gs, is_std=is_std, covariance_type=covariance_type,
                                  n_comp_default=n_comp_default, q_default=q_default, n_kjl_default=n_kjl_default,
-                                 d_kjl_default=d_kjl_default)
+                                 d_kjl_default=d_kjl_default, before_proj=before_proj)
     else:
-        _main_default_single(is_gs=is_gs, is_std=is_std, covariance_type=covariance_type,
-                             n_comp_default=1, q_default=0.3, n_kjl_default=100,
+        _main_default_single( n_repeats = n_repeats, is_gs=is_gs, is_std=is_std, covariance_type=covariance_type,
+                             n_comp_default=1, q_default=0.3, n_kjl_default=100, before_proj = before_proj,
                              d_kjl_default=5)
 
 
 @execute_time
-def _main_best(is_gs=False, is_std=False, covariance_type='diag', n_jobs=16):
+def _main_best( n_repeats = 5, is_gs=False, is_std=False, covariance_type='diag', before_proj=False, n_jobs=16):
     results = {}
-    n_repeats = 5
+
     random_state = 42
     overwrite = False
     verbose = 10
-    datasets = _generate_datasets(overwrite=False)
+    direction = 'src_dst'
+    datasets = _generate_datasets(overwrite=False, direction=direction)
 
     def _generate_experiment(case='', is_gs=True, is_std=False, covariance_type='diag', **kwargs):
         TEMPLATE = {'detector': {'detector_name': 'GMM'},
                     'is_gs': False,
+                    'before_proj': before_proj,
+                    'after_proj': not before_proj,
                     'std': {'is_std': is_std, 'is_std_mean': False},  # default use std
                     'kjl': {'is_kjl': False},
                     'nystrom': {'is_nystrom': False},
@@ -653,8 +722,7 @@ def _main_best(is_gs=False, is_std=False, covariance_type='diag', n_jobs=16):
             # case 3: GMM-gs:True-kjl:True
             'case3': create_case(template=TEMPLATE,
                                  detector={'detector_name': 'GMM', 'GMM_covariance_type': covariance_type,
-                                           'GMM_n_components': [1, 5, 10, 15, 20, 25, 30, 35, 40,
-                                                                45] if is_gs else [n_comp_default]},
+                                           'GMM_n_components': [1, 4, 6, 8, 10, 12, 14, 16, 18, 20] if is_gs else [n_comp_default]},
                                  is_gs=is_gs,
                                  kjl={'is_kjl': True,
                                       'kjl_qs': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95] if is_gs
@@ -663,8 +731,7 @@ def _main_best(is_gs=False, is_std=False, covariance_type='diag', n_jobs=16):
             # case 4: GMM-gs:True-nystrom:True   # nystrom will take more time than kjl
             'case4': create_case(template=TEMPLATE,
                                  detector={'detector_name': 'GMM', 'GMM_covariance_type': covariance_type,
-                                           'GMM_n_components': [1, 5, 10, 15, 20, 25, 30, 35, 40,
-                                                                45] if is_gs else [n_comp_default]},
+                                           'GMM_n_components': [1, 4, 6, 8, 10, 12, 14, 16, 18, 20] if is_gs else [n_comp_default]},
                                  is_gs=is_gs,
                                  nystrom={'is_nystrom': True,
                                           'nystrom_qs': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95] if is_gs
@@ -691,6 +758,33 @@ def _main_best(is_gs=False, is_std=False, covariance_type='diag', n_jobs=16):
                                  kjl={'is_kjl': True,
                                       'kjl_qs': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95] if is_gs
                                       else [q_default], 'kjl_ns': [n_kjl_default], 'kjl_ds': [d_kjl_default]},
+                                 meanshift={'is_meanshift': True,
+                                            'meanshift_qs': [] if is_gs
+                                            else []}),
+
+            # case 7: GMM-gs:True-Nystrom:True-quickshift:True
+            'case7': create_case(template=TEMPLATE,
+                                 detector={'detector_name': 'GMM', 'GMM_covariance_type': covariance_type,
+                                           'GMM_n_components': [] if is_gs else []},
+                                 is_gs=is_gs,
+                                 nystrom={'is_nystrom': True,
+                                          'nystrom_qs': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95] if is_gs
+                                          else [q_default], 'nystrom_ns': [n_kjl_default],
+                                          'nystrom_ds': [d_kjl_default]},
+                                 quickshift={'is_quickshift': True, 'quickshift_ks': [500],
+                                             # [50, 100, 150, 200, 250, 300, 350, 400, 450, 500]
+                                             'quickshift_betas': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
+                                                                  0.95] if is_gs else [0.9]}),
+
+            # case 8: GMM-gs:True-Nystrom:True-meanshift:True
+            'case8': create_case(template=TEMPLATE,
+                                 detector={'detector_name': 'GMM', 'GMM_covariance_type': covariance_type,
+                                           'GMM_n_components': [] if is_gs else []},
+                                 is_gs=is_gs,
+                                 nystrom={'is_nystrom': True,
+                                          'nystrom_qs': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95] if is_gs
+                                          else [q_default], 'nystrom_ns': [n_kjl_default],
+                                          'nystrom_ds': [d_kjl_default]},
                                  meanshift={'is_meanshift': True,
                                             'meanshift_qs': [] if is_gs
                                             else []})
@@ -759,6 +853,26 @@ def _main_best(is_gs=False, is_std=False, covariance_type='diag', n_jobs=16):
         k, v = _new_results[0], _new_results[1]
         results[k] = v
 
+        # case 7: GMM-gs:True-Nystrom:True-quickshift:True
+        case = 'case7'
+        experiment = _generate_experiment(case, is_gs=is_gs, is_std=is_std, covariance_type=covariance_type,
+                                          n_jobs=n_jobs,
+                                          n_repeats=n_repeats, random_state=random_state,
+                                          verbose=verbose, overwrite=overwrite)
+        _new_results = single_main(data=dataset, params=(case, experiment))
+        k, v = _new_results[0], _new_results[1]
+        results[k] = v
+
+        # case 8: GMM-gs:True-Nystrom:True-meanshift:True
+        case = 'case8'
+        experiment = _generate_experiment(case, is_gs=is_gs, is_std=is_std, covariance_type=covariance_type,
+                                          n_jobs=n_jobs,
+                                          n_repeats=n_repeats, random_state=random_state,
+                                          verbose=verbose, overwrite=overwrite)
+        _new_results = single_main(data=dataset, params=(case, experiment))
+        k, v = _new_results[0], _new_results[1]
+        results[k] = v
+
         # avoid missing results
         data_str, case = k
         data_name, data_file = data_str.split('|')
@@ -770,25 +884,27 @@ def _main_best(is_gs=False, is_std=False, covariance_type='diag', n_jobs=16):
 
     print(f'\n\nfinal results: {results}')
     # save results first
-    out_dir = f'speedup/out/iat_size-gs_{is_gs}-{covariance_type}-std_{is_std}_center_{is_std_mean}'
+    out_dir = f'speedup/out/{direction}/before_proj_{before_proj}/iat_size-gs_{is_gs}-{covariance_type}-std_{is_std}_center_{is_std_mean}'
     out_file = results2speedup(results, out_dir)
     print(f'{out_file}')
     print("\n\n---finish succeeded!")
 
 
 @execute_time
-def main():
-    gses = [False ]
-    covariance_types = ['diag', 'full']
-    stds = [False, True]
+def main(before_proj=True):
+    gses =[True] # [False, True]
+    covariance_types =['full'] #['diag', 'full']
+    stds = [False]
+    n_repeats = 5
     combs = len(list(itertools.product(gses, stds, covariance_types)))
     for i, (is_gs, is_std, covariance_type) in enumerate(itertools.product(gses, stds, covariance_types)):
         print(f'\n\n***{i + 1}/{combs}: is_gs:{is_gs}, is_std:{is_std}, covariance_type: {covariance_type}***')
         if is_gs:
-            _main_best(is_gs=is_gs, is_std=is_std, covariance_type=covariance_type)
+            _main_best(n_repeats = n_repeats,is_gs=is_gs, is_std=is_std, covariance_type=covariance_type, before_proj=before_proj)
         else:
-            _main_default(is_gs=is_gs, is_std=is_std, covariance_type=covariance_type)
+            _main_default(n_repeats = n_repeats,is_gs=is_gs, is_std=is_std, covariance_type=covariance_type, before_proj=before_proj)
 
 
 if __name__ == '__main__':
-    main()
+    # main(before_proj=True)
+    main(before_proj=False)

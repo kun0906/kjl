@@ -221,6 +221,7 @@ class KJL():
         self.sigma_kjl = sigma_kjl
         self.Xrow_raw = X_train_raw[indRow]
         self.yrow_raw = y_train_raw[indRow]
+        self.Xrow_accum = X_train_raw
 
         return self
 
@@ -288,11 +289,14 @@ class KJL():
             # print(f'idxs: {idxs}, X: {X}, self.Xrow: {self.Xrow}, y: {y}')
             self.i = (self.i+t) %  self.params.n_kjl
 
-            is_fast = True
+            is_fast = False
             if not is_fast:
                 for _i, _x, _y in zip(idxs, X, y):
                     self.Xrow[_i] = _x
                     self.yrow_raw[_i] = _y
+
+                dists = pairwise_distances(self.Xrow)
+                self.sigma_kjl = np.quantile(dists, q=self.params.q_kjl)
 
                 # idx1 = sklearn.utils.resample(range(X_raw.shape[0]), n_samples=self.params.n_kjl,stratify=y_raw,
                 #                                             random_state=self.random_state, replace=False)
@@ -338,6 +342,23 @@ class KJL():
             self.U = np.matmul(self.A, self.random_matrix)  # preferred for matrix multiplication
             mprint(f"after updating, y_row: {Counter(self.yrow_raw)}", self.verbose, INFO)
         else:  # increased U : n <- n+10
+
+            # self.Xrow_accum = np.concatenate([self.Xrow_accum, X], axis=0)
+            # dists = pairwise_distances(self.Xrow_accum)
+            # self.sigma_kjl = np.quantile(dists, q=0.3)
+            # mprint(f"Xrow_accum: {self.Xrow_accum.shape}", self.verbose, INFO)
+            # self.Xrow = sklearn.utils.resample(self.Xrow_accum, n_samples=100,
+            #                               random_state=self.random_state * self.i, replace=False)
+            # self.A = getGaussianGram(self.Xrow, self.Xrow, self.sigma_kjl)
+            #
+            # centering = self.params.centering_kjl
+            # if centering:
+            #     # subtract the mean of col from each element in a col
+            #     self.A = self.A - np.mean(self.A, axis=0)
+            # # self.random_matrix = np.random.multivariate_normal([0] * d, np.diag([1] * d), m)
+            # self.U = np.matmul(self.A, self.random_matrix)  # preferred for matrix multiplication
+            # mprint(f"after updating, y_row: {Counter(self.yrow_raw)}", self.verbose, INFO)
+
             # Get t first
             n_new, _ = X.shape
             t = int(round(self.params.ratio_kjl * n_new, 0))

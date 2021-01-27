@@ -1,0 +1,11 @@
+
+
+# https://www.digitalocean.com/community/tutorials/how-to-use-rsync-to-sync-local-and-remote-directories
+rsync -av ~/dir1 username@remote_host:destination_directory
+
+rsync -av username@remote_host:/home/username/dir1 place_to_sync_on_local_machine
+rsync -av ../../Datasets ky2440@neon.cs.uchicago.edu:/home/ky2440/
+
+rsync -av ky2440@neon.cs.uchicago.edu:/home/ky2440/Datasets/Monday-WorkingHours.pcap  ./
+
+

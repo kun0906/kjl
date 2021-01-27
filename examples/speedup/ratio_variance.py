@@ -1,6 +1,7 @@
 """ improvement: average auc (with KJL) - average auc (without KJL)
 
 """
+import itertools
 import os
 import traceback
 from collections import OrderedDict
@@ -175,7 +176,7 @@ def get_auc_ratio(ocsvm_aucs, gmm_aucs, same=True):
     return diff
 
 
-def get_diff(df1, df2, feat_set='iat', same=False, file_type = None, is_sample=False):
+def get_diff(df1, df2, feat_set='iat', same=False, file_type = None, is_sample=False,scale=100):
     """ d2 - df1
 
     Parameters
@@ -216,7 +217,7 @@ def get_diff(df1, df2, feat_set='iat', same=False, file_type = None, is_sample=F
                 # get 'number of points of the train set': df1.iloc[i][2] = ' X_train_shape: (8000-33)'
                 n_train = int(df1.iloc[i][2].split('(')[1].split('-')[0])
                 # get the test time for each point
-                scale = 300
+                # scale = 100
                 ocsvm_train_times = [v / n_train * scale for v in ocsvm_train_times]
                 gmm_train_times = [v / n_train * scale for v in gmm_train_times]
 
@@ -227,10 +228,11 @@ def get_diff(df1, df2, feat_set='iat', same=False, file_type = None, is_sample=F
                     # diff = diff + ''
                     pass
                 else:
-                    idxs = [_i for _i, v in enumerate(list(df2.iloc[i].values)) if 'n_components' in str(v)]
+                    idxs = [_i for _i, v in enumerate(list(df2.iloc[i].values)) if 'n_comps_arr' in str(v)]
                     if len(idxs) > 0:
-                        comp_str = df2.iloc[i][idxs[0]].replace('n_components', 'n_comp').replace('}:', '')
-                        diff = diff + f" ({comp_str})"
+                        # comp_str = df2.iloc[i][idxs[0]].replace('n_components', 'n_comp').replace('}:', '')
+                        comp_str = df2.iloc[i][idxs[0]].split('|')[-1].split('(u_std) ')[-1]
+                        diff = diff + f" (n_comp:{comp_str})".replace('n_comps_arr:', '')
                 if file_type == 'tmp':
                     _line2[start_col - 3] = diff
                     _line2.append(df2.iloc[i][j+1])
@@ -268,7 +270,7 @@ def get_diff(df1, df2, feat_set='iat', same=False, file_type = None, is_sample=F
     return values
 
 
-def improvement(resulst_xlsx, feat_set='iat', out_file='-improvement.xlsx', is_sample=False):
+def improvement(resulst_xlsx, feat_set='iat', scale=100, out_file='-improvement.xlsx', is_sample=False):
     xls = pd.ExcelFile(resulst_xlsx)
     # Now you can list all sheets in the file
     print(f'xls.sheet_names:', xls.sheet_names)
@@ -287,7 +289,7 @@ def improvement(resulst_xlsx, feat_set='iat', out_file='-improvement.xlsx', is_s
                 df1 = pd.read_excel(resulst_xlsx, sheet_name=baseline_sheet_name, header=header,
                                     index_col=None)  # index_col=False: not use the first columns as index
 
-                values = get_diff(df1, df1, feat_set=feat_set, same=True, file_type = 'tmp', is_sample=is_sample)
+                values = get_diff(df1, df1, feat_set=feat_set, same=True, file_type = 'tmp', is_sample=is_sample, scale=scale)
                 values.insert(0, [sheet_name if _i == 0 else '' for _i in range(len(values[0]))])
                 pd.DataFrame(values).to_excel(writer, sheet_name=baseline_sheet_name, index=False, header=False)
 
@@ -300,7 +302,7 @@ def improvement(resulst_xlsx, feat_set='iat', out_file='-improvement.xlsx', is_s
                 # header = 5: it will skip the first 5 row
                 df2 = pd.read_excel(resulst_xlsx, sheet_name=sheet_name, header=header,
                                     index_col=None)  # index_col=False: not use the first columns as index
-                values = get_diff(df1, df2, feat_set=feat_set, same=False, file_type = 'tmp', is_sample=is_sample)
+                values = get_diff(df1, df2, feat_set=feat_set, same=False, file_type = 'tmp', is_sample=is_sample, scale=scale)
                 values.insert(0, [sheet_name if _i == 0 else '' for _i in range(len(values[0]))])
                 # break
             except Exception as e:
@@ -321,7 +323,7 @@ def improvement(resulst_xlsx, feat_set='iat', out_file='-improvement.xlsx', is_s
         v_tmp = []
         for i, values in enumerate(results):
             if i == 0:
-                header = ['Dataset', 'X_train(size-dim)', 'X_test(size-dim)', values[0][0]]
+                header = ['Dataset', 'X_train(size-dim)|X_val(size-dim)', 'X_test(size-dim)', values[0][0]]
                 # 'Best_auc', 'Ratio(OCSVM/method)'
                 for row_vs in values:
                     vs = []
@@ -389,12 +391,17 @@ def dat2latex(in_file, out_file = None):
                 if sheet_name == 'OCSVM':
                     values = arr[:, 3]
                     vs = []
-                    headers = ['UNB', 'CTU', 'MAWI', 'ISTS', 'MACCDC', 'SCAM']
+                    # headers = ['UNB', 'CTU', 'MAWI', 'ISTS', 'MACCDC', 'SCAM']
+                    headers = []
+                    for v in arr:
+                        if list(v)[0] == '': continue
+                        name = list(v)[0].split('|')[0]
+                        headers.append(name)
                     for i in range(3): # acu, training, testing
                         # vs.append(np.asarray([values[j+i].replace('+/-', '$\\pm$') for j in range(0, len(values), 3)]))
                         vs.append(
                             np.asarray([values[j + i].replace('+/-', '+/-') for j in range(0, len(values), 3)]))
-
+                    # headers = ['-'] * vs[0].shape[-1]
                     headers = np.asarray(headers).reshape(1, -1)
                     values = np.asarray(vs)
                     values = np.concatenate([headers, values], axis=0)
@@ -407,40 +414,60 @@ def dat2latex(in_file, out_file = None):
                               '\\begin{tabular}[c]{@{}c@{}}KJL-\\GMM() \end{tabular} & ' ,
                               '\\begin{tabular}[c]{@{}c@{}}Nystr{\"o}m-\\GMM() \end{tabular} & ' ,
                               '\\begin{tabular}[c]{@{}c@{}}QS-KJL-\\GMM() \end{tabular} & ' ,
-                              '\\begin{tabular}[c]{@{}c@{}}MS-KJL-\\GMM() \end{tabular}  ']
+                              '\\begin{tabular}[c]{@{}c@{}}MS-KJL-\\GMM() \end{tabular} & ',
+                               '\\begin{tabular}[c]{@{}c@{}}QS-NYSTROM-\\GMM() \end{tabular} & ' ,
+                               '\\begin{tabular}[c]{@{}c@{}}MS-NYSTROM-\\GMM() \end{tabular}  ']
 
-                    values = arr[:, 4:9]
+                    values = arr[:, 4:]
                     vs = []
                     for v in values:
                         vs.append([v_.split('(')[0].replace('+/-', '$\\pm$') for v_ in v])
 
                     headers = np.asarray(headers).reshape(1, -1)
                     values = np.asarray(vs)
-                    values = np.concatenate([headers, values], axis=0)
-                    headers = np.asarray(['Dataset',
-                                          '\multirow{3}{*}{UNB} & Speed-up AUC', '& Speed-up Training ',
-                                          '& Speed-up Testing ',
-                                          '\multirow{3}{*}{CTU} & Speed-up AUC', '& Speed-up Training ',
-                                          '& Speed-up Testing ',
-                                          '\multirow{3}{*}{MAWI} & Speed-up AUC', '& Speed-up Training ',
-                                          '& Speed-up Testing ',
-                                          '\multirow{3}{*}{ISTS} & Speed-up AUC', '& Speed-up Training ',
-                                          '& Speed-up Testing ',
-                                          '\multirow{3}{*}{\Cell{MAC-\\CDC}} & Speed-up AUC', '& Speed-up Training ',
-                                          '& Speed-up Testing ',
-                                          '\multirow{3}{*}{SCAM} & Speed-up AUC', '& Speed-up Training ',
-                                          '& Speed-up Testing ',
-                                          ]).reshape(-1, 1)
-                    values = np.concatenate([headers, values], axis=1)
+                    if headers.shape != values.shape:
+                        print('headers.shape != values.shape')
+                    else:
+                        values = np.concatenate([headers, values], axis=0)
+                    # headers = np.asarray(['Dataset',
+                    #                       '\multirow{3}{*}{UNB} & Speed-up AUC', '& Speed-up Training ',
+                    #                       '& Speed-up Testing ',
+                    #                       '\multirow{3}{*}{CTU} & Speed-up AUC', '& Speed-up Training ',
+                    #                       '& Speed-up Testing ',
+                    #                       '\multirow{3}{*}{MAWI} & Speed-up AUC', '& Speed-up Training ',
+                    #                       '& Speed-up Testing ',
+                    #                       '\multirow{3}{*}{ISTS} & Speed-up AUC', '& Speed-up Training ',
+                    #                       '& Speed-up Testing ',
+                    #                       '\multirow{3}{*}{\Cell{MAC-\\CDC}} & Speed-up AUC', '& Speed-up Training ',
+                    #                       '& Speed-up Testing ',
+                    #                       '\multirow{3}{*}{SCAM} & Speed-up AUC', '& Speed-up Training ',
+                    #                       '& Speed-up Testing ',
+                    #                       ]).reshape(-1, 1)
+                    # values = np.concatenate([headers, values], axis=1)
+
+                    headers = []
+                    for v in arr:
+                        if list(v)[0] == '': continue
+                        name = list(v)[0].split('|')[0]
+                        headers.extend(['\multirow{3}{*}'+f'{name} & Speed-up AUC', '& Speed-up Training ',
+                                          '& Speed-up Testing '])
+                    headers = np.asarray(headers).reshape(-1, 1)
+                    if headers.shape[0] != values.shape[0]:
+                        print('headers.shape != values.shape')
+                    else:
+                        values = np.concatenate([headers, values], axis=1)
+
 
                 elif sheet_name =='n_components':
                     headers = ['\multicolumn{2}{|c|}{Dataset}& GMM()              & ',
                                '\\begin{tabular}[c]{@{}c@{}}KJL-\\GMM() \end{tabular} & ',
                                '\\begin{tabular}[c]{@{}c@{}}Nystr{\"o}m-\\GMM() \end{tabular} & ',
                                '\\begin{tabular}[c]{@{}c@{}}QS-KJL-\\GMM() \end{tabular} & ',
-                               '\\begin{tabular}[c]{@{}c@{}}MS-KJL-\\GMM() \end{tabular}  ']
+                               '\\begin{tabular}[c]{@{}c@{}}MS-KJL-\\GMM() \end{tabular} & ',
+                               '\\begin{tabular}[c]{@{}c@{}}QS-NYSTROM-\\GMM() \end{tabular} & ',
+                               '\\begin{tabular}[c]{@{}c@{}}MS-NYSTROM-\\GMM() \end{tabular}  ']
 
-                    values = arr[:, 4:9]
+                    values = arr[:, 4:]
                     vs = []
                     for v in values:
                         v = [v_.split(':')[1].replace(')', '') for v_ in v if 'n_comp' in v_]
@@ -448,11 +475,29 @@ def dat2latex(in_file, out_file = None):
 
                     headers = np.asarray(headers).reshape(1, -1)
                     values = np.asarray(vs)
-                    values = np.concatenate([headers, values], axis=0)
-                    headers = np.asarray(['Dataset',
-                                          'UNB','CTU', 'MAWI', 'ISTS', 'MACCDC', 'SCAM'
-                                          ]).reshape(-1, 1)
-                    values = np.concatenate([headers, values], axis=1)
+                    header_flg = False
+                    if headers.shape[1] != values.shape[1]:
+                        print('headers.shape != values.shape')
+                    else:
+                        header_flg = True
+                        values = np.concatenate([headers, values], axis=0)
+                    # headers = np.asarray(['Dataset',
+                    #                       'UNB','CTU', 'MAWI', 'ISTS', 'MACCDC', 'SCAM'
+                    #                       ]).reshape(-1, 1)
+                    if header_flg:
+                        headers = ['Dataset']
+                    else:
+                        headers = []
+                    for v in arr:
+                        if list(v)[0] == '': continue
+                        name = list(v)[0].split('|')[0]
+                        headers.append(name)
+
+                    headers = np.asarray(headers).reshape(-1, 1)
+                    if headers.shape[0] != values.shape[0]:
+                        print('headers.shape != values.shape')
+                    else:
+                        values = np.concatenate([headers, values], axis=1)
 
 
                 else: # dataset
@@ -463,9 +508,10 @@ def dat2latex(in_file, out_file = None):
                         if v[0] == '': continue
 
                         name = v[0].split('|')[0]
-                        n_train, dim = v[1].replace(' ', '').split('-')
+                        n_train, n_val = v[1].split('|')
+                        n_train, dim = n_train.replace(' ', '').split('-')
                         n_train = n_train.replace('(', '')
-                        n_train = f'normal: {n_train}'
+                        n_train = f'normal: {n_train}|n_val:{n_val}'
                         dim = dim.replace(')', '')
                         n_test, _ = v[2].split('-')
                         n_test = n_test.replace('(', '')
@@ -476,10 +522,10 @@ def dat2latex(in_file, out_file = None):
                     headers = np.asarray(headers).reshape(1, -1)
                     values = np.asarray(vs)
                     values = np.concatenate([headers, values], axis=0)
-                    headers = np.asarray(['Dataset',
-                                          'UNB', 'CTU', 'MAWI', 'ISTS', 'MACCDC', 'SCAM'
-                                          ]).reshape(-1, 1)
-                    values = np.concatenate([headers, values], axis=1)
+                    # headers = np.asarray(['Dataset',
+                    #                       'UNB', 'CTU', 'MAWI', 'ISTS', 'MACCDC', 'SCAM'
+                    #                       ]).reshape(-1, 1)
+                    # values = np.concatenate([headers, values], axis=1)
 
                 pd.DataFrame(values).to_excel(writer, sheet_name=sheet_name, index=False, header=False)
             except Exception as e:
@@ -594,7 +640,7 @@ def dat2xlxs(in_file, out_file,):
     # }
 
     try:
-        GMM_covariance_type = [_best_res['params']['GMM_covariance_type'] for (data_name_file, case), (_best_res, _mid_res) in results.items() if 'GMM_covariance_type' in _best_res['params'].keys()][0]
+        GMM_covariance_type = [_best_res['params'][-1]['GMM_covariance_type'] for (data_name_file, case), (_best_res, _mid_res) in results.items() if 'GMM_covariance_type' in _best_res['params'][-1].keys()][0]
     except Exception as e:
         print(f'e: {e}')
         GMM_covariance_type = 'diag'
@@ -606,6 +652,8 @@ def dat2xlxs(in_file, out_file,):
         'case4': f'GMM-{GMM_covariance_type}-nystrom',
         'case5': f'GMM-{GMM_covariance_type}-kjl-quickshift',
         'case6': f'GMM-{GMM_covariance_type}-kjl-meanshift',
+        'case7': f'GMM-{GMM_covariance_type}-nystrom-quickshift',
+        'case8': f'GMM-{GMM_covariance_type}-nystrom-meanshift',
     }
     methods_mapping = OrderedDict(methods_mapping)
 
@@ -632,6 +680,11 @@ def dat2xlxs(in_file, out_file,):
 
                     X_train_shape = best_values['X_train_shape']
                     X_train_shape = f'{X_train_shape}'.replace(',', '-')
+                    try:
+                        X_val_shape = best_values['X_val_shape']
+                        X_val_shape = f'{X_val_shape}'.replace(',', '-')
+                    except Exception as e:
+                        X_val_shape = f'(-)'
                     X_test_shape = best_values['X_test_shape']
                     X_test_shape = f'{X_test_shape}'.replace(',', '-')
                     aucs = best_values['aucs']
@@ -640,10 +693,18 @@ def dat2xlxs(in_file, out_file,):
                     aucs_str = "-".join([str(v) for v in aucs])
                     train_times_str = "-".join([str(v) for v in train_times])
                     test_times_str = "-".join([str(v) for v in test_times])
-                    params = best_values['params']
-                    _suffex = ''
+                    params = best_values['params'][-1]
 
-                    line = f'{data_key}, {method_key}, {X_train_shape}, {X_test_shape}, auc: u+/-std, , , => aucs:{aucs_str}, train_times:{train_times_str}, test_times:{test_times_str}, with params: {params}: {_suffex}'
+                    try:
+                        n_comps = [int(v['GMM_n_components']) for v in best_values['params']]
+                        mu_n_comp = np.mean(n_comps)
+                        std_n_comp = np.std(n_comps)
+                        n_comp_str = '-'.join([str(v) for v in n_comps])
+                        n_comp_str = f'{n_comp_str}|(u_std) {mu_n_comp:.2f}+/-{std_n_comp:.2f}'
+                    except Exception as e:
+                        n_comp_str = f'error-{e}'
+                    _suffex = f', n_comps_arr: {n_comp_str}'
+                    line = f'{data_key}, {method_key}, {X_train_shape}|{X_val_shape}, {X_test_shape}, auc: u+/-std, , , => aucs:{aucs_str}, train_times:{train_times_str}, test_times:{test_times_str}, with params: {params}: {_suffex}'
                     values.append(line.split(','))
                     pd.DataFrame(values).to_excel(writer, sheet_name, index=False, header=False)
 
@@ -681,10 +742,21 @@ if __name__ == '__main__':
     #     out_file = os.path.splitext(result_xlsl)[0] + '-ratio.xlsx'
     #     improvement(result_xlsl, feat_set='iat_size', out_file=out_file)
 
-    in_file = 'speedup/out/iat_size-gs_False-diag-std_False_center_False/all_results.dat'
-    out_file = dat2xlxs(in_file, out_file=in_file+'.xlsx')
-    out_xlsx = improvement(out_file, feat_set='iat_size', out_file=os.path.splitext(out_file)[0] + '-ratio.xlsx')
-    #
-    # in_file = 'speedup/out/iat_size-gs_False-full/all_results.dat-ratio.xlsx'
-    # out_file = dat2latex(in_file, out_file=in_file+'-latex.xlsx')
+    # in_file = 'speedup/out/all_results.dat'
+    # out_file = dat2xlxs(in_file, out_file=in_file+'.xlsx')
+    # out_xlsx = improvement(out_file, feat_set='iat_size', out_file=os.path.splitext(out_file)[0] + '-ratio.xlsx')
+
+    # in_file = 'speedup/out/all_results.dat-ratio.xlsx'
+    # out_file = dat2latex(in_file, out_file=in_file + '-latex.xlsx')
     # print(out_file)
+
+    for gs, cov in itertools.product([True, False], ['full', 'diag']):
+        name = f'iat_size-gs_{gs}-{cov}-std_False_center_False'
+        if not gs:
+            name += '/n_comp=1-kjl_q=0.3-kjl_n=100-kjl-d=5'
+        in_file = f'speedup/out/src_dst-20201231/{name}/all_results.dat.xlsx'
+        in_file = improvement(in_file, feat_set='iat_size', scale=100,
+                              out_file=os.path.splitext(in_file)[0] + '-ratio-scale=100.xlsx')
+        # in_file = f'speedup/out/src_dst-20201230/{name}/all_results.dat-ratio.xlsx'
+        out_file = dat2latex(in_file, out_file=in_file+'-latex.xlsx')
+        print(out_file)
