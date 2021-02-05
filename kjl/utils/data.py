@@ -473,6 +473,7 @@ def dat2csv(result, out_file):
                     train_times = data['train_times']
                     test_times = data['test_times']
                     # params = data['params']
+                    space_sizes = data['space_sizes']
 
                     _prefix, _line, _suffex = _get_line(data, feat_set='iat_size')
                     # line = f'{in_dir}, {case_str}, {_prefix}, {_line}, => aucs: {aucs} with best_params: {params}: {_suffex}'
@@ -480,6 +481,7 @@ def dat2csv(result, out_file):
                     aucs_str = "-".join([str(v) for v in aucs])
                     train_times_str = "-".join([str(v) for v in train_times])
                     test_times_str = "-".join([str(v) for v in test_times])
+                    space_size_str = "-".join([str(v) for v in space_sizes])
 
                     try:
                         n_comps = [int(v['GMM_n_components']) for v in data['params']]
@@ -487,8 +489,11 @@ def dat2csv(result, out_file):
                         std_n_comp = np.std(n_comps)
                         n_comp_str = f'{mu_n_comp:.2f}+/-{std_n_comp:.2f}'
                     except Exception as e:
+                        n_comps = []
                         n_comp_str = f'-'
-                    line = f'{in_dir}, {case_str}, {_prefix}, {_line}, => aucs:{aucs_str}, train_times:{train_times_str}, test_times:{test_times_str}, n_comp: {n_comp_str}, with params: {params}: {_suffex}'
+                    line = f'{in_dir}, {case_str}, {_prefix}, {_line}, => aucs:{aucs_str}, ' \
+                           f'train_times:{train_times_str}, test_times:{test_times_str}, n_comp: {n_comp_str}, ' \
+                           f'{n_comps}, space_sizes: {space_size_str}, with params: {params}: {_suffex}'
 
                 except Exception as e:
                     traceback.print_exc()

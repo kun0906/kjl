@@ -5,16 +5,12 @@
 
 import copy
 import itertools
-import os
-import os.path as pth
-import traceback
 from collections import Counter
 from datetime import datetime
-import tracemalloc
-import time
 
 import numpy as np
 import sklearn
+from func_timeout import func_set_timeout, FunctionTimedOut
 from joblib import delayed, Parallel
 from sklearn import metrics
 from sklearn.metrics import pairwise_distances, average_precision_score, roc_curve
@@ -22,14 +18,15 @@ from sklearn.preprocessing import StandardScaler
 
 from kjl.model.gmm import GMM
 from kjl.model.kjl import getGaussianGram, kernelJLInitialize
-from kjl.model.seek_mode import quickshift_seek_modes, meanshift_seek_modes
 from kjl.model.nystrom import nystromInitialize
 from kjl.model.ocsvm import OCSVM
-from kjl.utils.data import data_info, split_train_test, load_data, extract_data, dump_data, save_each_result, dat2csv
+from kjl.model.seek_mode import quickshift_seek_modes, meanshift_seek_modes
+from kjl.utils.data import data_info, dump_data, split_train_val, split_left_test, seperate_normal_abnormal
 from kjl.utils.tool import execute_time
-from speedup.generate_data import generate_data_speed_up
 
 # print('PYTHONPATH: ', os.environ['PYTHONPATH'])
+
+FUNC_TIMEOUT = 30 * 60  # (if function takes more than 30mins, then it will be killed)
 
 
 class BASE:
@@ -147,7 +144,7 @@ class BASE:
             start = datetime.now()
             print("Projecting test data")
             K = getGaussianGram(X_test, subX, sigma)  # get kernel matrix using rbf
-            # X_test = np.matmul(np.matmul(K, Eigvec), np.diag(1. / np.sqrt(np.diag(Lambda))))    # Lambda is dxd, np.diag(Lambda) = 1xd,  ? double-check here why np.diag() twice?
+            # X_test = np.matmul(np.matmul(K, Eigvec), np.diag(1. / np.sqrt(np.diag(Lambda))))    # Lambda is dxd, np.diag(Lambda) = 1xd
             X_test = np.matmul(K, eigvec_lambda)
             if debug: data_info(X_test, name='after nystrom, X_test')
             end = datetime.now()
@@ -159,6 +156,7 @@ class BASE:
 
         self.nystrom_train_time = nystrom_train_time
         self.nystrom_test_time = nystrom_test_time
+        self.sigma = sigma
         return X_train, X_test
 
     def standardize(self, X_train, X_test):
@@ -178,6 +176,12 @@ class BASE:
 
         return X_train, X_test
 
+    # # use_signals=False: the fuction cannot return a object that cannot be pickled (here "self" is not pickled,
+    # # so it will be PicklingError)
+    # # use_signals=True: it only works on main thread (here train_test_intf is not the main thread)
+    # @timeout_decorator.timeout(seconds=20 * 60, use_signals=False, timeout_exception=StopIteration)
+    # @profile
+    @func_set_timeout(FUNC_TIMEOUT)  # seconds
     def _train(self, model, X_train, y_train=None):
         """Train model on the (X_train, y_train)
 
@@ -194,7 +198,7 @@ class BASE:
         start = datetime.now()
         try:
             model.fit(X_train)
-        except Exception as e:
+        except (TimeoutError, Exception) as e:
             msg = f'fit error: {e}'
             print(msg)
             raise ValueError(f'{msg}: {model.get_params()}')
@@ -282,6 +286,7 @@ class GMM_MAIN(BASE):
         """
         self.train_time = 0
         self.test_time = 0
+        N, D = X_train.shape
 
         if self.params['is_std']:
             # should do standardization before using pairwise_distances
@@ -294,19 +299,24 @@ class GMM_MAIN(BASE):
         self.test_time += self.std_test_time
 
         if self.params['before_proj']:
-            self.thres_n = 10  # used to filter clusters which have less than 100 datapoints
+            self.thres_n = 10  # used to filter clusters which have less than 10 datapoints
             if 'is_meanshift' in self.params.keys() and self.params['is_meanshift']:
                 dists = pairwise_distances(X_train)
                 self.sigma = np.quantile(dists, self.params['kjl_q'])  # also used for kjl
                 self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = meanshift_seek_modes(
                     X_train, bandwidth=self.sigma, thres_n=self.thres_n)
-                self.params['GMM_n_components'] = self.n_components
+                self.params['ms_res'] = {'tot_n_clusters': self.all_n_clusters, 'n_clusters': self.n_components}
+                self.params['GMM_n_components'] = 20 if self.n_components > 20 else self.n_components
                 self.seek_test_time = 0
             elif 'is_quickshift' in self.params.keys() and self.params['is_quickshift']:
                 self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
                     X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
                     thres_n=self.thres_n)
-                self.params['GMM_n_components'] = self.n_components
+                self.params['qs_res'] = {'tot_n_clusters': self.all_n_clusters, 'n_clusters': self.n_components,
+                                         'q_proj': self.params['kjl_q'], 'k_qs': self.params['quickshift_k'],
+                                         'beta_qs': self.params['quickshift_beta']}
+                # only choose the top 20 cluster.
+                self.params['GMM_n_components'] = 20 if self.n_components > 20 else self.n_components
                 self.seek_test_time = 0
             else:
                 self.seek_train_time = 0
@@ -319,32 +329,45 @@ class GMM_MAIN(BASE):
             X_train, X_test = self.project_kjl(X_train, X_test, kjl_params=self.params)
             self.proj_train_time = self.kjl_train_time
             self.proj_test_time = self.kjl_test_time
+            d = self.params['kjl_d']
+            n = self.params['kjl_n']
             q = self.params['kjl_q']
             print(f'self.sigma: {self.sigma}, q={q}')
         elif 'is_nystrom' in self.params.keys() and self.params['is_nystrom']:
             X_train, X_test = self.project_nystrom(X_train, X_test, nystrom_params=self.params)
             self.proj_train_time = self.nystrom_train_time
             self.proj_test_time = self.nystrom_test_time
+            d = self.params['nystrom_d']
+            n = self.params['nystrom_n']
+            q = self.params['nystrom_q']
+            print(f'self.sigma: {self.sigma}, q={q}')
         else:
+            d = D
+            n = N
             self.proj_train_time = 0
             self.proj_test_time = 0
         self.train_time += self.proj_train_time
         self.test_time += self.proj_test_time
 
         if self.params['after_proj']:
-            self.thres_n = 10  # used to filter clusters which have less than 100 datapoints
+            self.thres_n = 10  # used to filter clusters which have less than 10 datapoints
             if 'is_meanshift' in self.params.keys() and self.params['is_meanshift']:
                 dists = pairwise_distances(X_train)
                 self.sigma = np.quantile(dists, self.params['kjl_q'])  # also used for kjl
                 self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = meanshift_seek_modes(
                     X_train, bandwidth=self.sigma, thres_n=self.thres_n)
-                self.params['GMM_n_components'] = self.n_components
+                self.params['ms_res'] = {'tot_n_clusters': self.all_n_clusters, 'n_clusters': self.n_components,
+                                         'q_proj': q}
+                self.params['GMM_n_components'] =  20 if self.n_components > 20 else self.n_components
                 self.seek_test_time = 0
             elif 'is_quickshift' in self.params.keys() and self.params['is_quickshift']:
                 self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
                     X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
                     thres_n=self.thres_n)
-                self.params['GMM_n_components'] = self.n_components
+                self.params['qs_res'] = {'tot_n_clusters': self.all_n_clusters, 'n_clusters': self.n_components,
+                                         'q_proj': self.params['kjl_q'], 'k_qs': self.params['quickshift_k'],
+                                         'beta_qs': self.params['quickshift_beta']}
+                self.params['GMM_n_components'] = 20 if self.n_components > 20 else self.n_components
                 self.seek_test_time = 0
             else:
                 self.seek_train_time = 0
@@ -353,7 +376,8 @@ class GMM_MAIN(BASE):
             self.test_time += self.seek_test_time  # self.seek_test_time = 0
 
         model = GMM()
-        model_params = {'n_components': self.params['GMM_n_components'], 'covariance_type': self.params['GMM_covariance_type'],
+        model_params = {'n_components': self.params['GMM_n_components'],
+                        'covariance_type': self.params['GMM_covariance_type'],
                         'means_init': None, 'random_state': self.random_state}
         # set model default parameters
         model.set_params(**model_params)
@@ -366,11 +390,23 @@ class GMM_MAIN(BASE):
             print(f'retrain with a larger reg_covar')
             self.model, self.model_train_time = self._train(model, X_train)
 
+        if self.model.covariance_type == 'full':
+            # space_size = (d ** 2 + d) * n_comps + n * (d + D)
+            space_size = (d ** 2 + d) * self.model.n_components + n * (d + D)
+        elif self.model.covariance_type == 'diag':
+            # space_size = (2* d) * n_comps + n * (d + D)
+            space_size = (2 * d) * self.model.n_components + n * (d + D)
+        else:
+            msg = self.model.covariance_type
+            raise NotImplementedError(msg)
         self.train_time += self.model_train_time
 
         print(f'Total train time: {self.train_time} <= std_train_time: {self.std_train_time}, seek_train_time: '
               f'{self.seek_train_time}, proj_train_time: {self.proj_train_time}, '
-              f'model_train_time: {self.model_train_time}')
+              f'model_train_time: {self.model_train_time}, D:{D}, space_size: {space_size}, N:{N}')
+        self.space_size = space_size
+        self.N = N
+        self.D = D
 
         self.y_score, self.model_test_time, self.auc = self._test(self.model, X_test, y_test)
         self.test_time += self.model_test_time
@@ -405,6 +441,7 @@ class OCSVM_MAIN(BASE):
         """
         self.train_time = 0
         self.test_time = 0
+        N, D = X_train.shape
 
         if self.params['is_std']:
             # should do standardization before using pairwise_distances
@@ -423,15 +460,43 @@ class OCSVM_MAIN(BASE):
         model = OCSVM()
         kjl = self.params['is_kjl']
         # kernel = 'linear'
-        if kjl:
+        if 'is_kjl' in self.params.keys() and self.params['is_kjl']:
+            # self.sigma = np.sqrt(X_train.shape[0]* X_train.var())
             X_train, X_test = self.project_kjl(X_train, X_test, kjl_params=self.params)
-            self.train_time += self.kjl_train_time
-            self.test_time += self.kjl_test_time
-             # if kjl=True, then use 'linear' kernel for OCSVM, so only tune 'nu' in this case
+            self.proj_train_time = self.kjl_train_time
+            self.proj_test_time = self.kjl_test_time
+            d = self.params['kjl_d']
+            n = self.params['kjl_n']
+            q = self.params['kjl_q']
+            print(f'self.sigma: {self.sigma}, q={q}')
+            # # without normalization, svm takes infinite time. but why?
+            # X_train, X_test = self.standardize(X_train, X_test)
+            # self.train_time += self.std_train_time
+            # self.test_time += self.std_test_time
+            # if kjl=True, then use 'linear' kernel for OCSVM
             self.kernel = 'linear'
-            # self.model_gamma = self.params['model_gamma']
-            self.model_gamma = 1 / (self.sigma ** 2)
-            model_params = {'kernel': self.kernel, 'gamma': self.model_gamma, 'nu': self.params['OCSVM_nu']}
+            model_params = {'kernel': self.kernel, 'nu': self.params['OCSVM_nu']}
+
+            self.train_time += self.proj_train_time
+            self.test_time += self.proj_test_time
+        elif 'is_nystrom' in self.params.keys() and self.params['is_nystrom']:
+            X_train, X_test = self.project_nystrom(X_train, X_test, nystrom_params=self.params)
+            self.proj_train_time = self.nystrom_train_time
+            self.proj_test_time = self.nystrom_test_time
+            d = self.params['nystrom_d']
+            n = self.params['nystrom_n']
+            q = self.params['nystrom_q']
+            print(f'self.sigma: {self.sigma}, q={q}')
+            # # without normalization, svm takes infinite time. but why?
+            # X_train, X_test = self.standardize(X_train, X_test)
+            # self.train_time += self.std_train_time
+            # self.test_time += self.std_test_time
+            # if kjl=True, then use 'linear' kernel for OCSVM
+            self.kernel = 'linear'
+            model_params = {'kernel': self.kernel, 'nu': self.params['OCSVM_nu']}
+
+            self.train_time += self.proj_train_time
+            self.test_time += self.proj_test_time
         # elif kernel=='linear':
         #     self.params['kernel'] = kernel
         #     sigma = np.quantile(pairwise_distances(X_train), self.params['OCSVM_q'])
@@ -445,92 +510,106 @@ class OCSVM_MAIN(BASE):
         #     self.kjl_test_time = 0
         #     self.train_time += self.kjl_train_time
         #     self.test_time += self.kjl_test_time
-        else:
+        else:  # when KJL=False, we use rbf
             self.params['kernel'] = 'rbf'
             sigma = np.quantile(pairwise_distances(X_train), self.params['OCSVM_q'])
-            self.model_gamma = 1 / (sigma) ** 2
-            q= self.params['OCSVM_q']
+            sigma = 1e-6 if sigma == 0  else sigma
+            self.model_gamma = 1 / sigma ** 2
+            q = self.params['OCSVM_q']
             print(f'model_sigma: {sigma}, model_gamma: {self.model_gamma}, q={q}')
             # model_params = {'kernel': self.params['kernel'], 'gamma': 'scale', 'nu': self.params['OCSVM_nu']} # default params by sklearn
             model_params = {'kernel': self.params['kernel'], 'gamma': self.model_gamma, 'nu': self.params['OCSVM_nu']}
-            self.kjl_train_time = 0
-            self.kjl_test_time = 0
-            self.train_time += self.kjl_train_time
-            self.test_time += self.kjl_test_time
+            self.proj_train_time = 0
+            self.proj_test_time = 0
+            self.train_time += self.proj_train_time
+            self.test_time += self.proj_test_time
 
         # set model default parameters
         model.set_params(**model_params)
         print(f'model.get_params()L {model.get_params()}')
         # train model
-        self.model, self.model_train_time = self._train(model, X_train)
+        try:
+            self.model, self.model_train_time = self._train(model, X_train)
+        except Exception as e:
+            raise TimeoutError(e)
 
+        n_sv = self.model.support_vectors_.shape[0]  # number of support vectors
+        if kjl:
+            space_size = n_sv + n_sv * D + n * (d + D)
+        else:
+            space_size = n_sv + n_sv * D
         self.train_time += self.model_train_time
         # print(f'{self.model.get_params()}, {self.params}')
 
         print(f'Total train time: {self.train_time} <= std_train_time: {self.std_train_time}, seek_train_time: '
-              f'{self.seek_train_time}, kjl_train_time: {self.kjl_train_time}, '
-              f'model_train_time: {self.model_train_time}')
+              f'{self.seek_train_time}, proj_train_time: {self.proj_train_time}, '
+              f'model_train_time: {self.model_train_time}, n_sv: {n_sv}, D:{D}, space_size: {space_size}, N:{N}')
+        self.n_sv = n_sv
+        self.D = D
+        self.space_size = space_size
+        self.N = N
 
         self.y_score, self.model_test_time, self.auc = self._test(self.model, X_test, y_test)
         self.test_time += self.model_test_time
         print(f'Total test time: {self.test_time} <= std_test_time: {self.std_test_time}, seek_test_time: '
-              f'{self.seek_test_time}, kjl_test_time: {self.kjl_test_time}, '
+              f'{self.seek_test_time}, proj_test_time: {self.proj_test_time}, '
               f'model_test_time: {self.model_test_time}')
+        print('tet')
+        # return self
 
-        return self
 
-
-def _model_train_test_backup(X, y, params, **kwargs):
-    """
-
-    Parameters
-    ----------
-    normal_data
-    abnormal_data
-    params
-    args
-
-    Returns
-    -------
-
-    """
-    try:
-        for k, v in kwargs.items():
-            params[k] = v
-
-        n_repeats = params['n_repeats']
-        train_times = []
-        test_times = []
-        aucs = []
-        # keep that all the algorithms have the same input data by setting random_state
-        for i in range(n_repeats):
-            print(f"\n\n==={i + 1}/{n_repeats}(n_repeats): {params}===")
-            X_train, y_train, X_val, y_val,  X_test, y_test = split_train_test(X, y,
-                                                                train_size=5000, random_state=(i+1) * 100)
-
-            if "GMM" in params['detector_name']:
-                model = GMM_MAIN(params)
-            elif "OCSVM" in params['detector_name']:
-                model = OCSVM_MAIN(params)
-            if params['mode'] =='best':
-                model.train_test_intf(X_train, y_train, X_val, y_val)
-            elif params['mode'] == 'default':
-                model.train_test_intf(X_train, y_train, X_test, y_test)
-
-            train_times.append(model.train_time)
-            test_times.append(model.test_time)
-            aucs.append(model.auc)
-
-        info = {'train_times': train_times, 'test_times': test_times, 'aucs': aucs, 'apcs': '',
-                'params': params,
-                'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
-
-    except Exception as e:
-        traceback.print_exc()
-        info = {'train_times': [0.0], 'test_times': [0.0], 'aucs': [0.0], 'apcs': '',
-                'params': params,
-                'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
-    return info
+#
+# def _model_train_test_backup(X, y, params, **kwargs):
+#     """
+#
+#     Parameters
+#     ----------
+#     normal_data
+#     abnormal_data
+#     params
+#     args
+#
+#     Returns
+#     -------
+#
+#     """
+#     try:
+#         for k, v in kwargs.items():
+#             params[k] = v
+#
+#         n_repeats = params['n_repeats']
+#         train_times = []
+#         test_times = []
+#         aucs = []
+#         # keep that all the algorithms have the same input data by setting random_state
+#         for i in range(n_repeats):
+#             print(f"\n\n==={i + 1}/{n_repeats}(n_repeats): {params}===")
+#             X_train, y_train, X_val, y_val,  X_test, y_test = split_train_test(X, y,
+#                                                                 train_size=5000, random_state=(i+1) * 100)
+#
+#             if "GMM" in params['detector_name']:
+#                 model = GMM_MAIN(params)
+#             elif "OCSVM" in params['detector_name']:
+#                 model = OCSVM_MAIN(params)
+#             if params['mode'] =='best':
+#                 model.train_test_intf(X_train, y_train, X_val, y_val)
+#             elif params['mode'] == 'default':
+#                 model.train_test_intf(X_train, y_train, X_test, y_test)
+#
+#             train_times.append(model.train_time)
+#             test_times.append(model.test_time)
+#             aucs.append(model.auc)
+#
+#         info = {'train_times': train_times, 'test_times': test_times, 'aucs': aucs, 'apcs': '',
+#                 'params': params,
+#                 'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
+#
+#     except Exception as e:
+#         traceback.print_exc()
+#         info = {'train_times': [0.0], 'test_times': [0.0], 'aucs': [0.0], 'apcs': '',
+#                 'params': params,
+#                 'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
+#     return info
 
 #
 # @execute_time
@@ -704,7 +783,6 @@ def _model_train_test_backup(X, y, params, **kwargs):
 #
 #     return best_results, middle_results
 
-
 def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
     """
 
@@ -726,6 +804,7 @@ def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
     # start_time = time.time()
     # snapshot1 = tracemalloc.take_snapshot()
 
+    print(kwargs, params)
     try:
         for k, v in kwargs.items():
             params[k] = v
@@ -735,16 +814,20 @@ def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
         elif "OCSVM" in params['detector_name']:
             model = OCSVM_MAIN(params)
         model.train_test_intf(X_train, y_train, X_test, y_test)
-
+        print('train_test')
 
         info = {'train_time': model.train_time, 'test_time': model.test_time, 'auc': model.auc, 'apc': '',
-                'params': model.params,
+                'params': model.params, 'space_size': model.space_size,
                 'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
-
-    except:
-        traceback.print_exc()
+    # except (timeout_decorator.TimeoutError, pickle.PickleError) as e:
+    #     info = {'train_time': 0.0, 'test_time': 0.0, 'auc': 0.0, 'apc': '',
+    #             'params': params, 'space_size': 0.0,
+    #             'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
+    except (FunctionTimedOut, Exception) as e:
+        print(f"Errro: {e}")
+        # traceback.print_exc()
         info = {'train_time': 0.0, 'test_time': 0.0, 'auc': 0.0, 'apc': '',
-                'params': params,
+                'params': params, 'space_size': 0.0,
                 'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
 
     # ################### Second memory allocation snapshot
@@ -826,7 +909,8 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, ran
                 # GMM-gs:True-kjl:True
                 with parallel:
                     outs = parallel(
-                        delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params), kjl_d=kjl_d, kjl_n=kjl_n,
+                        delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params), kjl_d=kjl_d,
+                                                   kjl_n=kjl_n,
                                                    kjl_q=kjl_q,
                                                    GMM_n_components=n_components) for kjl_d, kjl_n, kjl_q, n_components
                         in
@@ -857,10 +941,11 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, ran
                     #                 for kjl_d, kjl_n, kjl_q, n_components in
                     #                 list(itertools.product(kjl_ds, kjl_ns, kjl_qs, n_components_arr)))
 
-                    outs = parallel(delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params), kjl_d=kjl_d,
-                                                               kjl_n=kjl_n, kjl_q=kjl_q)
-                                    for kjl_d, kjl_n, kjl_q in
-                                    list(itertools.product(kjl_ds, kjl_ns, kjl_qs)))
+                    outs = parallel(
+                        delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params), kjl_d=kjl_d,
+                                                   kjl_n=kjl_n, kjl_q=kjl_q)
+                        for kjl_d, kjl_n, kjl_q in
+                        list(itertools.product(kjl_ds, kjl_ns, kjl_qs)))
             else:
                 msg = params['is_kjl']
                 raise NotImplementedError(f'Error: kjl={msg}')
@@ -875,8 +960,9 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, ran
             if 'nystrom_qs' in params.keys(): del params['nystrom_qs']
             if not params['is_quickshift'] and not params['is_meanshift']:
                 with parallel:
-                    outs = parallel(delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params),nystrom_n=nystrom_n,
-                                                           nystrom_d=nystrom_d, nystrom_q=nystrom_q,
+                    outs = parallel(delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params),
+                                                               nystrom_n=nystrom_n,
+                                                               nystrom_d=nystrom_d, nystrom_q=nystrom_q,
                                                                GMM_n_components=n_components) for
                                     nystrom_n, nystrom_d, nystrom_q, n_components in
                                     list(itertools.product(nystrom_ns, nystrom_ds, nystrom_qs, n_components_arr)))
@@ -908,8 +994,9 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, ran
                     #                 list(itertools.product(kjl_ds, kjl_ns, kjl_qs, n_components_arr)))
 
                     outs = parallel(
-                        delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params), nystrom_n=nystrom_n,
-                                                           nystrom_d=nystrom_d, nystrom_q=nystrom_q, kjl_q = nystrom_q)
+                        delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params),
+                                                   nystrom_n=nystrom_n,
+                                                   nystrom_d=nystrom_d, nystrom_q=nystrom_q, kjl_q=nystrom_q)
                         for nystrom_n, nystrom_d, nystrom_q in
                         list(itertools.product(nystrom_ns, nystrom_ds, nystrom_qs)))
         else:
@@ -917,7 +1004,46 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, ran
             raise NotImplementedError(f'Error: kjl={msg}')
 
     elif params['detector_name'] == 'OCSVM':
-        if not params['is_kjl']:
+
+        if params['is_kjl']:  # gs=True, kjl = True and for OCSVM ('linear')
+            print('---')
+            kjl_ds = params['kjl_ds']
+            kjl_ns = params['kjl_ns']
+            kjl_qs = params['kjl_qs']
+            if 'kjl_ds' in params.keys(): del params['kjl_ds']
+            if 'kjl_ns' in params.keys(): del params['kjl_ns']
+            if 'kjl_qs' in params.keys(): del params['kjl_qs']
+            model_nus = params['OCSVM_nus']
+            if 'OCSVM_nus' in params.keys(): del params['OCSVM_nus']
+            with parallel:
+                outs = parallel(
+                    delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params), kjl_d=kjl_d,
+                                               kjl_n=kjl_n,
+                                               kjl_q=kjl_q,
+                                               OCSVM_nu=OCSVM_nu) for
+                    kjl_d, kjl_n, kjl_q, OCSVM_nu in list(itertools.product(kjl_ds, kjl_ns, kjl_qs, model_nus)))
+
+        elif params['is_nystrom']:  # gs=True, nystrom = True and for OCSVM ('linear')
+            print('---')
+            # GMM-gs:True-nystrom:True
+            nystrom_ns = params['nystrom_ns']
+            nystrom_ds = params['nystrom_ds']
+            nystrom_qs = params['nystrom_qs']
+            if 'nystrom_ns' in params.keys(): del params['nystrom_ns']
+            if 'nystrom_ds' in params.keys(): del params['nystrom_ds']
+            if 'nystrom_qs' in params.keys(): del params['nystrom_qs']
+            model_nus = params['OCSVM_nus']
+            if 'OCSVM_nus' in params.keys(): del params['OCSVM_nus']
+            with parallel:
+                outs = parallel(
+                    delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params),
+                                               nystrom_n=nystrom_n,
+                                               nystrom_d=nystrom_d, nystrom_q=nystrom_q,
+                                               OCSVM_nu=OCSVM_nu) for
+                    nystrom_n, nystrom_d, nystrom_q, OCSVM_nu in
+                    list(itertools.product(nystrom_ns, nystrom_ds, nystrom_qs, model_nus)))
+
+        else: # not params['is_kjl'] and not params['is_nystrom']:
             # msg = params['is_kjl']
             # raise NotImplementedError(f'Error: kjl={msg}')
             with parallel:
@@ -926,31 +1052,10 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, ran
                 if 'OCSVM_qs' in params.keys(): del params['OCSVM_qs']
                 if 'OCSVM_nus' in params.keys(): del params['OCSVM_nus']
 
-                outs = parallel(delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params), OCSVM_q=OCSVM_q,
-                                                           OCSVM_nu=OCSVM_nu) for _, _, _, OCSVM_q, OCSVM_nu in
-                                list(itertools.product([0], [0], [0], model_qs, model_nus)))
-        else:  # gs=True, kjl = True and for OCSVM ('linear')
-            with parallel:
-
-                kjl_ds = params['kjl_ds']
-                kjl_ns = params['kjl_ns']
-                kjl_qs = params['kjl_qs']
-                if 'kjl_ds' in params.keys(): del params['kjl_ds']
-                if 'kjl_ns' in params.keys(): del params['kjl_ns']
-                if 'kjl_qs' in params.keys(): del params['kjl_qs']
-                model_nus = params['OCSVM_nus']
-                if 'OCSVM_nus' in params.keys(): del params['OCSVM_nus']
-                if not params['is_quickshift'] and not params['is_meanshift']:
-                    # GMM-gs:True-kjl:True
-                    with parallel:
-                        outs = parallel(
-                            delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params), kjl_d=kjl_d, kjl_n=kjl_n,
-                                                       kjl_q=kjl_q,
-                                                       OCSVM_nu=OCSVM_nu) for
-                            kjl_d, kjl_n, kjl_q, OCSVM_nu
-                            in
-                            list(itertools.product(kjl_ds, kjl_ns, kjl_qs, model_nus)))
-
+                outs = parallel(
+                    delayed(_model_train_test)(X_train, y_train, X_val, y_val, copy.deepcopy(params), OCSVM_q=OCSVM_q,
+                                               OCSVM_nu=OCSVM_nu) for _, _, _, OCSVM_q, OCSVM_nu in
+                    list(itertools.product([0], [0], [0], model_qs, model_nus)))
 
     else:
         msg = params['detector_name']
@@ -958,6 +1063,7 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, ran
 
     # get the best avg auc from n_repeats experiments
     best_avg_auc = -1
+    print(outs)
     for out in outs:
         if np.mean(out['auc']) > best_avg_auc:
             best_avg_auc = np.mean(out['auc'])
@@ -975,7 +1081,137 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, ran
     # print(best_avg_auc, np.mean(out['aucs']), best_results, out)
     best_results = out
 
-    return best_results, middle_results
+    return copy.deepcopy(best_results), copy.deepcopy(middle_results)
+
+
+def single_main(model_cfg, data_cfg):
+    # print(f'single_main.kwargs: {kwargs.items()}')
+    # (data_name, data_file), (X, y) = kwargs['data']
+    # case, params = kwargs['params']
+    data_name = data_cfg['data_name']
+    data_file = data_cfg['data_file']
+    (X, y) = data_cfg['data']
+    feat_type = data_cfg['feat']
+
+    model_name = model_cfg['model_name']
+    train_size = model_cfg['train_size']
+    is_gs = model_cfg['is_gs']
+    if 'GMM_covariance_type' in model_cfg.keys():
+        GMM_covariance_type = model_cfg['GMM_covariance_type']
+    else:
+        GMM_covariance_type = None
+
+    if feat_type.upper().startswith('SAMP_'):
+        # only find the maximum one
+        best_auc = -1
+        print(f'****X: {X}')
+        for q_samp_rate in X.keys():
+            X_, y_ = X[q_samp_rate], y[q_samp_rate]
+            n_repeats = model_cfg['n_repeats']
+            random_state = model_cfg['random_state']
+            # params['GMM_n_components'] = [int(X.shape[1])]
+            X_normal, y_normal, X_abnormal, y_abnormal = seperate_normal_abnormal(X_, y_, random_state=random_state)
+            # get the unique test set
+            X_normal, y_normal, X_abnormal, y_abnormal, X_test, y_test = split_left_test(X_normal, y_normal, X_abnormal,
+                                                                                         y_abnormal, test_size=600,
+                                                                                         random_state=random_state)
+            train_times = []
+            test_times = []
+            aucs = []
+            space_sizes = []
+            _params = []
+            _middle_results = []
+            _best_train_times = []
+            _best_test_times = []
+            _best_aucs = []
+            _best_space_sizes = []
+            _best__params = []
+            _best_middle_results = []
+            for i in range(n_repeats):
+                print(f"\n\n==={i + 1}/{n_repeats}(n_repeats): {model_cfg}===")
+                X_train, y_train, X_val, y_val = split_train_val(X_normal, y_normal, X_abnormal, y_abnormal,
+                                                                 train_size=train_size,
+                                                                 val_size=int(len(y_test) * 0.25),
+                                                                 random_state=(i + 1) * 100)
+                _best_results_i, _middle_results_i = get_best_results(X_train, y_train, X_val, y_val, X_test, y_test,
+                                                                      copy.deepcopy(model_cfg),
+                                                                      random_state=random_state)
+                _middle_results.append(_middle_results_i)
+
+                train_times.append(_best_results_i['train_time'])
+                test_times.append(_best_results_i['test_time'])
+                aucs.append(_best_results_i['auc'])
+                space_sizes.append(_best_results_i['space_size'])
+                _params.append(_best_results_i['params'])
+
+            # find the best average AUC from all q_samp_rate
+            if np.mean(aucs) > best_auc:
+                _best_train_times = copy.deepcopy(train_times)
+                _best_test_times = copy.deepcopy(test_times)
+                _best_aucs = copy.deepcopy(aucs)
+                _best_space_sizes = copy.deepcopy(space_sizes)
+                _best_params = copy.deepcopy(_params)
+                _best_middle_results = copy.deepcopy(_middle_results)
+
+        if is_gs:
+            print(f'--is_gs: {is_gs}, X_val != X_test')
+        else:
+            X_val = X_test
+        _best_results = {'train_times': _best_train_times, 'test_times': _best_test_times, 'aucs': _best_aucs, 'apcs': '',
+                         'params': _best_params,
+                         'space_sizes': _best_space_sizes,
+                         'X_train_shape': X_train.shape, 'X_val_shape': X_val.shape, 'X_test_shape': X_test.shape}
+
+        result = ((f'{data_name}|{data_file}', model_name), (_best_results, _best_middle_results))
+        # # dump each result to disk to avoid runtime error in parallel context.
+        # dump_data(result, out_file=(f'{os.path.dirname(data_file)}/gs_{is_gs}-{GMM_covariance_type}/{case}.dat'))
+
+    else:
+
+        n_repeats = model_cfg['n_repeats']
+        random_state = model_cfg['random_state']
+        # params['GMM_n_components'] = [int(X.shape[1])]
+        X_normal, y_normal, X_abnormal, y_abnormal = seperate_normal_abnormal(X, y, random_state=random_state)
+        # get the unique test set
+        X_normal, y_normal, X_abnormal, y_abnormal, X_test, y_test = split_left_test(X_normal, y_normal, X_abnormal,
+                                                                                     y_abnormal, test_size=600,
+                                                                                     random_state=random_state)
+        train_times = []
+        test_times = []
+        aucs = []
+        space_sizes = []
+        _params = []
+        _middle_results = []
+        for i in range(n_repeats):
+            print(f"\n\n==={i + 1}/{n_repeats}(n_repeats): {model_cfg}===")
+            X_train, y_train, X_val, y_val = split_train_val(X_normal, y_normal, X_abnormal, y_abnormal,
+                                                             train_size=train_size, val_size=int(len(y_test) * 0.25),
+                                                             random_state=(i + 1) * 100)
+            _best_results_i, _middle_results_i = get_best_results(X_train, y_train, X_val, y_val, X_test, y_test,
+                                                                  copy.deepcopy(model_cfg),
+                                                                  random_state=random_state)
+            _middle_results.append(_middle_results_i)
+
+            train_times.append(_best_results_i['train_time'])
+            test_times.append(_best_results_i['test_time'])
+            aucs.append(_best_results_i['auc'])
+            space_sizes.append(_best_results_i['space_size'])
+            _params.append(_best_results_i['params'])
+
+        if is_gs:
+            print(f'--is_gs: {is_gs}, X_val != X_test')
+        else:
+            X_val = X_test
+        _best_results = {'train_times': train_times, 'test_times': test_times, 'aucs': aucs, 'apcs': '',
+                         'params': _params,
+                         'space_sizes': space_sizes,
+                         'X_train_shape': X_train.shape, 'X_val_shape': X_val.shape, 'X_test_shape': X_test.shape}
+
+        result = ((f'{data_name}|{data_file}', model_name), (_best_results, _middle_results))
+        # # dump each result to disk to avoid runtime error in parallel context.
+        # dump_data(result, out_file=(f'{os.path.dirname(data_file)}/gs_{is_gs}-{GMM_covariance_type}/{case}.dat'))
+
+    return result
 
 #
 # def main(random_state, n_jobs=-1, n_repeats=1):

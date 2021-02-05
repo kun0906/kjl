@@ -1849,7 +1849,7 @@ def main(n_init_train=500, *, gs=True, kjl=True, centering_kjl=True, std=True, w
         # 'MACCDC1_MAWI1': f'{in_dir}/MACCDC1_MAWI1/Xy-normal-abnormal.dat',
         #
         # # less flows of wshr1
-        # 'UNB1_DRYER1': f'{in_dir}/UNB1_DRYER1/Xy-normal-abnormal.dat',
+        'UNB1_DRYER1': f'{in_dir}/UNB1_DRYER1/Xy-normal-abnormal.dat',
         # 'DRYER1_UNB1': f'{in_dir}/DRYER1_UNB1/Xy-normal-abnormal.dat',
         #
         # # it works
@@ -1975,7 +1975,7 @@ if __name__ == '__main__':
     demo = True
     if demo:
         init_sizes = [500]  # [100, 200, 500, 700]
-        gses = [False, True] # [False, True]
+        gses = [False] # [False, True]
         kjls = [True] # [False, True]
         centering_kjls = [False]  # [True, False]
         stds =  [False]

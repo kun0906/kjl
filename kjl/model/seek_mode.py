@@ -2,7 +2,17 @@
 
     Required: quickshift++ (https://github.com/google/quickshift)
     "python3 setup build; python3 setup install" to install "quickshift++"
+
+    # memory_profiler: for debugging memory leak
+    python -m memory_profiler example.py
+
+    from memory_profiler import profile
+    @profile
+    def func():
+        pass
+
 """
+import profile
 from collections import Counter
 from datetime import datetime
 
@@ -19,7 +29,7 @@ import numpy as np
 from QuickshiftPP import QuickshiftPP
 from sklearn.cluster import MeanShift
 from sklearn.metrics import pairwise_distances
-
+from memory_profiler import profile
 
 class MODESEEKING():
 
@@ -102,7 +112,7 @@ class MODESEEKING():
         print(f'Meanshift gets ({n_clusters_all}) clusters with bandwidth({self.bandwidth}). '
               f'However, only {self.n_clusters_} clusters have more than {n_thres} datapoints')
 
-
+@profile
 def meanshift_seek_modes(X, bandwidth=None, thres_n=100):
     start = datetime.now()
     # clustering = MeanShift().fit(X)
@@ -133,7 +143,7 @@ def meanshift_seek_modes(X, bandwidth=None, thres_n=100):
 
     return means_init, n_clusters, meanshift_training_time, all_n_clusters
 
-
+@profile
 def quickshift_seek_modes(X, k=None, beta=0.9, thres_n=100):
     """Initialize GMM
             1) Download quickshift++ from github

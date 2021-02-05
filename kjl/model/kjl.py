@@ -29,7 +29,36 @@ np.random.seed(100)
 
 # __all__= ['_grow_tree'] # allow private functions (start with _) can be imported by using "import *"
 
-def getGaussianGram(Xrow, Xcol, sigma, goFast=1):
+"""
+function [ K ] = getGaussianGram( Xrow, Xcol, sigma, gofast)
+% Given two data sets, compute the cross gram between the two 
+% Xrow = n by D, where D is the data dimension 
+% Xcol = m by D, where D is the data dimension 
+% goFast = 0 or 1, default value is 1. 
+% K = n by m, gram matrix 
+
+if nargin < 4
+    goFast = 1;
+end
+
+if goFast == 1  
+    A1 = sum(Xrow .* Xrow, 2);
+    A2 = -2 * Xrow * Xcol';
+    B = sum(Xcol .* Xcol, 2);
+    K = bsxfun(@plus, A1, A2);
+    K = bsxfun(@plus, K, B');
+    K = exp(-K/sigma^2);
+else 
+    Dist = pdist2(Xrow, Xcol); 
+    K = Dist.^2; 
+    K = exp(-K/sigma^2);   
+end 
+
+
+end
+
+"""
+def getGaussianGram(Xrow, Xcol, sigma, goFast=0):
     """ get kernel (Gaussian) gram matrix
     The Gram matrix K is deﬁned as $K_ij = K(X_i , X_j) over a (sub) sample X = {X _i}, i=1,...,,n
     Parameters
@@ -44,8 +73,8 @@ def getGaussianGram(Xrow, Xcol, sigma, goFast=1):
 
     """
     if goFast == 1:
-        A1 = np.expand_dims(np.power(np.linalg.norm(Xrow, axis=1), 2), axis=1)
-        # A1 = np.power(np.linalg.norm(Xrow, axis=1), 2)
+        A1 = np.expand_dims(np.power(np.linalg.norm(Xrow, axis=1), 2), axis=1)  # change vector to matrix 100x1
+        # A1 = np.power(np.linalg.norm(Xrow, axis=1), 2)    # vector: shape(n, ), matrix: (n, 1)
         A2 = -2 * np.matmul(Xrow, np.transpose(Xcol))
         B = np.power(np.linalg.norm(Xcol, axis=1), 2)
         K = np.add(np.add(A1, A2), np.transpose(B))

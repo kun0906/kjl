@@ -14,4 +14,7 @@ utils/_pycache__/
 /examples/online/out/*
 legacy
 
+/examples/speedup/data/*
+/examples/speedup/out/*
+
 
