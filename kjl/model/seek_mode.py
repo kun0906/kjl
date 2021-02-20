@@ -195,11 +195,12 @@ def quickshift_seek_modes(X, k=None, beta=0.9, thres_n=100):
     n_clusters = means_init.shape[0]
     end = datetime.now()
     ignore_clusters_time = (end - start).total_seconds()
+    counter_labels = dict(sorted(Counter(all_labels_).items(), key=lambda kv: kv[1], reverse=True))
     print(f'*** quick_training_time: {quick_training_time}, ignore_clusters_time: {ignore_clusters_time}')
     print(f'--all clusters ({all_n_clusters}) when (k:({k}), beta:{beta}). However, only {n_clusters} '
-          f'clusters have at least {thres_n} datapoints. Counter(labels_): {Counter(all_labels_)}, *** '
+          f'clusters have at least {thres_n} datapoints. Counter(labels_): {counter_labels}, *** '
           f'len(Counter(labels_)): {all_n_clusters}')
-    return means_init, n_clusters, quick_training_time, all_n_clusters
+    return means_init, n_clusters, quick_training_time, counter_labels
 
 #
 # def get_means_init(X, k=None, beta=0.9, thres_n=100):

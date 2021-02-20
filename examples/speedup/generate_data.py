@@ -1083,7 +1083,7 @@ def _get_path(original_dir, in_dir, data_name, overwrite=False, direction='src')
                     idle_files = [keep_ip(pth.join(original_dir, 'UCHI/IOT_2020','idle', v),
                                           out_file=os.path.dirname(idle_pcap) + f'/{v}-filtered.pcap',
                                           kept_ips=['192.168.143.76'], direction=direction)
-                                  for v in os.listdir(pth.join(original_dir, 'UCHI/IOT_2020', 'idle')) if not v.startswith('.')]
+                                  for v in os.listdir(pth.join(original_dir, 'UCHI/IOT_2020', 'idle')) if not v.startswith('.') and 'pcap' in v]
                     merge_pcaps(in_files=idle_files, out_file=idle_pcap)
                 copyfile(idle_pcap, pth_normal)
 
@@ -1094,12 +1094,11 @@ def _get_path(original_dir, in_dir, data_name, overwrite=False, direction='src')
                                           out_file=pth.join(os.path.dirname(idle_pcap), v),
                                           kept_ips=['192.168.143.76'], direction=direction)
                                   for v in [f'open_dwshr/capture{i}.seq/deeplens_open_dishwasher_{i}.' \
-                                            f'pcap' for i in range(31)]
+                                            f'pcap_filtered.pcap' for i in range(31)]
                                   ]
                     merge_pcaps(in_files=idle_files, out_file=idle_pcap)
                 copyfile(idle_pcap, pth_abnormal)
             pth_labels_normal, pth_labels_abnormal = None, None
-
 
         elif data_name == 'UCHI/IOT_2020/ghome_192.168.143.20':
             # normal and abormal are independent
@@ -1227,126 +1226,16 @@ def _get_path(original_dir, in_dir, data_name, overwrite=False, direction='src')
 
 
 class New_PCAP(PCAP):
-    def __init__(self, pcap_file='xxx.pcap', *, flow_pkts_thres=2, verbose=10, random_state=42, q_samp=0.3):
+    def __init__(self, pcap_file='xxx.pcap', *, flow_pkts_thres=2, verbose=10, random_state=42,  sampling_rate=0.1):
         super(New_PCAP, self).__init__()
         # self.q_samps = q_samp
         self.verbose = verbose
         self.random_state = random_state
         self.flow_pkts_thres = flow_pkts_thres
-        self.q_interval = q_samp
+        self.sampling_rate = sampling_rate
 
 
     @timing
-    # def _flow2features(self, feat_type='IAT', *, fft=False, header=False, dim=None):
-    #     """Extract features from each flow according to feat_type, fft and header.
-    #
-    #     Parameters
-    #     ----------
-    #     feat_type: str (default is 'IAT')
-    #         which features do we want to extract from flows
-    #
-    #     fft: boolean (default is False)
-    #         if we need fft-features
-    #
-    #     header: boolean (default is False)
-    #         if we need header+features
-    #
-    #     Returns
-    #     -------
-    #         self
-    #     """
-    #     self.feat_type = feat_type
-    #
-    #     if dim is None:
-    #         num_pkts = [len(pkts) for fid, pkts in self.flows]
-    #         dim = int(np.floor(np.quantile(num_pkts, self.q_interval)))  # use the same q_interval to get the dimension
-    #
-    #     if feat_type in ['IAT', 'FFT-IAT']:
-    #         self.dim = dim - 1
-    #         self.features, self.fids = _get_IAT(self.flows)
-    #     elif feat_type in ['SIZE', 'FFT-SIZE']:
-    #         self.dim = dim
-    #         self.features, self.fids = _get_SIZE(self.flows)
-    #     elif feat_type in ['IAT_SIZE', 'FFT-IAT_SIZE']:
-    #         self.dim = 2 * dim - 1
-    #         self.features, self.fids = _get_IAT_SIZE(self.flows)
-    #     elif feat_type in ['STATS']:
-    #         self.dim = 10
-    #         self.features, self.fids = _get_STATS(self.flows)
-    #     elif feat_type in ['SAMP_NUM', 'FFT-SAMP_NUM']:
-    #         self.dim = dim - 1
-    #         flow_durations = [_get_flow_duration(pkts) for fid, pkts in self.flows]
-    #         # To obtain different samp_features, you should change q_interval ((0, 1))
-    #         sampling_rate = _get_split_interval(flow_durations, q_interval=0.3)
-    #         self.features, self.fids = _get_SAMP_NUM(self.flows, sampling_rate)
-    #     elif feat_type in ['SAMP_SIZE', 'FFT-SAMP_SIZE']:
-    #         """Here the codes only works for without header for SAMP-features
-    #         """
-    #         self.dim = dim - 1  # here the dim of "SAMP_SIZE" is dim -1, which equals to the dimension of 'SAMP_NUM'
-    #         flow_durations = [_get_flow_duration(pkts) for fid, pkts in self.flows]
-    #         self.features={}
-    #         for q_interval in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,0.95]:
-    #             print(f'q_interval for SAMP-Features: {q_interval}')
-    #             sampling_rate = _get_split_interval(flow_durations, q_interval=q_interval)
-    #             features, fids = _get_SAMP_SIZE(self.flows, sampling_rate)
-    #             self.features[q_interval] = features
-    #
-    #     else:
-    #         msg = f'feat_type ({feat_type}) is not correct! '
-    #         raise ValueError(msg)
-    #
-    #     print(f'self.dim: {self.dim}, feat_type: {feat_type}')
-    #     if feat_type.upper().startswith("SAMP_"):
-    #         for q_interval in self.features.keys():
-    #             if fft:
-    #                 self.features[q_interval] = _get_FFT_data(self.features[q_interval], fft_bin=self.dim)
-    #             else:
-    #                 # fix each flow to the same feature dimension (cut off the flow or append 0 to it)
-    #                 self.features[q_interval] = [v[:self.dim] if len(v) > self.dim else v + [0] * (self.dim - len(v)) for v in
-    #                                  self.features[q_interval]]
-    #     else:
-    #         if fft:
-    #             self.features = _get_FFT_data(self.features, fft_bin=self.dim)
-    #         else:
-    #             # fix each flow to the same feature dimension (cut off the flow or append 0 to it)
-    #             self.features = [v[:self.dim] if len(v) > self.dim else v + [0] * (self.dim - len(v)) for v in
-    #                              self.features]
-    #
-    #     if header:
-    #         if feat_type.upper().startswith("SAMP_"):
-    #             for q_interval in self.features.keys():
-    #                 _headers = _get_header_features(self.flows)
-    #                 h_dim = 8 + dim  # 8 TCP flags
-    #                 if fft:
-    #                     fft_headers = _get_FFT_data(_headers, fft_bin=h_dim)
-    #                     self.features[q_interval] = [h + f for h, f in zip(fft_headers, self.features[q_interval])]
-    #                 else:
-    #                     # fix header dimension firstly
-    #                     headers = [h[:h_dim] if len(h) > h_dim else h + [0] * (h_dim - len(h)) for h in _headers]
-    #                     self.features[q_interval] = [h + f for h, f in zip(headers, self.features[q_interval])]
-    #         else:
-    #             _headers = _get_header_features(self.flows)
-    #             h_dim = 8 + dim  # 8 TCP flags
-    #             if fft:
-    #                 fft_headers = _get_FFT_data(_headers, fft_bin=h_dim)
-    #                 self.features = [h + f for h, f in zip(fft_headers, self.features)]
-    #             else:
-    #                 # fix header dimension firstly
-    #                 headers = [h[:h_dim] if len(h) > h_dim else h + [0] * (h_dim - len(h)) for h in _headers]
-    #                 self.features = [h + f for h, f in zip(headers, self.features)]
-    #
-    #     if feat_type.upper().startswith("SAMP_"):
-    #         for q_interval in self.features.keys():
-    #             # change list to numpy array
-    #             self.features[q_interval] = np.asarray(self.features[q_interval], dtype=float)
-    #             if self.verbose > 5:
-    #                 print(np.all(self.features[q_interval] >= 0))
-    #     else:
-    #         # change list to numpy array
-    #         self.features = np.asarray(self.features, dtype=float)
-    #         if self.verbose > 5:
-    #             print(np.all(self.features >= 0))
-
     def _flow2features(self, feat_type='IAT', *, fft=False, header=False, dim=None):
         """Extract features from each flow according to feat_type, fft and header.
 
@@ -1360,6 +1249,7 @@ class New_PCAP(PCAP):
 
         header: boolean (default is False)
             if we need header+features
+        dim: dim of the "SIZE" feature
 
         Returns
         -------
@@ -1385,15 +1275,13 @@ class New_PCAP(PCAP):
             self.features, self.fids = _get_STATS(self.flows)
         elif feat_type in ['SAMP_NUM', 'FFT-SAMP_NUM']:
             self.dim = dim - 1
-            flow_durations = [_get_flow_duration(pkts) for fid, pkts in self.flows]
-            # To obtain different samp_features, you should change q_interval ((0, 1))
-            sampling_rate = _get_split_interval(flow_durations, q_interval=self.q_interval)
-            self.features, self.fids = _get_SAMP_NUM(self.flows, sampling_rate)
+            # flow_durations = [_get_flow_duration(pkts) for fid, pkts in self.flows]
+            # # To obtain different samp_features, you should change q_interval ((0, 1))
+            # sampling_rate = _get_split_interval(flow_durations, q_interval=self.q_interval)
+            self.features, self.fids = _get_SAMP_NUM(self.flows, self.sampling_rate)
         elif feat_type in ['SAMP_SIZE', 'FFT-SAMP_SIZE']:
             self.dim = dim - 1  # here the dim of "SAMP_SIZE" is dim -1, which equals to the dimension of 'SAMP_NUM'
-            flow_durations = [_get_flow_duration(pkts) for fid, pkts in self.flows]
-            sampling_rate = _get_split_interval(flow_durations, q_interval=self.q_interval)
-            self.features, self.fids = _get_SAMP_SIZE(self.flows, sampling_rate)
+            self.features, self.fids = _get_SAMP_SIZE(self.flows, self.sampling_rate)
         else:
             msg = f'feat_type ({feat_type}) is not correct! '
             raise ValueError(msg)
@@ -1423,11 +1311,11 @@ class New_PCAP(PCAP):
             print(np.all(self.features >= 0))
 
 
-def _subflows2featutes(flows, labels, dim=10,  feat_type = 'IAT_SIZE', q_samp = 0.3,
+def _subflows2featutes(flows, labels, dim=10,  feat_type = 'IAT_SIZE', sampling_rate=0.1,
                        header = False, verbose=10):
     # extract features from each flow given feat_type
 
-    pp = New_PCAP(q_samp=q_samp)
+    pp = New_PCAP( sampling_rate=sampling_rate)
     pp.flows = flows
     pp.labels = labels
     pp.flow2features(feat_type.upper(), fft=False, header=header, dim=dim)
@@ -1444,11 +1332,11 @@ def generate_data_speed_up(data_name='', out_file='', random_state=42, direction
                            feat_type='IAT_SIZE', header = False, overwrite=False):
     print(f'feat_type: {feat_type}, header={header}')
     print(generate_data_speed_up.__dict__)
-    data_type = 'one_dataset'
+    # data_type = 'one_dataset'
     original_dir = f'../../Datasets'
     in_dir = f'speedup/data'
-    if data_name in ['mimic_GMM', 'mimic_GMM1']:
-        out_file = _generate_mimic_data(data_type=data_type, random_state=random_state, out_file=out_file)
+    if data_name in ['mimic_GMM', 'mimic_GMM1', 'CinC']:
+        out_file = _generate_mimic_data(data_type=data_name, random_state=random_state, out_file=out_file)
     elif data_name in ['UNB1', 'UNB2', 'UNB3', 'UNB4', 'UNB5',
                        'UNB2_UNB1', 'UNB2_UNB3']:  # mix UNB1 and UNB2
         # pcaps and flows directory
@@ -1664,7 +1552,7 @@ def generate_data_speed_up(data_name='', out_file='', random_state=42, direction
                                                    )  # pcap to xxx_flows_labels.dat.dat
         pf.flows2features(normal_files, abnormal_files, q_interval=0.9)
         out_file = pf.Xy_file
-    elif data_name in [
+    elif data_name in [ # 2019 IoT dataset
         'SCAM1', 'CTU1_SCAM1', 'MAWI1_SCAM1',
         'GHOM1', 'SFRIG1',
     ]:
@@ -1726,12 +1614,19 @@ def generate_data_speed_up(data_name='', out_file='', random_state=42, direction
         if feat_type.upper().startswith('SAMP_'):
             X = {}
             y = {}
+            flow_durations = [_get_flow_duration(pkts) for fid, pkts in normal_flows]
             for q_samp in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]:
+                # get sampling_rate on normal_flows first
+                # print(f'np.quantile(flows_durations): {np.quantile(flow_durations, q=[0.1, 0.2, 0.3, 0.9, 0.95])}')
+                sampling_rate = _get_split_interval(flow_durations, q_interval=q_samp)
+                if sampling_rate <=0.0: continue
+                print(f'sampling_rate: {sampling_rate}, q = {q_samp}')
                 X_normal, y_normal = _subflows2featutes(normal_flows, labels=normal_labels, dim=dim,
-                                                        feat_type=feat_type, q_samp=q_samp,
+                                                        feat_type=feat_type, sampling_rate=sampling_rate,
                                                         header=header)
+
                 X_abnormal, y_abnormal = _subflows2featutes(abnormal_flows, labels=abnormal_labels, dim=dim,
-                                                            feat_type=feat_type, q_samp=q_samp,
+                                                            feat_type=feat_type,  sampling_rate=sampling_rate,
                                                             header=header
                                                             )
                 print(
@@ -1754,6 +1649,77 @@ def generate_data_speed_up(data_name='', out_file='', random_state=42, direction
         print(f'Xy_file: {pf.Xy_file}')
         out_file = pf.Xy_file
 
+    elif data_name in [
+        'DWSHR_WSHR_2020'
+    ]:
+        if data_name == 'DWSHR_WSHR_2020':
+            subdatasets = ('UCHI/IOT_2020/dwshr_192.168.143.76', 'UCHI/IOT_2020/wshr_192.168.143.100')
+        pf = PCAP2FEATURES(out_dir=os.path.dirname(out_file), feat_type=feat_type, header=header,
+                           random_state=random_state, overwrite=overwrite)
+        # 1) get_files
+        normal_files, abnormal_files = pf.get_path(subdatasets, original_dir, in_dir, direction,
+                                                   )  # pcap to xxx_flows_labels.dat.dat
+        # 2) full_flows
+        (normal_flows, normal_labels), load_time = time_func(load_data, normal_files[0])
+        (abnormal_flows, abnormal_labels), load_time = time_func(load_data, abnormal_files[0])
+        (abnormal_flows2, abnormal_labels2), load_time = time_func(load_data, abnormal_files[1])
+        abnormal_flows.extend(abnormal_flows2)
+        abnormal_labels.extend(abnormal_labels2)
+        # 3) get the interval from normal flows, and use it to split flows
+        durations = [_get_flow_duration(pkts) for fid, pkts in normal_flows]
+        q_interval = 0.9
+        interval = _get_split_interval(durations, q_interval)
+        print(f'interval {interval} when q_interval: {q_interval}')
+        # 4) get subflows
+        normal_flows = flows2subflows_SCAM(normal_flows, interval=interval, num_pkt_thresh=2, data_name=data_name,
+                                           abnormal=False)
+        normal_labels = [normal_labels[0]] * len(normal_flows)
+        abnormal_flows = flows2subflows_SCAM(abnormal_flows, interval=interval, num_pkt_thresh=2, data_name=data_name,
+                                             abnormal=True)
+        abnormal_labels = [abnormal_labels[0]] * len(abnormal_flows)
+        # 5). subflows2features
+        num_pkts = [len(pkts) for fid, pkts in normal_flows]  # only on normal flows
+        dim = int(np.floor(np.quantile(num_pkts, q_interval)))  # use the same q_interval to get the dimension
+        print(f'dim={dim}')
+        if feat_type.upper().startswith('SAMP_'):
+            X = {}
+            y = {}
+            flow_durations = [_get_flow_duration(pkts) for fid, pkts in normal_flows]
+            for q_samp in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]:
+                # get sampling_rate on normal_flows first
+                # print(f'np.quantile(flows_durations): {np.quantile(flow_durations, q=[0.1, 0.2, 0.3, 0.9, 0.95])}')
+                sampling_rate = _get_split_interval(flow_durations, q_interval=q_samp)
+                if sampling_rate <= 0.0: continue
+                print(f'sampling_rate: {sampling_rate}, q = {q_samp}')
+                X_normal, y_normal = _subflows2featutes(normal_flows, labels=normal_labels, dim=dim,
+                                                        feat_type=feat_type, sampling_rate=sampling_rate,
+                                                        header=header)
+
+                X_abnormal, y_abnormal = _subflows2featutes(abnormal_flows, labels=abnormal_labels, dim=dim,
+                                                            feat_type=feat_type, sampling_rate=sampling_rate,
+                                                            header=header
+                                                            )
+                print(
+                    f'q_samp: {q_samp}, subfeatures: normal_labels: {Counter(normal_labels)}, abnormal_labels: {Counter(abnormal_labels)}')
+                pf.data = {'normal': (X_normal, y_normal), 'abnormal': (X_abnormal, y_abnormal)}
+
+                X[q_samp] = np.concatenate([X_normal, X_abnormal], axis=0)
+                y[q_samp] = np.concatenate([y_normal, y_abnormal], axis=0)
+        else:
+
+            X_normal, y_normal = _subflows2featutes(normal_flows, labels=normal_labels, dim=dim, feat_type=feat_type,
+                                                    header=header)
+            X_abnormal, y_abnormal = _subflows2featutes(abnormal_flows, labels=abnormal_labels, dim=dim,
+                                                        feat_type=feat_type, header=header)
+            print(f'subfeatures: normal_labels: {Counter(normal_labels)}, abnormal_labels: {Counter(abnormal_labels)}')
+
+            pf.data = {'normal': (X_normal, y_normal), 'abnormal': (X_abnormal, y_abnormal)}
+            X = np.concatenate([X_normal, X_abnormal], axis=0)
+            y = np.concatenate([y_normal, y_abnormal], axis=0)
+        pf.Xy_file = os.path.join(pf.out_dir, 'Xy-normal-abnormal.dat')
+        dump_data((X, y), out_file=pf.Xy_file)
+        print(f'Xy_file: {pf.Xy_file}')
+        out_file = pf.Xy_file
     else:
         msg = data_name
         raise NotImplementedError(msg)
@@ -1830,17 +1796,25 @@ class PCAP2FEATURES():
 
         # 3. subflows2features
         num_pkts = [len(pkts) for fid, pkts in normal_flows]  # only on normal flows
+        # dim is for SIZE features
         dim = int(np.floor(np.quantile(num_pkts, q_interval)))  # use the same q_interval to get the dimension
 
         if self.feat_type.startswith('SAMP'):
             X = {}
             y = {}
+
+            flow_durations = [_get_flow_duration(pkts) for fid, pkts in normal_flows]
             for q_samp in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]:
+                # get sampling_rate on normal_flows first
+                # print(f'np.quantile(flows_durations): {np.quantile(flow_durations, q=[0.1, 0.2, 0.3, 0.9, 0.95])}')
+                sampling_rate = _get_split_interval(flow_durations, q_interval=q_samp)
+                if sampling_rate <= 0.0: continue
                 X_normal, y_normal = _subflows2featutes(normal_flows, labels=normal_labels, dim=dim,
-                                                        feat_type=self.feat_type, q_samp=q_samp,
+                                                        feat_type=self.feat_type, sampling_rate=sampling_rate,
                                                         header=self.header, verbose=self.verbose)
+
                 X_abnormal, y_abnormal = _subflows2featutes(abnormal_flows, labels=abnormal_labels, dim=dim,
-                                                            feat_type=self.feat_type, q_samp=q_samp,
+                                                            feat_type=self.feat_type, sampling_rate=sampling_rate,
                                                             header=self.header,
                                                             verbose=self.verbose)
                 print(f'q_samp: {q_samp}, subfeatures: normal_labels: {Counter(normal_labels)}, abnormal_labels: {Counter(abnormal_labels)}')
@@ -2140,6 +2114,84 @@ def plot_data(X, y, title='Data'):
     plt.show()
 
 
+
+def make_circles(N=5000, r1=1, r2=5, w1=0.8, w2=1 / 3, arms=64):
+    """ clusterincluster.m
+    function data = clusterincluster(N, r1, r2, w1, w2, arms)
+    %% Data is N x 3, where the last column is the label
+
+
+        if nargin < 1
+            N = 1000;
+        end
+        if nargin < 2
+            r1 = 1;
+        end
+        if nargin < 3
+            r2 = 5*r1;
+        end
+        if nargin < 4
+            w1 = 0.8;
+        end
+        if nargin < 5
+            w2 = 1/3;
+        end
+        if nargin < 6
+            arms = 64;
+        end
+
+        data = [];
+
+        N1 = floor(N/2);
+        N2 = N-N1;
+
+        phi1 = rand(N1,1) * 2 * pi;
+        %dist1 = r1 + randint(N1,1,3)/3 * r1 * w1;
+        dist1 = r1 + randi([0, 2], [N1 1])/3 * r1 * w1;
+
+        d1 = [dist1 .* cos(phi1) dist1 .* sin(phi1) zeros(N1,1)];
+        perarm = round(N2/arms);
+        N2 = perarm * arms;
+        radperarm = (2*pi)/arms;
+        phi2 = ((1:N2) - mod(1:N2, perarm))/perarm * (radperarm);
+        phi2 = phi2';
+        dist2 = r2 * (1 - w2/2) + r2 * w2 * mod(1:N2, perarm)'/perarm;
+        d2 = [dist2 .* cos(phi2) dist2 .* sin(phi2) ones(N2,1)];
+
+        data = [d1;d2];
+        %scatter(data(:,1), data(:,2), 20, data(:,3)); axis square;
+    end
+
+    """
+    N1 = int(np.floor(N / 2))
+    N2 = N - N1
+
+    phi1 = np.random.rand(N1, 1) * 2 * np.pi  # return a matrix with shape N1x1, values in [0,1]
+    # # % dist1 = r1 + np.random.randint(N1, 1, 3) / 3 * r1 * w1;
+    dist1 = r1 + np.random.randint(0, high=2 + 1, size=[N1, 1]) / 3 * r1 * w1
+
+    # d1 = [dist1. * np.cos(phi1) dist1. * np.sin(phi1) zeros(N1, 1)];
+    # d1 = [col1, col2, label]
+    d1 = np.concatenate([dist1 * np.cos(phi1), dist1 * np.sin(phi1), np.zeros((N1, 1))], axis=1)
+
+    perarm = round(N2 / arms)
+    N2 = perarm * arms
+    radperarm = (2 * np.pi) / arms
+    # phi2 = ((1:N2) - mod(1:N2, perarm)) / perarm * (radperarm)
+    vs = np.reshape(range(1, N2 + 1), (N2, 1))
+    phi12 = (vs - np.mod(vs, perarm)) / perarm * (radperarm)
+    # phi2 = phi2';
+    phil2 = phi12
+    # dist2 = r2 * (1 - w2 / 2) + r2 * w2 * mod(vs, perarm)'/perarm;
+    dist2 = r2 * (1 - w2 / 2) + r2 * w2 * np.mod(vs, perarm) / perarm
+    # d2 = [dist2. * cos(phi2) dist2. * sin(phi2) ones(N2, 1)]
+    d2 = np.concatenate([dist2 * np.cos(phil2), dist2 * np.sin(phil2), np.ones((N2, 1))], axis=1)
+    data = np.concatenate([d1, d2], axis=0)
+    # % scatter(data(:, 1), data(:, 2), 20, data(:, 3)); axis square;
+    X, y = data[:, :2], data[:, -1]
+    y = np.asarray([int(v) for v in y])
+    return X, y
+
 def _generate_mimic_data(data_type='', random_state=42, out_file=''):
     if data_type == 'one_dataset':
         X, y = make_blobs(n_samples=[12000, 200, 12000, 200],
@@ -2154,7 +2206,7 @@ def _generate_mimic_data(data_type='', random_state=42, out_file=''):
         y[y == '2'] = 'normal'
         y[y == '3'] = 'abnormal'
 
-    elif data_type == 'two_datasets':
+    elif data_type == 'mimic_GMM1':
         X, y = make_blobs(n_samples=[12000, 200, 12000, 200],
                           centers=[(-1, -2), (0, 0), (5, 5), (7.5, 7.5)], cluster_std=[(1, 1), (1, 1), (1, 1), (1, 1)],
                           # cluster_std=[(2, 10), (1,1), (2,3)
@@ -2166,6 +2218,14 @@ def _generate_mimic_data(data_type='', random_state=42, out_file=''):
         y[y == '1'] = 'abnormal_0'
         y[y == '2'] = 'normal_1'
         y[y == '3'] = 'abnormal_1'
+
+    elif data_type =='CinC':
+
+        X, y = make_circles()
+
+        y = np.asarray(y, dtype=str)
+        y[y == '0'] = 'normal_0'
+        y[y == '1'] = 'abnormal_0'
     else:
         msg = out_file
         raise NotImplementedError(msg)

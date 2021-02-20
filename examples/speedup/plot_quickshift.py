@@ -39,6 +39,15 @@ def check(in_file = '.dat'):
 
     return outs1
 
+def _get_valid_clusters(tot_clusters_dict, thres = 10):
+
+    n_clusters = 0
+    for k, v in tot_clusters_dict.items():
+        if v >= thres:
+            n_clusters += 1
+
+    return n_clusters
+
 
 def parse_qs_res(qs_res, ks = [], kjl_q = 0.3):
     """
@@ -61,10 +70,14 @@ def parse_qs_res(qs_res, ks = [], kjl_q = 0.3):
                 params = vs['params']
                 if params['kjl_q'] == kjl_q and params['quickshift_k'] == k and params['quickshift_beta'] == qs_beta:
 
+                    tot_clusters_dict =  params['qs_res']['tot_n_clusters']
+                    tot_n_clusters = len(tot_clusters_dict)
+                    n_clusters = _get_valid_clusters(tot_clusters_dict, thres=10)
+
                     res_[(k,  qs_beta, kjl_q)] = {'auc': vs['auc'],
-                                                 'tot_n_clusters': params['qs_res']['tot_n_clusters'],
-                                                 'n_clusters':params['qs_res']['n_clusters'],
-                                                  'top_20_n_clusters': 20 if params['qs_res']['n_clusters'] > 20 else params['qs_res']['n_clusters']}
+                                                 'tot_n_clusters': tot_n_clusters,
+                                                 'n_clusters': n_clusters,
+                                                  'top_20_n_clusters': 20 if n_clusters > 20 else n_clusters}  # 20 if params['qs_res']['n_clusters'] > 20 else params['qs_res']['n_clusters']
 
         return res_
 
@@ -137,11 +150,11 @@ def plot_qs_k(qs_res, out_file ='.pdf', kjl_q=0.6):
     if r == 1:
         axes = axes.reshape(1, -1)
     t = 0
-
+    font_size = 20
     # s = min(len(show_repres), len(colors))
     new_data = OrderedDict()
     metrics = [ 'n_clusters', 'tot_n_clusters', 'top_20_n_clusters']     # 'auc',
-    # metrics = ['Speedup AUC']
+    # metrics = ['n_clusters']
     for j, metric_name in enumerate(metrics):
         sub_dataset = []
         yerrs = []  # std/sqrt(n_repeats)
@@ -168,9 +181,40 @@ def plot_qs_k(qs_res, out_file ='.pdf', kjl_q=0.6):
         # colors = [ 'green', 'orange', 'c', 'm',  'b', 'r','tab:brown', 'tab:green'][:2]
         # g = sns.barplot(y="diff", x='dataset', hue='model_name', data=df, palette=colors, ci=None,
         #                 capsize=.2, ax=axes[t, j % c])
-        g = sns.lineplot(y=metric_name, x='qs_k', hue=None, data=df, ci=None,
+        g = sns.lineplot(y=metric_name, x='qs_k', hue=None, data=df, ci=None,marker="o",
                          ax=axes[t, j % c],  markers=True, dashes=False, linestyle=None)
+        for _, (x_, y_) in enumerate( zip(df['qs_k'], df[metric_name])):
 
+            if  metric_name != 'top_20_n_clusters':
+                if x_ == 280 or x_ == 70 or x_ == 700 or x_ == 10:
+                    axes[t, j % c].annotate((x_, y_), (x_, y_), xycoords='data',
+                                            # xytext=(x_ , y_+0.1), #  textcoords='offset points',
+                                            arrowprops=dict(arrowstyle="<->", connectionstyle="arc3"),
+                                            fontsize=font_size - 4)
+            else:
+                if 'MAWI' in out_file:
+                    if x_ == 280 or x_ == 70 or x_ == 700 or x_ == 10:
+                        axes[t, j % c].annotate((x_, y_), (x_, y_), xycoords='data',
+                                                # xytext=(x_ , y_+0.1), #  textcoords='offset points',
+                                                arrowprops=dict(arrowstyle="<->", connectionstyle="arc3"),
+                                                fontsize=font_size - 4)
+                else:
+                    if x_ == 280 or x_ == 70 or x_ == 700:
+                        axes[t, j % c].annotate((x_, y_), (x_, y_), xycoords='data',
+                                                # xytext=(x_ , y_+0.1), #  textcoords='offset points',
+                                                arrowprops=dict(arrowstyle="<->", connectionstyle="arc3"),
+                                                fontsize=font_size - 4)
+                if 'MAWI' in out_file and x_ == 140:
+                    axes[t, j % c].annotate((x_, y_), (x_, y_),  # xytext=(x_ + 0.1, y_+0.5),
+                                            arrowprops=dict(arrowstyle="<->", connectionstyle="arc3"),
+                                            fontsize=font_size - 4)
+                if 'CTU' in out_file and x_ == 350:
+                    axes[t, j % c].annotate((x_, y_), (x_, y_),  # xytext=(x_ + 0.1, y_+0.5),
+                                            arrowprops=dict(arrowstyle="<->", connectionstyle="arc3"),
+                                            fontsize=font_size - 4)
+                if 'SFRIG' in out_file and x_==490:
+                    axes[t, j % c].annotate((x_, y_), (x_, y_),  # xytext=(x_ + 0.1, y_+0.5),
+                                        arrowprops=dict(arrowstyle="<->", connectionstyle="arc3"), fontsize = font_size-4)
         # linestyle = , '--', '-.', ':', 'None', ' ', '', 'solid', 'dashed', 'dashdot', 'dotted'
         ys = []
         xs = []
@@ -183,7 +227,7 @@ def plot_qs_k(qs_res, out_file ='.pdf', kjl_q=0.6):
         # g.set(xlabel=None)
         # g.set(ylabel=None)
         # g.set_ylim(-1, 1)
-        font_size = 20
+
         if metric_name =='n_clusters':
             title = 'Number of clusters (after removing small clusters)'
         elif metric_name == 'tot_n_clusters':
@@ -205,6 +249,7 @@ def plot_qs_k(qs_res, out_file ='.pdf', kjl_q=0.6):
         # yticks(np.arange(0, 1, step=0.2))
         # g.set_yticklabels([f'{x:.2f}' for x in g.get_yticks() if x%0.5==0], fontsize=font_size + 4)
 
+        g.set_xticks(df['qs_k'])
         # # y_v = [float(f'{x:.1f}') for x in g.get_yticks() if x%0.5==0]
         # # y_v = [float(f'{x:.2f}') for x in g.get_yticks()]
         # # v_max = max([ int(np.ceil(v)) for v in g.get_yticks()])
@@ -226,7 +271,7 @@ def plot_qs_k(qs_res, out_file ='.pdf', kjl_q=0.6):
         # g.set_yticklabels(y_v, fontsize=font_size + 4)  # set the number of each value in y axis
         g.set_yticklabels([int(v) for v in g.get_yticks()], fontsize=font_size + 2)  # set the number of each value in y axis
         g.set_xticklabels([int(v) for v in g.get_xticks()], fontsize=font_size + 2)  # set the number of each value in x axis
-        print(g.get_yticks())
+        print('yticks', g.get_yticks())
         # # if j % c != 0:
         #     # g.get_yaxis().set_visible(False)
         #     g.set_yticklabels(['' for v_tmp in y_v])
@@ -312,7 +357,7 @@ def plot_qs_k(qs_res, out_file ='.pdf', kjl_q=0.6):
     plt.close(fig)
 
     # sns.reset_orig()
-    sns.reset_defaults()
+    # sns.reset_defaults()
     # rcParams.update({'figure.autolayout': True})
 
 
@@ -329,6 +374,18 @@ def main():
     in_file = 'speedup/out-kjl-tune_qs_k/src_dst/iat_size-header_False/CTU1/before_proj_False-gs_True/KJL-QS-GMM(full)-std_False_center_False-d_5-full/res.dat'
     res = check(in_file)
     plot_qs_k(res, out_file=in_file + '-.pdf', kjl_q=0.4)
+
+    # SFRIG1_2020 (best_q =0.9 when use KJL-GMM and tune q form [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95] and n_repeats =1)
+    in_file = 'speedup/out-kjl-tune_qs_k/src_dst/iat_size-header_False/SFRIG1_2020/before_proj_False-gs_True/KJL-QS-GMM(full)-std_False_center_False-d_5-full/res.dat'
+    res = check(in_file)
+    plot_qs_k(res, out_file=in_file + '-.pdf', kjl_q=0.9)
+
+    # UNB345_3 (best_q =0.3 when use KJL-GMM and tune q form [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95] and n_repeats =1)
+    in_file = 'speedup/out-kjl-tune_qs_k/src_dst/iat_size-header_False/UNB345_3/before_proj_False-gs_True/KJL-QS-GMM(full)-std_False_center_False-d_5-full/res.dat'
+    res = check(in_file)
+    plot_qs_k(res, out_file=in_file + '-.pdf', kjl_q=0.3)
+
+
 
 if __name__ == '__main__':
     main()

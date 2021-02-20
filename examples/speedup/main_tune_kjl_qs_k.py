@@ -62,24 +62,24 @@ DATASETS = [
 
     # 'UNB234_2',  # combine UNB2, UNB3, UNB4 attacks, only use UNB2 normal
     # 'UNB35_3',  # combine  UNB3, UNB5 attacks, only use UNB3 normal
-    # 'UNB345_3',  # combine UNB3, UNB3, UNB5 attacks, only use UNB3 normal
+    'UNB345_3',  # combine UNB3, UNB3, UNB5 attacks, only use UNB3 normal
     #
-    # # 'UNB24',
+    # # # 'UNB24',
     # 'CTU1',
-    # # # # 'CTU21', # normal + abnormal (botnet) # normal 10.0.0.15 (too few normal flows)
-    # # # # # 'CTU22',  # normal + abnormal (coinminer)
-    # # # 'CTU31',  # normal + abnormal (botnet)   # 192.168.1.191
-    # # # 'CTU32',  # normal + abnormal (coinminer)
-    'MAWI1_2020',
-    # # # # # 'MAWI32_2020',  # 'MAWI/WIDE_2020/pc_203.78.4.32',
-    # # # # 'MAWI32-2_2020',  # 'MAWI/WIDE_2020/pc_203.78.4.32-2',
-    # # 'MAWI165-2_2020',  # 'MAWI/WIDE_2020/pc_203.78.7.165-2',  # ~25000 (flows src_dst)
+    # # # # # 'CTU21', # normal + abnormal (botnet) # normal 10.0.0.15 (too few normal flows)
+    # # # # # # 'CTU22',  # normal + abnormal (coinminer)
+    # # # # 'CTU31',  # normal + abnormal (botnet)   # 192.168.1.191
+    # # # # 'CTU32',  # normal + abnormal (coinminer)
+    # 'MAWI1_2020',
+    # # # # # # 'MAWI32_2020',  # 'MAWI/WIDE_2020/pc_203.78.4.32',
+    # # # # # 'MAWI32-2_2020',  # 'MAWI/WIDE_2020/pc_203.78.4.32-2',
+    # # # 'MAWI165-2_2020',  # 'MAWI/WIDE_2020/pc_203.78.7.165-2',  # ~25000 (flows src_dst)
     # 'ISTS1',
     # 'MACCDC1',
     # 'SFRIG1_2020',
     # 'AECHO1_2020',
-    # # 'DWSHR_2020',   #
-    # # 'WSHR_2020', # 147 flows
+    # # # 'DWSHR_2020',   #
+    # # # 'WSHR_2020', # 147 flows
     #
     # # all smtv dataset are on NOEN server: /opt/smart-tv/roku-data-20190927-182117
     # #SMTV_2019      # cp -rp roku-data-20190927-182117 ~/Datasets/UCHI/IOT_2019/
@@ -350,7 +350,7 @@ MODELS = [  # algorithm name
     # #
     # # # "GMM(full)", "GMM(diag)",
     # #
-    # "KJL-GMM(full)", #"KJL-GMM(diag)",
+    "KJL-GMM(full)", #"KJL-GMM(diag)",
     # #
     # # "Nystrom-GMM(full)", "Nystrom-GMM(diag)",
     # #
@@ -362,7 +362,7 @@ MODELS = [  # algorithm name
     # # "MS-Nystrom-GMM(full)", "MS-Nystrom-GMM(diag)",
     #
     # # quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection
-    "KJL-QS-GMM(full)", #"KJL-QS-GMM(diag)",
+    # "KJL-QS-GMM(full)", #"KJL-QS-GMM(diag)",
     # # "KJL-MS-GMM(full)", "KJL-MS-GMM(diag)"
     #
     # "Nystrom-QS-GMM(full)", "Nystrom-QS-GMM(diag)",

@@ -13,9 +13,11 @@ import sklearn
 from func_timeout import func_set_timeout, FunctionTimedOut
 from joblib import delayed, Parallel
 from sklearn import metrics
+from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances, average_precision_score, roc_curve
 from sklearn.preprocessing import StandardScaler
-
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 from kjl.model.gmm import GMM
 from kjl.model.kjl import getGaussianGram, kernelJLInitialize
 from kjl.model.nystrom import nystromInitialize
@@ -23,11 +25,27 @@ from kjl.model.ocsvm import OCSVM
 from kjl.model.seek_mode import quickshift_seek_modes, meanshift_seek_modes
 from kjl.utils.data import data_info, dump_data, split_train_val, split_left_test, seperate_normal_abnormal
 from kjl.utils.tool import execute_time
-
+from matplotlib import pyplot as plt, cm
 # print('PYTHONPATH: ', os.environ['PYTHONPATH'])
 
 FUNC_TIMEOUT = 30 * 60  # (if function takes more than 30mins, then it will be killed)
 
+
+def plot_data(X, y, title='Data'):
+    plt.close()
+    plt.figure()
+    y_unique = np.unique(y)
+    colors = cm.rainbow(np.linspace(0.0, 1.0, y_unique.size))
+    for this_y, color in zip(y_unique, colors):
+        this_X = X[y == this_y]
+        plt.scatter(this_X[:, 0], this_X[:, 1], s=50,
+                    c=color[np.newaxis, :],
+                    alpha=0.5, edgecolor='k',
+                    label=f"Class {this_y} {this_X.shape}")
+    plt.legend(loc="best")
+    plt.title(title)
+    plt.show()
+    plt.close()
 
 class BASE:
 
@@ -262,6 +280,188 @@ class BASE:
 
     def save(self, data, out_file='.dat'):
         dump_data(data, name=out_file)
+
+class KMeans_MAIN(BASE):
+
+    def __init__(self, params):
+        self.params = params
+        self.random_state = params['random_state']
+
+    def train_test_intf(self, X_train, y_train, X_test, y_test):
+        """ X_test y_test required for gridsearch
+
+        Parameters
+        ----------
+        X_train
+        y_train
+        X_test
+        y_test
+
+        Returns
+        -------
+
+        """
+
+        self.train_time = 0
+        self.test_time = 0
+
+        N, D = X_train.shape
+        X_train, y_train = copy.deepcopy(X_test), copy.deepcopy(y_test)
+        X_test_raw, y_test_raw = copy.deepcopy(X_test), copy.deepcopy(y_test)
+        self.params['is_std'] = True
+        if self.params['is_std']:
+            # should do standardization before using pairwise_distances
+            X_train, X_test = self.standardize(X_train, X_test)
+            X_test_raw, y_test_raw = copy.deepcopy(X_test), copy.deepcopy(y_test)
+            data_info(X_train, name='X_train')
+        else:
+            self.std_train_time = 0
+            self.std_test_time = 0
+        self.train_time += self.std_train_time
+        self.test_time += self.std_test_time
+
+        if self.params['before_proj']:
+            self.thres_n = 0  # used to filter clusters which have less than 10 datapoints
+            if 'is_meanshift' in self.params.keys() and self.params['is_meanshift']:
+                dists = pairwise_distances(X_train)
+                self.sigma = np.quantile(dists, self.params['kjl_q'])  # also used for kjl
+                self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = meanshift_seek_modes(
+                    X_train, bandwidth=self.sigma, thres_n=self.thres_n)
+                self.params['ms_res'] = {'tot_n_clusters': self.all_n_clusters, 'n_clusters': self.n_components}
+                self.params['GMM_n_components'] = 20 if self.n_components > 20 else self.n_components
+                self.seek_test_time = 0
+            elif 'is_quickshift' in self.params.keys() and self.params['is_quickshift']:
+                self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
+                    X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
+                    thres_n=self.thres_n)
+                if 'kjl_q' in self.params['kjl_q']:
+                    q = self.params['kjl_q']
+                elif 'nystrom_q' in self.params['nystrom_q']:
+                    q = self.params['nystrom_q']
+                else :
+                    q = -1
+                self.params['qs_res'] = {'tot_n_clusters': self.all_n_clusters, 'n_clusters': self.n_components,
+                                         'q_proj': q, 'k_qs': self.params['quickshift_k'],
+                                         'beta_qs': self.params['quickshift_beta']}
+                # only choose the top 20 cluster.
+                self.params['GMM_n_components'] = 20 if self.n_components > 20 else self.n_components
+                self.seek_test_time = 0
+            else:
+                self.seek_train_time = 0
+                self.seek_test_time = 0
+            self.train_time += self.seek_train_time
+            self.test_time += self.seek_test_time  # self.seek_test_time = 0
+
+        if 'is_kjl' in self.params.keys() and self.params['is_kjl']:
+            # self.sigma = np.sqrt(X_train.shape[0]* X_train.var())
+            X_train, X_test = self.project_kjl(X_train, X_test, kjl_params=self.params)
+            self.proj_train_time = self.kjl_train_time
+            self.proj_test_time = self.kjl_test_time
+            d = self.params['kjl_d']
+            n = self.params['kjl_n']
+            q = self.params['kjl_q']
+            print(f'self.sigma: {self.sigma}, q={q}')
+        elif 'is_nystrom' in self.params.keys() and self.params['is_nystrom']:
+            X_train, X_test = self.project_nystrom(X_train, X_test, nystrom_params=self.params)
+            self.proj_train_time = self.nystrom_train_time
+            self.proj_test_time = self.nystrom_test_time
+            d = self.params['nystrom_d']
+            n = self.params['nystrom_n']
+            q = self.params['nystrom_q']
+            print(f'self.sigma: {self.sigma}, q={q}')
+        else:
+            d = D
+            n = N
+            self.proj_train_time = 0
+            self.proj_test_time = 0
+        self.train_time += self.proj_train_time
+        self.test_time += self.proj_test_time
+
+        if self.params['after_proj']:
+            self.thres_n = 0  # used to filter clusters which have less than 10 datapoints
+            if 'is_meanshift' in self.params.keys() and self.params['is_meanshift']:
+                dists = pairwise_distances(X_train)
+                self.sigma = np.quantile(dists, self.params['kjl_q'])  # also used for kjl
+                self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = meanshift_seek_modes(
+                    X_train, bandwidth=self.sigma, thres_n=self.thres_n)
+                self.params['ms_res'] = {'tot_n_clusters': self.all_n_clusters, 'n_clusters': self.n_components,
+                                         'q_proj': q}
+                self.params['GMM_n_components'] =  20 if self.n_components > 20 else self.n_components
+                self.seek_test_time = 0
+            elif 'is_quickshift' in self.params.keys() and self.params['is_quickshift']:
+                self.means_init, self.n_components, self.seek_train_time, self.all_n_clusters = quickshift_seek_modes(
+                    X_train, k=self.params['quickshift_k'], beta=self.params['quickshift_beta'],
+                    thres_n=self.thres_n)
+                self.params['qs_res'] = {'tot_n_clusters': self.all_n_clusters, 'n_clusters': 20 if self.n_components > 20 else self.n_components,
+                                         'q_proj':q,
+                                         'k_qs': self.params['quickshift_k'],
+                                         'beta_qs': self.params['quickshift_beta']}
+                self.params['GMM_n_components'] = 20 if self.n_components > 20 else self.n_components
+                self.seek_test_time = 0
+            else:
+                self.seek_train_time = 0
+                self.seek_test_time = 0
+            self.train_time += self.seek_train_time
+            self.test_time += self.seek_test_time  # self.seek_test_time = 0
+
+        self.params['GMM_n_components'] = 2
+        model = KMeans()
+        model_params = {'n_clusters': self.params['GMM_n_components'],
+                         'random_state': self.random_state}
+        # set model default parameters
+        model.set_params(**model_params)
+        print(f'model.get_params(): {model.get_params()}')
+        # train model
+        try:
+            self.model, self.model_train_time = self._train(model, X_train)
+        except:
+            model.reg_covar = 1e-5
+            print(f'retrain with a larger reg_covar')
+            self.model, self.model_train_time = self._train(model, X_train)
+
+        # if self.model.covariance_type == 'full':
+        #     # space_size = (d ** 2 + d) * n_comps + n * (d + D)
+        #     space_size = (d ** 2 + d) * self.model.n_components + n * (d + D)
+        # elif self.model.covariance_type == 'diag':
+        #     # space_size = (2* d) * n_comps + n * (d + D)
+        #     space_size = (2 * d) * self.model.n_components + n * (d + D)
+        # else:
+        #     msg = self.model.covariance_type
+        #     raise NotImplementedError(msg)
+        space_size = 0
+        self.train_time += self.model_train_time
+
+        data_name = 'test'
+        init_set = ''
+
+        # raw dataset
+        plot_data(X_test_raw, y_test_raw, title=f'raw on {data_name}, {init_set}')
+        # KJL
+        plot_data(X_test, y_test, title=f'kjl2 on {data_name}, {init_set}')
+        # PCA
+        X_embedded = PCA(n_components=2, random_state=100).fit_transform(X_test_raw)
+        plot_data(X_embedded, y_test_raw, title=f'pca on {data_name}, {init_set}')
+
+        # TSNE
+        X_embedded = TSNE(n_components=2, random_state=100).fit_transform(X_test_raw)
+        plot_data(X_embedded, y_test_raw, title=f'tsne on {data_name}, {init_set}')
+
+
+        print(f'Total train time: {self.train_time} <= std_train_time: {self.std_train_time}, seek_train_time: '
+              f'{self.seek_train_time}, proj_train_time: {self.proj_train_time}, '
+              f'model_train_time: {self.model_train_time}, D:{D}, space_size: {space_size}, N:{N}')
+        self.space_size = space_size
+        self.N = N
+        self.D = D
+
+        self.y_score, self.model_test_time, self.auc = self._test(self.model, X_test, y_test)
+        self.test_time += self.model_test_time
+        print(
+            f'Total test time: {self.test_time} <= std_test_time: {self.std_test_time}, seek_test_time: {self.seek_test_time}'
+            f', proj_test_time: {self.proj_test_time}, '
+            f'model_test_time: {self.model_test_time}')
+
+        return self
 
 
 class GMM_MAIN(BASE):
@@ -789,6 +989,65 @@ class OCSVM_MAIN(BASE):
 #     best_results = out
 #
 #     return best_results, middle_results
+#
+# def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
+#     """
+#
+#     Parameters
+#     ----------
+#     normal_data
+#     abnormal_data
+#     params
+#     args
+#
+#     Returns
+#     -------
+#
+#     """
+#     # ##################### memory allocation snapshot
+#     #
+#     # tracemalloc.start()
+#     #
+#     # start_time = time.time()
+#     # snapshot1 = tracemalloc.take_snapshot()
+#
+#     print(kwargs, params)
+#     try:
+#         for k, v in kwargs.items():
+#             params[k] = v
+#
+#         if "GMM" in params['detector_name']:
+#             model = GMM_MAIN(params)
+#         elif "OCSVM" in params['detector_name']:
+#             model = OCSVM_MAIN(params)
+#         model.train_test_intf(X_train, y_train, X_test, y_test)
+#         print('train_test')
+#
+#         info = {'train_time': model.train_time, 'test_time': model.test_time, 'auc': model.auc, 'apc': '',
+#                 'params': model.params, 'space_size': model.space_size,
+#                 'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
+#     # except (timeout_decorator.TimeoutError, pickle.PickleError) as e:
+#     #     info = {'train_time': 0.0, 'test_time': 0.0, 'auc': 0.0, 'apc': '',
+#     #             'params': params, 'space_size': 0.0,
+#     #             'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
+#     except (FunctionTimedOut, Exception) as e:
+#         print(f"FunctionTimedOut Error: {e}")
+#         # traceback.print_exc()
+#         info = {'train_time': 0.0, 'test_time': 0.0, 'auc': 0.0, 'apc': '',
+#                 'params': params, 'space_size': 0.0,
+#                 'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
+#
+#     # ################### Second memory allocation snapshot
+#     #
+#     # snapshot2 = tracemalloc.take_snapshot()
+#     # top_stats = snapshot2.compare_to(snapshot1, 'lineno')
+#     #
+#     # print("[ Top 10 ]")
+#     # for stat in top_stats[:5]:
+#     #     print(stat)
+#
+#     return info
+
 
 def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
     """
@@ -803,6 +1062,16 @@ def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
     Returns
     -------
 
+
+
+# PCA
+X_embedded = PCA(n_components=n_components, random_state=100).fit_transform(X)
+plot_data(X_embedded, y, title=f'pca on {data_name}, {init_set}')
+
+# TSNE
+X_embedded = TSNE(n_components=n_components, random_state=100).fit_transform(X)
+plot_data(X_embedded, y, title=f'tsne on {data_name}, {init_set}')
+
     """
     # ##################### memory allocation snapshot
     #
@@ -816,10 +1085,7 @@ def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
         for k, v in kwargs.items():
             params[k] = v
 
-        if "GMM" in params['detector_name']:
-            model = GMM_MAIN(params)
-        elif "OCSVM" in params['detector_name']:
-            model = OCSVM_MAIN(params)
+        model = KMeans_MAIN(params)
         model.train_test_intf(X_train, y_train, X_test, y_test)
         print('train_test')
 
@@ -830,7 +1096,7 @@ def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
     #     info = {'train_time': 0.0, 'test_time': 0.0, 'auc': 0.0, 'apc': '',
     #             'params': params, 'space_size': 0.0,
     #             'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
-    except (FunctionTimedOut, Exception) as e:
+    except (Exception) as e:
         print(f"FunctionTimedOut Error: {e}")
         # traceback.print_exc()
         info = {'train_time': 0.0, 'test_time': 0.0, 'auc': 0.0, 'apc': '',
@@ -847,7 +1113,6 @@ def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
     #     print(stat)
 
     return info
-
 
 @execute_time
 def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, random_state=42):

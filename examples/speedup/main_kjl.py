@@ -27,7 +27,7 @@ from kjl.log import get_log
 from kjl.utils.tool import execute_time, dump_data, load_data
 from speedup._speedup_kjl import single_main
 from speedup.generate_data import generate_data_speed_up
-from speedup.merge import _dat2csv, merge_res
+from speedup._merge import _dat2csv, merge_res
 from memory_profiler import profile
 
 # get log
@@ -62,24 +62,25 @@ DATASETS = [
 
     # 'UNB234_2',  # combine UNB2, UNB3, UNB4 attacks, only use UNB2 normal
     # 'UNB35_3',  # combine  UNB3, UNB5 attacks, only use UNB3 normal
-    'UNB345_3',  # combine UNB3, UNB3, UNB5 attacks, only use UNB3 normal
-    #
-    # # 'UNB24',
-    'CTU1',
-    # # # # 'CTU21', # normal + abnormal (botnet) # normal 10.0.0.15 (too few normal flows)
-    # # # # # 'CTU22',  # normal + abnormal (coinminer)
-    # # # 'CTU31',  # normal + abnormal (botnet)   # 192.168.1.191
-    # # # 'CTU32',  # normal + abnormal (coinminer)
-    'MAWI1_2020',
-    # # # # # 'MAWI32_2020',  # 'MAWI/WIDE_2020/pc_203.78.4.32',
-    # # # # 'MAWI32-2_2020',  # 'MAWI/WIDE_2020/pc_203.78.4.32-2',
-    # # 'MAWI165-2_2020',  # 'MAWI/WIDE_2020/pc_203.78.7.165-2',  # ~25000 (flows src_dst)
-    'ISTS1',
-    'MACCDC1',
-    'SFRIG1_2020',
-    'AECHO1_2020',
-    # # 'DWSHR_2020',   #
-    # # 'WSHR_2020', # 147 flows
+    # 'UNB345_3',  # combine UNB3, UNB3, UNB5 attacks, only use UNB3 normal
+    # # #
+    # # # # 'UNB24',
+    # 'CTU1',
+    # # # # # # 'CTU21', # normal + abnormal (botnet) # normal 10.0.0.15 (too few normal flows)
+    # # # # # # # 'CTU22',  # normal + abnormal (coinminer)
+    # # # # # 'CTU31',  # normal + abnormal (botnet)   # 192.168.1.191
+    # # # # # 'CTU32',  # normal + abnormal (coinminer)
+    # 'MAWI1_2020',
+    # # # # # # # 'MAWI32_2020',  # 'MAWI/WIDE_2020/pc_203.78.4.32',
+    # # # # # # 'MAWI32-2_2020',  # 'MAWI/WIDE_2020/pc_203.78.4.32-2',
+    # # # # 'MAWI165-2_2020',  # 'MAWI/WIDE_2020/pc_203.78.7.165-2',  # ~25000 (flows src_dst)
+    # 'ISTS1',
+    # 'MACCDC1',
+    # 'SFRIG1_2020',
+    # 'AECHO1_2020',
+    # # 'DWSHR_2020',   # 79 flows
+    # # # 'WSHR_2020', # 4 flows
+    'DWSHR_WSHR_2020',  # only use Dwshr normal, and combine Dwshr and wshr novelties
     #
     # # all smtv dataset are on NOEN server: /opt/smart-tv/roku-data-20190927-182117
     # #SMTV_2019      # cp -rp roku-data-20190927-182117 ~/Datasets/UCHI/IOT_2019/
@@ -345,7 +346,7 @@ def _get_model_cfg(model_cfg, n_repeats=5, q=0.3, n_kjl=100, d_kjl=5, n_comp=1,
 
 MODELS = [  # algorithm name
     "OCSVM(rbf)",
-    "KJL-OCSVM(linear)",
+    # "KJL-OCSVM(linear)",
     # "Nystrom-OCSVM(linear)",
     #
     # # "GMM(full)", "GMM(diag)",
@@ -353,17 +354,17 @@ MODELS = [  # algorithm name
     # "KJL-GMM(full)", "KJL-GMM(diag)",
     #
     # "Nystrom-GMM(full)", "Nystrom-GMM(diag)",
-    # #
-    # # # quickshift(QS)/meanshift(MS) are used before KJL/Nystrom projection
-    # # "QS-KJL-GMM(full)", "QS-KJL-GMM(diag)",
-    # # "MS-KJL-GMM(full)", "MS-KJL-GMM(diag)",
-
-    # "QS-Nystrom-GMM(full)", "QS-Nystrom-GMM(diag)",
-    # "MS-Nystrom-GMM(full)", "MS-Nystrom-GMM(diag)",
-
-    # quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection
-    "KJL-QS-GMM(full)", "KJL-QS-GMM(diag)",
-    # "KJL-MS-GMM(full)", "KJL-MS-GMM(diag)"
+    # # #
+    # # # # quickshift(QS)/meanshift(MS) are used before KJL/Nystrom projection
+    # # # "QS-KJL-GMM(full)", "QS-KJL-GMM(diag)",
+    # # # "MS-KJL-GMM(full)", "MS-KJL-GMM(diag)",
+    #
+    # # "QS-Nystrom-GMM(full)", "QS-Nystrom-GMM(diag)",
+    # # "MS-Nystrom-GMM(full)", "MS-Nystrom-GMM(diag)",
+    #
+    # # quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection
+    # "KJL-QS-GMM(full)", "KJL-QS-GMM(diag)",
+    # # "KJL-MS-GMM(full)", "KJL-MS-GMM(diag)"
 
     "Nystrom-QS-GMM(full)", "Nystrom-QS-GMM(diag)",
     # "Nystrom-MS-GMM(full)", "Nystrom-MS-GMM(diag)"
@@ -585,32 +586,33 @@ def main(directions=[('direction', 'src_dst'), ],
 
 if __name__ == '__main__':
     try:
-        # # IAT_SIZE
+        out_dir = 'speedup/out-'
+        # # # IAT_SIZE
         main(feats=[('feat', 'iat_size'), ],
              headers=[('is_header', False)],
              # gses=[('is_gs', False)],
              before_projs=[('before_proj', False), ],
              ds=[('d_kjl', 5), ],
              train_sizes=[('train_size',  5000) ],
-             out_dir='speedup/out',
+             out_dir=out_dir,
              )
-        # STATS
-        main(feats=[('feat', 'stats')],
-             headers=[('is_header', True)],
-             # gses=[('is_gs', False)],
-             before_projs=[('before_proj', False), ],
-             ds=[('d_kjl', 5), ],
-             out_dir = 'speedup/out',
-             )
+        # # STATS
+        # main(feats=[('feat', 'stats')],
+        #      headers=[('is_header', True)],
+        #      # gses=[('is_gs', False)],
+        #      before_projs=[('before_proj', False), ],
+        #      ds=[('d_kjl', 5), ],
+        #      out_dir = out_dir,
+        #      )
     except Exception as e:
         traceback.print_exc()
         lg.error(e)
 
-    # merge_res(in_dir = 'speedup/calumet_out', datasets= DATASETS,
-    #           directions=[('direction', 'src_dst'), ],
-    #           feats=[('feat', 'stats'), ],
-    #           # headers=[('is_header', False)],
-    #           models=MODELS,
-    #           # gses=[('is_gs', True), ('is_gs', False)],
-    #           before_projs=[('before_proj', False), ],
-    #           ds=[('d_kjl', 5), ], )
+    merge_res(in_dir = out_dir, datasets= DATASETS,
+              directions=[('direction', 'src_dst'), ],
+              feats=[('feat', 'iat_size'), ('feat', 'stats'), ],
+              # headers=[('is_header', False)],
+              models=MODELS,
+              # gses=[('is_gs', True), ('is_gs', False)],
+              before_projs=[('before_proj', False), ],
+              ds=[('d_kjl', 5), ], )

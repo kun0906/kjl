@@ -27,7 +27,7 @@ from kjl.log import get_log
 from kjl.utils.tool import execute_time, dump_data, load_data
 from speedup._speedup_kjl import single_main
 from speedup.generate_data import generate_data_speed_up
-from speedup.merge import _dat2csv, merge_res
+from speedup._merge import _dat2csv, merge_res
 from memory_profiler import profile
 
 # get log
@@ -60,24 +60,24 @@ DATASETS = [
 
     # 'UNB245_2',
 
-    # # 'UNB234_2',  # combine UNB2, UNB3, UNB4 attacks, only use UNB2 normal
-    'UNB35_3',  # combine  UNB3, UNB5 attacks, only use UNB3 normal
+    # # # 'UNB234_2',  # combine UNB2, UNB3, UNB4 attacks, only use UNB2 normal
+    # # 'UNB35_3',  # combine  UNB3, UNB5 attacks, only use UNB3 normal
     'UNB345_3',  # combine UNB3, UNB3, UNB5 attacks, only use UNB3 normal
-    # #
-    # # 'UNB24',
+    # # #
+    # # # 'UNB24',
     'CTU1',
-    # # # # # 'CTU21', # normal + abnormal (botnet) # normal 10.0.0.15 (too few normal flows)
-    # # # # # # 'CTU22',  # normal + abnormal (coinminer)
-    # # # 'CTU31',  # normal + abnormal (botnet)   # 192.168.1.191
-    'CTU32',  # normal + abnormal (coinminer)
+    # # # # # # 'CTU21', # normal + abnormal (botnet) # normal 10.0.0.15 (too few normal flows)
+    # # # # # # # 'CTU22',  # normal + abnormal (coinminer)
+    # # # # 'CTU31',  # normal + abnormal (botnet)   # 192.168.1.191
+    # # 'CTU32',  # normal + abnormal (coinminer)
     'MAWI1_2020',
-    # # # # # # 'MAWI32_2020',  # 'MAWI/WIDE_2020/pc_203.78.4.32',
-    # # # # # 'MAWI32-2_2020',  # 'MAWI/WIDE_2020/pc_203.78.4.32-2',
-    # # # 'MAWI165-2_2020',  # 'MAWI/WIDE_2020/pc_203.78.7.165-2',  # ~25000 (flows src_dst)
-    # 'ISTS1',
-    # 'MACCDC1',
+    # # # # # # # 'MAWI32_2020',  # 'MAWI/WIDE_2020/pc_203.78.4.32',
+    # # # # # # 'MAWI32-2_2020',  # 'MAWI/WIDE_2020/pc_203.78.4.32-2',
+    # # # # 'MAWI165-2_2020',  # 'MAWI/WIDE_2020/pc_203.78.7.165-2',  # ~25000 (flows src_dst)
+    'ISTS1',
+    'MACCDC1',
     'SFRIG1_2020',
-    # # 'AECHO1_2020',
+    'AECHO1_2020',
 ]
 
 
@@ -269,7 +269,7 @@ def _get_model_cfg(model_cfg, n_repeats=5, q=0.3, n_kjl=100, d_kjl=5, n_comp=1,
                                 quickshift={'is_quickshift': True,
                                             'quickshift_ks': [500],
                                             # [50, 100, 150, 200, 250, 300, 350, 400, 450, 500]
-                                            'quickshift_betas': qs if is_gs else [0.9]  # only tune beta for QS
+                                            'quickshift_betas': [0.9]  # only tune beta for QS
                                             }
                                 )
     elif model_name == "MS-KJL-GMM(full)" or model_name == "MS-KJL-GMM(diag)" or \
@@ -308,7 +308,7 @@ def _get_model_cfg(model_cfg, n_repeats=5, q=0.3, n_kjl=100, d_kjl=5, n_comp=1,
                                 quickshift={'is_quickshift': True,
                                             'quickshift_ks': [500],
                                             # [50, 100, 150, 200, 250, 300, 350, 400, 450, 500]
-                                            'quickshift_betas': qs if is_gs else [0.9]
+                                            'quickshift_betas': [0.9]
                                             }
                                 )
     elif model_name == "Nystrom-MS-GMM(full)" or model_name == "Nystrom-MS-GMM(diag)" or \
@@ -577,42 +577,44 @@ def main(directions=[('direction', 'src_dst'), ],
 
 
 if __name__ == '__main__':
+    # iat_size(without header) vs. stats(with header) vs. samp_size(without header)
     try:
-        # # # IAT_SIZE
-        main(feats=[('feat', 'iat_size'), ],
-             headers=[('is_header', False)],
-             # gses=[('is_gs', False)],
-             before_projs=[('before_proj', False), ],
-             ds=[('d_kjl', 5), ],
-             train_sizes=[('train_size',  5000) ],
-             out_dir='speedup/out',
-             )
-        # STATS
-        main(feats=[('feat', 'stats')],
-             headers=[('is_header', True)],
-             # gses=[('is_gs', False)],
-             before_projs=[('before_proj', False), ],
-             ds=[('d_kjl', 5), ],
-             out_dir = 'speedup/out',
-             )
-
+        out_dir = 'speedup/out_diferent_features'
+        # # # # IAT_SIZE
+        # main(feats=[('feat', 'iat_size'), ('feat', 'stats'), ('feat', 'samp_size')],
+        #      headers=[('is_header', True), ('is_header', False)],
+        #      # gses=[('is_gs', False)],
+        #      before_projs=[('before_proj', False), ],
+        #      ds=[('d_kjl', 5), ],
+        #      train_sizes=[('train_size',  5000) ],
+        #      out_dir=out_dir,
+        #      )
+        # # STATS
+        # main(feats=[('feat', 'stats')],
+        #      headers=[('is_header', True)],
+        #      # gses=[('is_gs', False)],
+        #      before_projs=[('before_proj', False), ],
+        #      ds=[('d_kjl', 5), ],
+        #      out_dir = out_dir,
+        #      )
+        #
         # SAMP_SIZE
         main(feats=[('feat', 'samp_size')],
              headers=[('is_header', False)],
              # gses=[('is_gs', False)],
              before_projs=[('before_proj', False), ],
              ds=[('d_kjl', 5), ],
-             out_dir='speedup/out',
+             out_dir=out_dir,
              )
     except Exception as e:
         traceback.print_exc()
         lg.error(e)
 
-    # merge_res(in_dir = 'speedup/calumet_out', datasets= DATASETS,
-    #           directions=[('direction', 'src_dst'), ],
-    #           feats=[('feat', 'stats'), ],
-    #           # headers=[('is_header', False)],
-    #           models=MODELS,
-    #           # gses=[('is_gs', True), ('is_gs', False)],
-    #           before_projs=[('before_proj', False), ],
-    #           ds=[('d_kjl', 5), ], )
+    merge_res(in_dir = out_dir, datasets= DATASETS,
+              directions=[('direction', 'src_dst'), ],
+              feats=[('feat', 'iat_size'), ('feat', 'stats'), ('feat', 'samp_size'), ],
+              headers=[('is_header', True), ('is_header', False)],
+              models=MODELS,
+              gses=[('is_gs', True), ('is_gs', False)],
+              before_projs=[('before_proj', False), ],
+              ds=[('d_kjl', 5), ], )

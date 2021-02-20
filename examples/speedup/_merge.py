@@ -65,13 +65,32 @@ def _dat2csv(result, out_file, feat_set='iat_size'):
                 std_n_comp = np.std(n_comps)
                 n_comp_str = f'{mu_n_comp:.2f}+/-{std_n_comp:.2f}'
                 n_comp_str2 = "-".join([str(v) for v in n_comps])
+                tot_n_clusters = []
+                n_clusters = []
+                for ps in data['params']:
+                    qs_res = ps['qs_res']
+                    tot_n_clusters.append(len(qs_res['tot_n_clusters']))
+                    n_clusters.append(qs_res['n_clusters'])
+                tot_n_clusters_str = f'{np.mean(tot_n_clusters):.2f}+/-{np.std(tot_n_clusters):.2f}'
+                tot_n_clusters_str2 = "-".join([str(v) for v in tot_n_clusters])
+                n_clusters_str = f'{np.mean(n_clusters):.2f}+/-{np.std(n_clusters):.2f}'
+                n_clusters_str2 = "-".join([str(v) for v in n_clusters])
             except Exception as e:
                 n_comps = []
                 n_comp_str = f'-'
                 n_comp_str2 = f'-'
+                tot_n_clusters_str = 0
+                tot_n_clusters_str2 = 0
+                n_clusters_str = 0
+                n_clusters_str2 = 0
+
+            if 'qs_res' in params.keys():
+                if 'tot_n_clusters' in params['qs_res'].keys():
+                    params['qs_res']['tot_n_clusters'] = '-'.join([f'{k}:{v}' for k,v in params['qs_res']['tot_n_clusters'].items()])
             line = f'{in_dir}, {case_str}, {_prefix}, {_line}, => aucs:{aucs_str}, ' \
                    f'train_times:{train_times_str}, test_times:{test_times_str}, n_comp: {n_comp_str}, ' \
-                   f'{n_comp_str2}, space_sizes: {space_size_str}, with params: {params}: {_suffex}'
+                   f'{n_comp_str2}, space_sizes: {space_size_str},tot_n_clusters:{tot_n_clusters_str}, {tot_n_clusters_str2},' \
+                   f'n_clusters: {n_clusters_str}, {n_clusters_str2}, with params: {params}: {_suffex}'
 
         except Exception as e:
             traceback.print_exc()
