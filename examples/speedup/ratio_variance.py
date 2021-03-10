@@ -327,58 +327,40 @@ def improvement(resulst_xlsx, feat_set='iat', scale=100, out_file='-improvement.
 
                 results.append(values)
                 continue
-            elif 'KJL-OCSVM' in sheet_name or 'Nystrom-OCSVM' in sheet_name :\
-
-                header = 5
-                baseline_sheet_name = sheet_name
-                df2 = pd.read_excel(resulst_xlsx, sheet_name=baseline_sheet_name, header=header,
-                                    index_col=None)  # index_col=False: not use the first columns as index
-
-                values = get_diff(df2, df2, feat_set=feat_set, same=True, file_type='tmp', is_sample=is_sample,
-                                  scale=scale)
-                values.insert(0, [sheet_name if _i == 0 else '' for _i in range(len(values[0]))])
-                pd.DataFrame(values).to_excel(writer, sheet_name=baseline_sheet_name, index=False, header=False)
-
-                startrow = len(values) + 5
-                _each_total_rows = len(values) + 5
-
-                results.append(values)
-                continue
-
-            elif 'gs_False' in resulst_xlsx and ('KJL-GMM' in sheet_name or 'Nystrom-GMM' in sheet_name):
-                # for default parameters, we show the original results rather than speed-up results
-                header = 5
-                baseline_sheet_name = sheet_name
-                df2 = pd.read_excel(resulst_xlsx, sheet_name=baseline_sheet_name, header=header,
-                                    index_col=None)  # index_col=False: not use the first columns as index
-
-                values = get_diff(df2, df2, feat_set=feat_set, same=True, file_type='tmp', is_sample=is_sample,
-                                  scale=scale)
-                values.insert(0, [sheet_name if _i == 0 else '' for _i in range(len(values[0]))])
-                pd.DataFrame(values).to_excel(writer, sheet_name=baseline_sheet_name, index=False, header=False)
-
-                startrow = len(values) + 5
-                _each_total_rows = len(values) + 5
-
-                results.append(values)
-                continue
-
-            try:
-                # header = 5: it will skip the first 5 row
+            elif 'KJL-OCSVM' in sheet_name or 'Nystrom-OCSVM' in sheet_name :
                 df2 = pd.read_excel(resulst_xlsx, sheet_name=sheet_name, header=header,
                                     index_col=None)  # index_col=False: not use the first columns as index
-                values = get_diff(df1, df2, feat_set=feat_set, same=False, file_type='tmp', is_sample=is_sample,
+
+                values = get_diff(df2, df2, feat_set=feat_set, same=True, file_type='tmp', is_sample=is_sample,
                                   scale=scale)
                 values.insert(0, [sheet_name if _i == 0 else '' for _i in range(len(values[0]))])
-                # break
-            except Exception as e:
-                traceback.print_exc()
-                values = [sheet_name]
-                values.extend(['-'] * _each_total_rows)
+                pd.DataFrame(values).to_excel(writer, sheet_name=baseline_sheet_name, index=False,  startrow=startrow)
+
+            elif 'gs_False' in resulst_xlsx and ('KJL-GMM' in sheet_name or 'Nystrom-GMM' in sheet_name):
+
+                df2 = pd.read_excel(resulst_xlsx, sheet_name=sheet_name, header=header,
+                                    index_col=None)  # index_col=False: not use the first columns as index
+
+                values = get_diff(df2, df2, feat_set=feat_set, same=True, file_type='tmp', is_sample=is_sample,
+                                  scale=scale)
+                values.insert(0, [sheet_name if _i == 0 else '' for _i in range(len(values[0]))])
+                pd.DataFrame(values).to_excel(writer, sheet_name=baseline_sheet_name, index=False,  startrow=startrow)
+            else:
+                try:
+                    # header = 5: it will skip the first 5 row
+                    df2 = pd.read_excel(resulst_xlsx, sheet_name=sheet_name, header=header,
+                                        index_col=None)  # index_col=False: not use the first columns as index
+                    values = get_diff(df1, df2, feat_set=feat_set, same=False, file_type='tmp', is_sample=is_sample,
+                                      scale=scale)
+                    values.insert(0, [sheet_name if _i == 0 else '' for _i in range(len(values[0]))])
+                    # break
+                except Exception as e:
+                    traceback.print_exc()
+                    values = [sheet_name]
+                    values.extend(['-'] * _each_total_rows)
 
             # Generate dataframe from list and write to xlsx.
-            pd.DataFrame(values).to_excel(writer, sheet_name=baseline_sheet_name, index=False,
-                                          startrow=startrow)
+            pd.DataFrame(values).to_excel(writer, sheet_name=baseline_sheet_name, index=False, startrow=startrow)
             startrow += _each_total_rows
             results.append(values)
 

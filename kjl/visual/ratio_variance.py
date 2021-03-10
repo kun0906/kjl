@@ -7,6 +7,7 @@ import traceback
 import numpy as np
 import pandas as pd
 from pandas import ExcelWriter
+
 from kjl.utils.data import load_data
 
 
@@ -454,7 +455,6 @@ def dat2xlxs(in_file, out_file):
         'case6': f'GMM-{GMM_covariance_type}-kjl-meanshift',
     }
 
-
     with ExcelWriter(out_file) as writer:
 
         for sheet_name in ['OCSVM']:
@@ -494,6 +494,8 @@ def dat2xlxs(in_file, out_file):
             writer.save()
 
     return out_file
+
+
 #
 # def results2xlsx(in_file, out_file = ''):
 #     if out_file == '':
@@ -520,8 +522,7 @@ def dat2xlsx2(in_file=''):
         out_file = os.path.splitext(result_xlsl)[0] + '-ratio.xlsx'
         improvement(result_xlsl, feat_set='iat_size', out_file=out_file)
 
-if __name__ == '__main__':
 
+if __name__ == '__main__':
     in_file = 'out/data_kjl/report/all_results.dat'
     dat2xlsx2(in_file)
-

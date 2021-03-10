@@ -6,7 +6,6 @@
 # License: xxx
 
 
-
 """Useful tools includes 'data_info', 'dump_data', etc.
 
 """
@@ -15,18 +14,12 @@
 # License: GNU GENERAL PUBLIC LICENSE
 
 import inspect
-import pickle
-import time
-from functools import wraps
-from datetime import datetime
-import pandas as pd
-import subprocess
-
 import os
 import pickle
+import subprocess
 import time
-from functools import wraps
 from datetime import datetime
+from functools import wraps
 
 import pandas as pd
 
@@ -214,7 +207,6 @@ def time_func(func, *args, **kwargs):
 def mprint(msg, verbose=10, level=1):
     if verbose >= level:
         print(msg)
-
 
 
 def run(in_file, out_file):

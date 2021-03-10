@@ -1,12 +1,10 @@
 """
     open .dat
 """
-from pprint import pprint
-import numpy as np
-from kjl.utils.data import load_data
-from kjl.visual.plot import plot_data
-
 import matplotlib.pyplot as plt
+import numpy as np
+
+from kjl.utils.data import load_data
 
 
 #

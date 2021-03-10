@@ -1,5 +1,5 @@
 # odet>=0.0.1
-# numpy>=1.18.3
+# numpy==1.19.2
 # scipy>=1.4.1
 # pandas==0.25.1
 # scapy==2.4.4
@@ -12,3 +12,4 @@
 # quickshift++
 # memory_profiler==0.58.0
 # func_timeout==4.3.5
+# joblib==1.0.1

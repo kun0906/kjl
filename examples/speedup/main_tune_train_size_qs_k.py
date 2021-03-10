@@ -27,7 +27,7 @@ from kjl.log import get_log
 from kjl.utils.tool import execute_time, dump_data, load_data
 from speedup._speedup_kjl import single_main
 from speedup.generate_data import generate_data_speed_up
-from speedup.merge import _dat2csv, merge_res
+from speedup._merge import _dat2csv, merge_res
 from memory_profiler import profile
 
 # get log
@@ -36,55 +36,29 @@ lg = get_log(level='info')
 DATASETS = [
     # 'UNB3',
     # 'UNB_5_8_Mon',  # auc: 0.5
-    # 'UNB12_comb',  # combine UNB1 and UNB2 normal and attacks
-    # 'UNB13_comb',  # combine UNB1 and UNB2 normal and attacks
+    # 'UNB12_comb',         # combine UNB1 and UNB2 normal and attacks
+    # 'UNB13_comb',         # combine UNB1 and UNB2 normal and attacks
     # 'UNB14_comb',
     # 'UNB23_comb',  # combine UNB1 and UNB2 normal and attacks
     # 'UNB24_comb',
     # 'UNB34_comb',
     # 'UNB35_comb',
-
-    # 'UNB12_1',  # combine UNB1 and UNB2 attacks, only use UNB1 normal
-    # 'UNB13_1',
-    # 'UNB14_1',
-    # 'UNB23_2', # combine UNB1 and UNB2 attacks, only use UNB2 normal
-    # 'UNB24_2',
-    # 'UNB34_3',
-    # 'UNB35_3',
-    # 'UNB34_3',
-    # # 'UNB45_4',
-    #
-    # 'UNB123_1',  # combine UNB1, UNB2, UNB3 attacks, only use UNB1 normal
-    # 'UNB134_1',
-    # 'UNB145_1',
-
-    # 'UNB245_2',
-
-    # 'UNB234_2',  # combine UNB2, UNB3, UNB4 attacks, only use UNB2 normal
-    # 'UNB35_3',  # combine  UNB3, UNB5 attacks, only use UNB3 normal
-    'UNB345_3',  # combine UNB3, UNB3, UNB5 attacks, only use UNB3 normal
-    #
-    # # # 'UNB24',
+    # 'UNB24',
+    'UNB345_3',
     # 'CTU1',
-    # # # # # 'CTU21', # normal + abnormal (botnet) # normal 10.0.0.15 (too few normal flows)
+    # # # # # 'CTU21', # normal + abnormal (botnet) # normal 10.0.0.15
     # # # # # # 'CTU22',  # normal + abnormal (coinminer)
-    # # # # 'CTU31',  # normal + abnormal (botnet)   # 192.168.1.191
-    # # # # 'CTU32',  # normal + abnormal (coinminer)
+    # # # # # 'CTU31',  # normal + abnormal (botnet)   # 192.168.1.191
+    # # # # # 'CTU32',  # normal + abnormal (coinminer)
     # 'MAWI1_2020',
     # # # # # # 'MAWI32_2020',  # 'MAWI/WIDE_2020/pc_203.78.4.32',
     # # # # # 'MAWI32-2_2020',  # 'MAWI/WIDE_2020/pc_203.78.4.32-2',
-    # # # 'MAWI165-2_2020',  # 'MAWI/WIDE_2020/pc_203.78.7.165-2',  # ~25000 (flows src_dst)
-    # 'ISTS1',
-    # 'MACCDC1',
-    # 'SFRIG1_2020',
-    # 'AECHO1_2020',
-    # # # 'DWSHR_2020',   #
-    # # # 'WSHR_2020', # 147 flows
-    #
-    # # all smtv dataset are on NOEN server: /opt/smart-tv/roku-data-20190927-182117
-    # #SMTV_2019      # cp -rp roku-data-20190927-182117 ~/Datasets/UCHI/IOT_2019/
-    # # 'SMTV1_2019',
-    # # 'SMTV2_2019',
+    # # # # # 'MAWI165-2_2020',  # 'MAWI/WIDE_2020/pc_203.78.7.165-2',  # ~25000 (flows src_dst)
+    'ISTS1',
+    'MACCDC1',
+    'SFRIG1_2020',
+    'AECHO1_2020',
+    'DWSHR_WSHR_2020',  # only use Dwshr normal, and combine Dwshr and wshr novelties
 ]
 
 
@@ -114,7 +88,15 @@ def _get_model_cfg(model_cfg, n_repeats=5, q=0.3, n_kjl=100, d_kjl=5, n_comp=1,
     before_proj = model_cfg['before_proj']
     is_gs = model_cfg['is_gs']
     model_name = model_cfg['model_name']
-
+    train_size = model_cfg['train_size']
+    if '5/7' in model_cfg['k_qs']:
+        quickshift_k = int(train_size ** (5/7))
+    elif '2/3' in model_cfg['k_qs']:
+        quickshift_k = int(train_size ** (2/3))
+    elif '3/4' in model_cfg['k_qs']:
+        quickshift_k = int(train_size ** (3 / 4))
+    else:
+        quickshift_k = 500 if 'qs' in model_name else None
     # if 'OCSVM' in model_name:
     #     if 'rbf' in model_name:
     #         kernel = 'rbf'
@@ -139,9 +121,10 @@ def _get_model_cfg(model_cfg, n_repeats=5, q=0.3, n_kjl=100, d_kjl=5, n_comp=1,
     #     is_kjl = False
 
     TEMPLATE = {"model_name": model_name,  # the case name of current experiment
-                "train_size": model_cfg['train_size'],
+                "train_size": train_size,
                 'detector': {'detector_name': 'GMM', 'GMM_covariance_type': None},
                 'is_gs': False,
+                'k_qs_str': f'{quickshift_k}-'+model_cfg['k_qs'].replace('/', '_'), # for quickshift k.
                 'before_proj': before_proj,
                 'after_proj': not before_proj,
                 'std': {'is_std': False, 'is_std_mean': False},  # default use std
@@ -217,16 +200,16 @@ def _get_model_cfg(model_cfg, n_repeats=5, q=0.3, n_kjl=100, d_kjl=5, n_comp=1,
                                          'nystrom_ds': [d_kjl]
                                          }
                                 )
-    # elif model_name == 'GMM(full)' or model_name == "GMM(diag)":
-    #     # case 2: GMM
-    #     model_cfg = create_case(template=TEMPLATE,
-    #                             detector={'detector_name': 'GMM',
-    #                                       'GMM_covariance_type': covariance_type,
-    #                                       'GMM_n_components': [1, 5, 10, 15, 20, 25, 30, 35, 40,
-    #                                                            45] if is_gs else [n_comp]
-    #                                       },
-    #                             is_gs=is_gs
-    #                             )
+    elif model_name == 'GMM(full)' or model_name == "GMM(diag)":
+        # case 2: GMM
+        model_cfg = create_case(template=TEMPLATE,
+                                detector={'detector_name': 'GMM',
+                                          'GMM_covariance_type': covariance_type,
+                                          'GMM_n_components': [1, 5, 10, 15, 20, 25, 30, 35, 40,
+                                                               45] if is_gs else [n_comp]
+                                          },
+                                is_gs=is_gs
+                                )
 
     elif model_name == "KJL-GMM(full)" or model_name == "KJL-GMM(diag)":
         # case 3: KJL-GMM
@@ -274,9 +257,9 @@ def _get_model_cfg(model_cfg, n_repeats=5, q=0.3, n_kjl=100, d_kjl=5, n_comp=1,
                                      'kjl_ds': [d_kjl]
                                      },
                                 quickshift={'is_quickshift': True,
-                                            'quickshift_ks': [10, 70, 140, 210, 280, 350, 420, 490, 560, 630, 700],
+                                            'quickshift_ks':[quickshift_k],    #[500],
                                             # [50, 100, 150, 200, 250, 300, 350, 400, 450, 500]
-                                            'quickshift_betas': [0.9]  # fix QS
+                                            'quickshift_betas': [0.9]  # only tune beta for QS
                                             }
                                 )
     elif model_name == "MS-KJL-GMM(full)" or model_name == "MS-KJL-GMM(diag)" or \
@@ -313,9 +296,9 @@ def _get_model_cfg(model_cfg, n_repeats=5, q=0.3, n_kjl=100, d_kjl=5, n_comp=1,
                                          'nystrom_ds': [d_kjl]
                                          },
                                 quickshift={'is_quickshift': True,
-                                            'quickshift_ks': [10, 70, 140, 210, 280, 350, 420, 490, 560, 630, 700],
+                                            'quickshift_ks': [quickshift_k],
                                             # [50, 100, 150, 200, 250, 300, 350, 400, 450, 500]
-                                            'quickshift_betas': [0.9]
+                                            'quickshift_betas': qs if is_gs else [0.9]
                                             }
                                 )
     elif model_name == "Nystrom-MS-GMM(full)" or model_name == "Nystrom-MS-GMM(diag)" or \
@@ -344,17 +327,17 @@ def _get_model_cfg(model_cfg, n_repeats=5, q=0.3, n_kjl=100, d_kjl=5, n_comp=1,
 
 
 MODELS = [  # algorithm name
-    # "OCSVM(rbf)",
+    "OCSVM(rbf)",
     # "KJL-OCSVM(linear)",
-    # # "Nystrom-OCSVM(linear)",
-    # #
-    # # # "GMM(full)", "GMM(diag)",
-    # #
-    "KJL-GMM(full)", #"KJL-GMM(diag)",
-    # #
-    # # "Nystrom-GMM(full)", "Nystrom-GMM(diag)",
-    # #
-    # # # quickshift(QS)/meanshift(MS) are used before KJL/Nystrom projection
+    # "Nystrom-OCSVM(linear)",
+    #
+    # # "GMM(full)", "GMM(diag)",
+    #
+    # "KJL-GMM(full)", "KJL-GMM(diag)",
+    #
+    # "Nystrom-GMM(full)", "Nystrom-GMM(diag)",
+    #
+    # # quickshift(QS)/meanshift(MS) are used before KJL/Nystrom projection
     # # "QS-KJL-GMM(full)", "QS-KJL-GMM(diag)",
     # # "MS-KJL-GMM(full)", "MS-KJL-GMM(diag)",
     #
@@ -362,7 +345,7 @@ MODELS = [  # algorithm name
     # # "MS-Nystrom-GMM(full)", "MS-Nystrom-GMM(diag)",
     #
     # # quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection
-    # "KJL-QS-GMM(full)", #"KJL-QS-GMM(diag)",
+    "KJL-QS-GMM(full)", #"KJL-QS-GMM(diag)",
     # # "KJL-MS-GMM(full)", "KJL-MS-GMM(diag)"
     #
     # "Nystrom-QS-GMM(full)", "Nystrom-QS-GMM(diag)",
@@ -509,7 +492,7 @@ def _main(data_cfg, model_cfg, out_dir =''):
     lg.info(f"data_cfg: {data_cfg}, model_cfg: {model_cfg}")
     res=''
     try:
-        exp = SingleEXP(in_dir= f'speedup/data', n_repeats=1,
+        exp = SingleEXP(in_dir= f'speedup/data', n_repeats=5,
                         q=0.25, n_kjl=100, d_kjl=model_cfg['d_kjl'], n_comp=1,
                         random_state=42, verbose=10, overwrite=False,
                         n_jobs=5)
@@ -520,6 +503,10 @@ def _main(data_cfg, model_cfg, out_dir =''):
         # exp.save_model()
 
         # update out_dir
+        if 'KJL' in model_cfg['model_name']:
+            k_qs_str = model_cfg['k_qs_str']
+        else:
+            k_qs_str = None
         out_dir = pth.join(out_dir,
                            exp.data_cfg['direction'],
                            exp.data_cfg['feat'] + "-header_" + str(exp.data_cfg['is_header']),
@@ -528,7 +515,8 @@ def _main(data_cfg, model_cfg, out_dir =''):
                            "-gs_" + str(exp.model_cfg['is_gs']),
                            exp.model_cfg['model_name'] + "-std_" + str(exp.model_cfg['is_std'])
                            + "_center_" + str(exp.model_cfg['is_std_mean']) + "-d_" + str(exp.model_cfg['d_kjl']) \
-                           + "-" + str(exp.model_cfg['GMM_covariance_type']))
+                           + "-" + str(exp.model_cfg['GMM_covariance_type'])+'-train_size_'
+                           + str(exp.model_cfg['train_size']) + f'-k_qs_{k_qs_str}')
         out_file = exp.save_data(res, out_dir=out_dir)
         exp.show_data(res, out_dir=out_dir)
     except Exception as e:
@@ -547,15 +535,17 @@ def main(directions=[('direction', 'src_dst'), ],
          headers=[('is_header', True), ('is_header', False)],
          gses=[('is_gs', True), ('is_gs', False)],
          before_projs=[('before_proj', False), ],
-         ds=[('d_kjl', 5), ], out_dir = 'speedup/out',
-         train_sizes=[('train_size', 5000)],
+         ds=[('d_kjl', 5), ],
+         train_sizes = [('train_size', 5000)],
+        k_qs = [('k_qs', 5000**(5/7)), ('k_qs', 5000**(2/3))],
+         out_dir = 'speedup/out',
          is_parallel=True):
     # Store all the results
     res = []
     datasets = [('data_name', v) for v in DATASETS]
     datasets_cfg = list(itertools.product(datasets, directions, feats, headers))
     models = [('model_name', v) for v in MODELS]
-    models_cfg = list(itertools.product(models, gses, before_projs, ds, train_sizes))
+    models_cfg = list(itertools.product(models, gses, before_projs, ds, train_sizes, k_qs))
 
     # Total number of experiments
     n_tot = len(list(itertools.product(datasets_cfg, models_cfg)))
@@ -586,22 +576,27 @@ def main(directions=[('direction', 'src_dst'), ],
 if __name__ == '__main__':
     try:
         # # IAT_SIZE
+        # out_dir = 'speedup/out_train_sizes/'
+        out_dir = 'speedup/out_train_sizes/keep_small_clusters'  # should change _speedup_kjl (self.thres_n = 0), keep all small clusters
         main(feats=[('feat', 'iat_size'), ],
              headers=[('is_header', False)],
-             gses=[('is_gs', True)],
              before_projs=[('before_proj', False), ],
              ds=[('d_kjl', 5), ],
-             train_sizes=[('train_size',  5000) ],
-             out_dir='speedup/out-kjl-tune_qs_k',
+             train_sizes= [('train_size', v*1000) for v in list(range(1, 5+1, 1))],
+             # train_sizes=[('train_size', 100), ('train_size', 200),('train_size', 400) ,('train_size', 600), ('train_size', 800),('train_size', 1000)],
+             k_qs= [('k_qs', '5/7'), ('k_qs', '2/3'), ('k_qs', '3/4')], # [('k_qs', '3/4')],
+             # gses=[('is_gs', False)],
+             out_dir=out_dir,
              )
-        # # STATS
-        # main(feats=[('feat', 'stats')],
+        # STATS
+        # main(feats=[('feat', 'stats'), ],
         #      headers=[('is_header', True)],
-        #      # gses=[('is_gs', False)],
         #      before_projs=[('before_proj', False), ],
+        #      # gses=[('is_gs', False)],
         #      ds=[('d_kjl', 5), ],
-        #      out_dir = 'speedup/out',
-        #      )
+        #      train_sizes= [('train_size', v*1000) for v in list(range(1, 5+1, 1))],
+        #      out_dir='speedup/out_train_sizes',
+        #     )
     except Exception as e:
         traceback.print_exc()
         lg.error(e)

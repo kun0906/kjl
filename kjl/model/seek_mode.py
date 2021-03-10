@@ -12,7 +12,6 @@
         pass
 
 """
-import profile
 from collections import Counter
 from datetime import datetime
 
@@ -27,9 +26,80 @@ import numpy as np
 # *** Base on that, just use the following command to install quickshift++
 # "python3 setup build; python3 setup install" to install "quickshift++"
 from QuickshiftPP import QuickshiftPP
+from memory_profiler import profile
 from sklearn.cluster import MeanShift
 from sklearn.metrics import pairwise_distances
-from memory_profiler import profile
+
+
+class SeekModes:
+    def __init__(self, seek_name='quickshift', random_state=42):
+        self.seek_name = seek_name
+        self.random_state = random_state
+
+    def fit(self, X, thres=0.95, n_comp_thres=20, **kwargs):
+
+        # start = datetime.now()
+        if self.seek_name.upper() == 'quickshift'.upper():
+            """Initialize GMM
+                1) Download quickshift++ from github
+                2) unzip and move the folder to your project
+                3) python3.7 setup.py build
+                4) python3.7 setup.py install
+                5) from QuickshiftPP import QuickshiftPP
+            :param X_train:
+            :param k:
+                # k: number of neighbors in k-NN
+                # beta: fluctuation parameter which ranges between 0 and 1.
+
+                    :return:
+                    
+                QuickshiftPP doesn't have random_state parameter, so the result might change.
+            """
+            k = kwargs['qs_k']
+            beta = kwargs['qs_beta']
+            if k <= 0 or k > X.shape[0]:
+                print(f'k {k} is not correct, so change it to X.shape[0]')
+                k = X.shape[0]
+            print(f"number of neighbors in k-NN: {k}")
+            # Declare a Quickshift++ model with tuning hyperparameters.
+            model = QuickshiftPP(k=k, beta=beta)
+
+            # Note the try catch cannot capture the model.fit() error because it is cython. How to capture the exception?
+            try:
+                print(f'before qs: k={k}, beta={beta}')
+                model.fit(X)
+                print('after qs')
+            except Exception as e:
+                msg = f'quickshift++ fit error: {e}'
+                raise ValueError(msg)
+
+            # lg.info("quick_training_time took {} seconds".format(quick_training_time))
+
+            # sort by cluster sizes
+            tot_clusters = dict(sorted(Counter(model.memberships).items(), key=lambda kv: kv[1], reverse=True))
+            tot_labels = model.memberships
+            ########################################################################################
+            # get gmm_init
+            n_thres = 0
+            N,D = X.shape
+            i = 0
+            for i, (label_, n_) in enumerate(tot_clusters.items()):
+                n_thres += n_
+                if n_thres > int(N*thres) or i >= n_comp_thres-1:
+                    # n_thres -= n_
+                    break
+            self.n_clusters = i + 1
+            self.n_thres =n_thres
+            self.tot_clusters = tot_clusters
+            self.tot_labels = tot_labels
+
+        else:
+            msg = f'Error: {self.seek_name}'
+            raise NotImplementedError(msg)
+
+        # end = datetime.now()
+        # self.seek_train_time = (end - start).total_seconds()
+
 
 class MODESEEKING():
 
@@ -143,6 +213,8 @@ def meanshift_seek_modes(X, bandwidth=None, thres_n=100):
 
     return means_init, n_clusters, meanshift_training_time, all_n_clusters
 
+
+
 @profile
 def quickshift_seek_modes(X, k=None, beta=0.9, thres_n=100):
     """Initialize GMM
@@ -182,6 +254,9 @@ def quickshift_seek_modes(X, k=None, beta=0.9, thres_n=100):
     start = datetime.now()
     # print('quickshift fit finished')
     all_labels_ = model.memberships
+    # # sort by cluster sizes
+    # counter_labels = dict(sorted(Counter(all_labels_).items(), key=lambda kv: kv[1], reverse=True))
+    #
     all_n_clusters = len(set(all_labels_))
     cluster_centers = []
     for i in range(all_n_clusters):

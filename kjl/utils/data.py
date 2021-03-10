@@ -1,17 +1,18 @@
 import os
 import os.path as pt
+import os.path as pth
 import pickle
 import traceback
 from collections import Counter
 
 import dill
-import pandas as pd
 import numpy as np
+import pandas as pd
 import sklearn
 from numpy import genfromtxt
 from sklearn.model_selection import train_test_split
 from sklearn.utils import resample
-import os.path as pth
+
 
 def split_train_test2(normal_data, abnormal_data, train_size=0.8, test_size=150 * 2, random_state=42, debug=False):
     """Split train and test set
@@ -96,15 +97,15 @@ def split_train_test(X, y, train_size=800, random_state=42):
     y = [0 if v.startswith('normal') else 1 for i, v in enumerate(list(y))]
     y = np.asarray(y)
 
-    X, y = sklearn.utils.shuffle(X, y, random_state = random_state)
-    normal_idx = np.where(y==0)[0]
-    abnormal_idx = np.where(y==1)[0]
+    X, y = sklearn.utils.shuffle(X, y, random_state=random_state)
+    normal_idx = np.where(y == 0)[0]
+    abnormal_idx = np.where(y == 1)[0]
     # normal_idx = [i for i, v in enumerate(y) if v.startswith('normal')]
     # abnormal_idx =  [i for i, v  in enumerate(y) if v.startswith('abnormal')]
 
     if 0 < train_size <= 1:
         n_normal = int(normal_idx.shape[0] * train_size)
-    elif train_size < normal_idx.shape[0] :
+    elif train_size < normal_idx.shape[0]:
         n_normal = train_size
     else:  # train_normal.shape[0] < train_size:
         n_normal = normal_idx.shape[0]
@@ -116,9 +117,9 @@ def split_train_test(X, y, train_size=800, random_state=42):
     y_train = y_normal[:n_normal]
 
     n_val_normal = 100  # 50
-    n_abnormal = abnormal_idx.shape[0]-n_val_normal
+    n_abnormal = abnormal_idx.shape[0] - n_val_normal
 
-    X_val_normal = X_normal[n_normal:n_normal+n_val_normal]
+    X_val_normal = X_normal[n_normal:n_normal + n_val_normal]
     y_val_normal = y_normal[n_normal:n_normal + n_val_normal].reshape(-1, 1)
     X_val_abnormal = X_abnormal[:n_val_normal, :]
     y_val_abnormal = y_abnormal[:n_val_normal].reshape(-1, 1)
@@ -127,12 +128,12 @@ def split_train_test(X, y, train_size=800, random_state=42):
 
     # n_abnormal -= n_val_normal
     n_normal += n_val_normal
-    n_abnormal = 300  if n_abnormal > 300  else n_abnormal
+    n_abnormal = 300 if n_abnormal > 300 else n_abnormal
 
-    X_test_normal = X_normal[n_normal:n_normal+n_abnormal, :]
-    y_test_normal = y_normal[n_normal:n_normal+n_abnormal].reshape(-1, 1)
-    X_test_abnormal = X_abnormal[n_val_normal:n_abnormal+n_val_normal, :]
-    y_test_abnormal = y_abnormal[n_val_normal:n_abnormal+n_val_normal].reshape(-1, 1)
+    X_test_normal = X_normal[n_normal:n_normal + n_abnormal, :]
+    y_test_normal = y_normal[n_normal:n_normal + n_abnormal].reshape(-1, 1)
+    X_test_abnormal = X_abnormal[n_val_normal:n_abnormal + n_val_normal, :]
+    y_test_abnormal = y_abnormal[n_val_normal:n_abnormal + n_val_normal].reshape(-1, 1)
     X_test = np.vstack((X_test_normal, X_test_abnormal))
     # normal and abnormal have the same size in the test set
     y_test = np.vstack((y_test_normal, y_test_abnormal)).flatten()
@@ -140,7 +141,6 @@ def split_train_test(X, y, train_size=800, random_state=42):
     print(f"train: {Counter(y_train)}, val: {Counter(y_val)}, test: {Counter(y_test)}")
 
     return X_train, y_train, X_val, y_val, X_test, y_test
-
 
 
 def seperate_normal_abnormal(X, y, random_state=42):
@@ -160,6 +160,7 @@ def seperate_normal_abnormal(X, y, random_state=42):
     print(f"X.shape: {X.shape}, y: {Counter(y)}")
 
     return X_normal, y_normal, X_abnormal, y_abnormal
+
 
 def split_left_test(X_normal, y_normal, X_abnormal, y_abnormal, test_size=600, random_state=42):
     """Split train and test set
@@ -200,10 +201,9 @@ def split_left_test(X_normal, y_normal, X_abnormal, y_abnormal, test_size=600, r
     y_normal = y_normal[n_abnormal:]
     X_abnormal = X_abnormal[n_abnormal:, :]
     y_abnormal = y_abnormal[n_abnormal:]
-    y_left = np.vstack((y_normal.reshape(-1, 1), y_abnormal.reshape(-1,1))).flatten()
+    y_left = np.vstack((y_normal.reshape(-1, 1), y_abnormal.reshape(-1, 1))).flatten()
 
     print(f"left: {Counter(y_left)}, test: {Counter(y_test)}")
-
 
     return X_normal, y_normal, X_abnormal, y_abnormal, X_test, y_test
 
@@ -225,27 +225,33 @@ def split_train_val(X_normal, y_normal, X_abnormal, y_abnormal, train_size=5000,
     X_abnormal, y_abnormal = sklearn.utils.shuffle(X_abnormal, y_abnormal, random_state=random_state)
 
     n_train_normal = train_size
-    n_val_normal = int(val_size//2)
+    n_val_normal = int(val_size // 2)
     ######## get train data
     X_train_normal = X_normal[:n_train_normal, :]
     y_train_normal = y_normal[:n_train_normal].reshape(-1, 1)
     X_train = X_train_normal
     y_train = y_train_normal.flatten()
 
-    n_val_normal = n_val_normal if len(y_abnormal) > n_val_normal else int(len(y_abnormal) * 0.8)
+    # n_val_normal = n_val_normal if len(y_abnormal) > n_val_normal else int(len(y_abnormal) * 0.8)
 
-    X_val_normal = X_normal[n_train_normal: n_train_normal+n_val_normal, :]
-    y_val_normal = y_normal[n_train_normal:n_train_normal+n_val_normal].reshape(-1, 1)
-    X_val_abnormal = X_abnormal[:n_val_normal, :]
-    y_val_abnormal = y_abnormal[:n_val_normal].reshape(-1, 1)
+    X_val_normal = X_normal[n_train_normal: n_train_normal + n_val_normal, :]
+    y_val_normal = y_normal[n_train_normal:n_train_normal + n_val_normal].reshape(-1, 1)
+    if len(y_abnormal) > n_val_normal:
+        X_val_abnormal = X_abnormal[:n_val_normal, :]
+        y_val_abnormal = y_abnormal[:n_val_normal].reshape(-1, 1)
+    else:
+        # oversampling
+        X_val_abnormal, y_val_abnormal = sklearn.utils.resample(X_abnormal, y_abnormal, n_samples=n_val_normal,
+                                                        replace=True, random_state=random_state)
+        y_val_abnormal = y_val_abnormal.reshape(-1, 1)
+
     X_val = np.vstack((X_val_normal, X_val_abnormal))
     # normal and abnormal have the same size in the test set
     y_val = np.vstack((y_val_normal, y_val_abnormal)).flatten()
 
     print(f"train: {Counter(y_train)}, val: {Counter(y_val)}")
 
-    return X_train, y_train,  X_val, y_val
-
+    return X_train, y_train, X_val, y_val
 
 
 def load_data(in_file):
@@ -354,7 +360,7 @@ def dump_data(data, out_file='data.dat', dump_method='dill'):
         os.makedirs(out_dir)
 
     with open(out_file, 'wb') as f:
-        if dump_method =='dill':
+        if dump_method == 'dill':
             # https://stackoverflow.com/questions/37906154/dill-vs-cpickle-speed-difference
             dill.dump(data, f)
         else:
@@ -428,6 +434,7 @@ def save_each_result(data, case_str, out_file=None):
 
         f.write(line + '\n')
 
+
 #
 # data_mapping = {
 #     # 'DS10_UNB_IDS/DS11-srcIP_192.168.10.5':'UNB_PC1',
@@ -450,7 +457,6 @@ def save_each_result(data, case_str, out_file=None):
 #
 
 def dat2csv(result, out_file):
-
     with open(out_file, 'w') as f:
         keys = []
         for (in_dir, case_str), (best_results, middle_results) in result.items():
@@ -501,9 +507,10 @@ def dat2csv(result, out_file):
                 f.write(line + '\n')
                 print(line)
                 cnt += 1
-            f.write('\n\n\n') # f.write('\n'*(8-cnt))
+            f.write('\n\n\n')  # f.write('\n'*(8-cnt))
 
     return out_file
+
 
 def batch(X, y, *, step=1, stratify=False):
     if stratify:
@@ -512,11 +519,11 @@ def batch(X, y, *, step=1, stratify=False):
         while len(y) > 0:
             if len(y) <= step:
                 yield X, y
-                X=[]
+                X = []
                 y = []
             else:
                 X, X_test, y, y_test = train_test_split(X, y, test_size=step, shuffle=True,
-                                                             random_state=42, stratify=y)
+                                                        random_state=42, stratify=y)
                 yield X_test, y_test
 
     else:
@@ -527,6 +534,7 @@ def batch(X, y, *, step=1, stratify=False):
                 yield X[i:min(i + step, size)].reshape(1, -1), y[i:min(i + step, size)]
             else:
                 yield X[i:min(i + step, size)], y[i:min(i + step, size)]
+
 
 #
 # def get_batch_mean_varaince():
@@ -580,7 +588,6 @@ def batch(X, y, *, step=1, stratify=False):
 #
 #     return mean, sampleVariance
 #
-
 
 
 def save_result2(result, out_file):

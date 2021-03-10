@@ -2,13 +2,6 @@
 """
 # Authors: kun.bj@outlook.com
 # License: xxx
-import os
-# must set these before loading numpy:
-os.environ["OMP_NUM_THREADS"] = '1'  # export OMP_NUM_THREADS=4
-os.environ["OPENBLAS_NUM_THREADS"] = '1'  # export OPENBLAS_NUM_THREADS=4
-os.environ["MKL_NUM_THREADS"] = '1'  # export MKL_NUM_THREADS=6
-os.environ["VECLIB_MAXIMUM_THREADS"] = '1' # export VECLIB_MAXIMUM_THREADS=4
-os.environ["NUMEXPR_NUM_THREADS"] = '1' # export NUMEXPR_NUM_THREADS=6
 
 import copy
 import itertools
@@ -16,7 +9,6 @@ import os.path as pth
 import time
 import traceback
 from collections import Counter
-import cProfile
 
 import numpy as np
 import sklearn
@@ -24,9 +16,9 @@ from func_timeout import func_set_timeout, FunctionTimedOut
 from joblib import delayed, Parallel
 from sklearn import metrics
 from sklearn.metrics import pairwise_distances, roc_curve
+from sklearn.preprocessing import StandardScaler
 
 from kjl.log import get_log
-from kjl import pstats
 from kjl.model.gmm import GMM, compute_gmm_init
 from kjl.model.kjl import KJL
 from kjl.model.nystrom import NYSTROM
@@ -38,8 +30,8 @@ from kjl.utils.tool import execute_time
 # create a customized log instance that can print the information.
 lg = get_log(level='info')
 
-FUNC_TIMEOUT = 3 * 60  # (if function takes more than 3 mins, then it will be killed)
-np.set_printoptions(precision=2, suppress=True)
+FUNC_TIMEOUT = 3 * 60  # (if function takes more than 30mins, then it will be killed)
+
 
 class BASE:
 
@@ -49,7 +41,7 @@ class BASE:
     # # use_signals=False: the fuction cannot return a object that cannot be pickled (here "self" is not pickled,
     # # so it will be PicklingError)
     # # use_signals=True: it only works on main thread (here train_test_intf is not the main thread)
-    # @timeout_decorator.timeout(seconds=30 * 60, use_signals=False, timeout_exception=StopIteration)
+    # @timeout_decorator.timeout(seconds=20 * 60, use_signals=False, timeout_exception=StopIteration)
     # @profile
     @func_set_timeout(FUNC_TIMEOUT)  # seconds
     def _train(self, model, X_train, y_train=None):
@@ -65,22 +57,19 @@ class BASE:
         -------
 
         """
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time_ns()
         try:
             model.fit(X_train)
         except (TimeoutError, Exception) as e:
             msg = f'fit error: {e}'
             raise ValueError(f'{msg}')
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        train_time = ps.total_tt
+        end = time.process_time_ns()
+        train_time = (end - start) / (10 ** 9)
         # lg.debug("Fitting model takes {} seconds".format(train_time))
 
         return model, train_time
 
-    def _test(self, model, X_test, y_test, idx=None):
+    def _test(self, model, X_test, y_test):
         """Evaluate the model on the X_test, y_test
 
         Parameters
@@ -94,54 +83,45 @@ class BASE:
            y_score: abnormal score
            testing_time, auc, apc
         """
-        # lg.info(X_test[0, :])
+
         self.test_time = 0
 
         #####################################################################################################
         # 1. standardization
-        # pr = cProfile.Profile(time.process_time)
-        # pr.enable()
+        # start = time.process_time_ns()
         # # if self.params['is_std']:
         # #     X_test = self.scaler.transform(X_test)
         # # else:
         # #     pass
-        # pr.disable()
-        #ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        # self.std_test_time = ps.total_tt
+        # end = time.process_time_ns()
+        # self.std_test_time = (end - start) / (10 ** 9)
         self.std_test_time = 0
         self.test_time += self.std_test_time
 
         #####################################################################################################
         # 2. projection
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time_ns()
         if 'is_kjl' in self.params.keys() and self.params['is_kjl']:
             X_test = self.project.transform(X_test)
         elif 'is_nystrom' in self.params.keys() and self.params['is_nystrom']:
             X_test = self.project.transform(X_test)
         else:
             pass
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.proj_test_time = ps.total_tt
+        end = time.process_time_ns()
+        self.proj_test_time = (end - start) / (10 ** 9)
         self.test_time += self.proj_test_time
-        # lg.info(X_test[0, :])
+
         # no need to do seek in the testing phase
         self.seek_test_time = 0
 
         #####################################################################################################
         # 3. prediction
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time_ns()
         # For inlier, a small value is used; a larger value is for outlier (positive)
         # it must be abnormal score because we use y=1 as abnormal and roc_acu(pos_label=1)
         y_score = model.decision_function(X_test)
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.model_test_time = ps.total_tt
+        end = time.process_time_ns()
+        self.model_test_time = (end - start) / (10 ** 9)
         self.test_time += self.model_test_time
 
         # For binary  y_true, y_score is supposed to be the score of the class with greater label.
@@ -153,7 +133,7 @@ class BASE:
 
         lg.info(f'Total test time: {self.test_time} <= std_test_time: {self.std_test_time}, '
                 f'seek_test_time: {self.seek_test_time}, proj_test_time: {self.proj_test_time}, '
-                f'model_test_time: {self.model_test_time}, idx={idx}')
+                f'model_test_time: {self.model_test_time}')
 
         return self.auc, self.test_time
 
@@ -187,8 +167,7 @@ class GMM_MAIN(BASE):
 
         #####################################################################################################
         # 1.1 normalization
-        # pr = cProfile.Profile(time.process_time)
-        # pr.enable()
+        # start = time.process_time_ns()
         # # if self.params['is_std']:
         # #     self.scaler = StandardScaler(with_mean=self.params['is_std_mean'])
         # #     self.scaler.fit(X_train)
@@ -196,17 +175,14 @@ class GMM_MAIN(BASE):
         # #     # if self.verbose > 10: data_info(X_train, name='X_train')
         # # else:
         # #     pass
-        # pr.disable()
-        #ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        # self.std_train_time = ps.total_tt
+        # end = time.process_time_ns()
+        # self.std_train_time = (end - start) / (10 ** 9)
         self.std_train_time = 0
         self.train_time += self.std_train_time
 
         #####################################################################################################
         # 1.2. projection
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time_ns()
         if 'is_kjl' in self.params.keys() and self.params['is_kjl']:
             self.project = KJL(self.params)
             self.project.fit(X_train, y_train)
@@ -231,16 +207,13 @@ class GMM_MAIN(BASE):
             q = 0.25
         # self.params['is_kjl'] = False # for debugging
         # d, n, q = D, N, self.params['kjl_q']
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.proj_train_time = ps.total_tt
+        end = time.process_time_ns()
+        self.proj_train_time = (end - start) / (10 ** 9)
         self.train_time += self.proj_train_time
 
         #####################################################################################################
         # 1.3 seek modes after projection
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time_ns()
         if self.params['after_proj']:
             self.thres_n = 0.95  # used to filter clusters
             if 'is_quickshift' in self.params.keys() and self.params['is_quickshift']:
@@ -276,16 +249,13 @@ class GMM_MAIN(BASE):
 
         else:
             pass
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.seek_train_time = ps.total_tt
+        end = time.process_time_ns()
+        self.seek_train_time = (end - start) / (10 ** 9)
         self.train_time += self.seek_train_time
 
         #####################################################################################################
         # 2.1 Initialize the model
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time_ns()
         model = GMM()
         if self.params['GMM_is_init_all'] and (self.params['is_quickshift'] or self.params['is_meanshift']):
             # get the init params of GMM
@@ -308,10 +278,8 @@ class GMM_MAIN(BASE):
                             'means_init': None, 'random_state': self.random_state}
         # set model default parameters
         model.set_params(**model_params)
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.init_model_time = ps.total_tt
+        end = time.process_time_ns()
+        self.init_model_time = (end - start) / (10 ** 9)
         self.train_time += self.init_model_time
         lg.debug(f'model.get_params(): {model.get_params()}')
 
@@ -319,16 +287,16 @@ class GMM_MAIN(BASE):
         # 2.2 Train the model
         try:
             self.model, self.model_train_time = self._train(model, X_train)
-        except (FunctionTimedOut, Exception) as e:
-            lg.warning(f'{e}, retrain with a larger reg_covar')
-            model.reg_covar = 1e-5
-            self.model, self.model_train_time = self._train(model, X_train)
+        except Exception as e:
+            # model.reg_covar = 1e-5
+            # lg.debug(f'retrain with a larger reg_covar')
+            # self.model, self.model_train_time = self._train(model, X_train)
+            raise RuntimeError(e)
         self.train_time += self.model_train_time
 
         #####################################################################################################
         # 3. get space size
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time_ns()
         if self.model.covariance_type == 'full':
             # space_size = (d ** 2 + d) * n_comps + n * (d + D)
             self.space_size = (d ** 2 + d) * self.model.n_components + n * (d + D)
@@ -338,11 +306,9 @@ class GMM_MAIN(BASE):
         else:
             msg = self.model.covariance_type
             raise NotImplementedError(msg)
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.space_train_time = ps.total_tt
-        # self.train_time += self.space_train_time
+        end = time.process_time_ns()
+        self.space_train_time = (end - start) / (10 ** 9)
+        self.train_time += self.space_train_time
 
         self.N = N
         self.D = D
@@ -350,13 +316,12 @@ class GMM_MAIN(BASE):
         lg.info(f'Total train time: {self.train_time} <= std_train_time: {self.std_train_time}, seek_train_time: '
                 f'{self.seek_train_time}, proj_train_time: {self.proj_train_time}, '
                 f'init_model_time: {self.init_model_time}, model_train_time: {self.model_train_time}, '
-                f'D:{D}, space_size: {self.space_size}, N:{N}, n_comp: {self.model.n_components}, d: {d}, n: {n}, '
-                f'q: {q}')
-        
+                f'D:{D}, space_size: {self.space_size}, N:{N}')
+
         return self
 
-    def test(self, X_test, y_test, idx=None):
-        return self._test(self.model, X_test, y_test, idx=idx)
+    def test(self, X_test, y_test):
+        return self._test(self.model, X_test, y_test)
 
 
 class OCSVM_MAIN(BASE):
@@ -384,8 +349,7 @@ class OCSVM_MAIN(BASE):
 
         #####################################################################################################
         # 1.1 normalization
-        # pr = cProfile.Profile(time.process_time)
-        # pr.enable()
+        # start = time.process_time_ns()
         # # if self.params['is_std']:
         # #     self.scaler = StandardScaler(with_mean=self.params['is_std_mean'])
         # #     self.scaler.fit(X_train)
@@ -393,10 +357,8 @@ class OCSVM_MAIN(BASE):
         # #     # if self.verbose > 10: data_info(X_train, name='X_train')
         # # else:
         # #     pass
-        # pr.disable()
-        #ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        # self.std_train_time = ps.total_tt
+        # end = time.process_time_ns()
+        # self.std_train_time = (end - start) / (10 ** 9)
         self.std_train_time = 0
         self.train_time += self.std_train_time
 
@@ -406,8 +368,7 @@ class OCSVM_MAIN(BASE):
 
         ######################################################################################################
         # 1.3 Projection
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time_ns()
         if 'is_kjl' in self.params.keys() and self.params['is_kjl']:
             # self.sigma = np.sqrt(X_train.shape[0]* X_train.var())
             self.project = KJL(self.params)
@@ -445,23 +406,18 @@ class OCSVM_MAIN(BASE):
             model_params = {'kernel': self.params['OCSVM_kernel'], 'gamma': self.model_gamma,
                             'nu': self.params['OCSVM_nu']}
 
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.proj_train_time = ps.total_tt
+        end = time.process_time_ns()
+        self.proj_train_time = (end - start) / (10 ** 9)
         self.train_time += self.proj_train_time
 
         ######################################################################################################
         # 2.1 Initialize the model with preset parameters
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time_ns()
         model = OCSVM()
         # set model default parameters
         model.set_params(**model_params)
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.init_model_time = ps.total_tt
+        end = time.process_time_ns()
+        self.init_model_time = (end - start) / (10 ** 9)
         self.train_time += self.init_model_time
         lg.info(f'model.get_params(): {model.get_params()}')
 
@@ -469,28 +425,23 @@ class OCSVM_MAIN(BASE):
         # 2.2 Build the model with train set
         try:
             self.model, self.model_train_time = self._train(model, X_train)
-        except (FunctionTimedOut, Exception) as e:
-            lg.warning(f'{e}, try a fixed number of iterations (here is 1000)')
-            model.max_iter = 1000  #
+        except Exception as e:
+            model.tol = 1e-2  # try a bigger value
             self.model, self.model_train_time = self._train(model, X_train)
         self.train_time += self.model_train_time
 
         ######################################################################################################
         # 3. Get space size based on support vectors
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time_ns()
         n_sv = self.model.support_vectors_.shape[0]  # number of support vectors
         if 'is_kjl' in self.params.keys() and self.params['is_kjl']:
-            self.space_size = n_sv + n_sv * d + n * (d + D)
+            self.space_size = n_sv + n_sv * D + n * (d + D)
         elif 'is_nystrom' in self.params.keys() and self.params['is_nystrom']:
-            self.space_size = n_sv + n_sv * d + n * (d + D)
+            self.space_size = n_sv + n_sv * D + n * (d + D)
         else:
             self.space_size = n_sv + n_sv * D
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.space_train_time = ps.total_tt
-        # self.train_time += self.space_train_time
+        self.space_train_time = (end - start) / (10 ** 9)
+        self.train_time += self.space_train_time
 
         self.n_sv = n_sv
         self.D = D
@@ -499,12 +450,12 @@ class OCSVM_MAIN(BASE):
         lg.info(f'Total train time: {self.train_time} <= std_train_time: {self.std_train_time}, seek_train_time: '
                 f'{self.seek_train_time}, proj_train_time: {self.proj_train_time}, '
                 f'init_model_time: {self.init_model_time}, model_train_time: {self.model_train_time}, '
-                f'n_sv: {n_sv}, D:{D}, space_size: {self.space_size}, N:{N}, q: {q}')
+                f'n_sv: {n_sv}, D:{D}, space_size: {self.space_size}, N:{N}')
 
         return self
 
-    def test(self, X_test, y_test, idx=None):
-        return self._test(self.model, X_test, y_test, idx=idx)
+    def test(self, X_test, y_test):
+        return self._test(self.model, X_test, y_test)
 
 
 def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
@@ -522,7 +473,7 @@ def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
     # ##################### memory allocation snapshot
     #
     # tracemalloc.start()
-    # start_time = time.process_time()
+    # start_time = time.time()
     # snapshot1 = tracemalloc.take_snapshot()
     # lg.debug(kwargs, params)
     try:
@@ -538,22 +489,9 @@ def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
         elif "OCSVM" in params['detector_name']:
             model = OCSVM_MAIN(params)
         model.train(X_train, y_train)
+        model.test(X_test, y_test)
 
-        is_average = True
-        if is_average: # time more stable
-            auc = []
-            test_time = []
-            for idx_ in range(100):
-                auc_, test_time_ = model.test(copy.deepcopy(X_test), copy.deepcopy(y_test), idx_)
-                auc.append(auc_)
-                test_time.append(test_time_)
-            auc = np.mean(auc)
-            test_time = np.mean(test_time)
-        else:
-            auc, test_time = model.test(copy.deepcopy(X_test), copy.deepcopy(y_test))
-        lg.info(f'auc: {auc} =? {model.auc}, test_time: {test_time} =? {model.test_time}, X_test: {X_test.shape}')
-
-        info = {'train_time': model.train_time, 'test_time': test_time, 'auc': auc,
+        info = {'train_time': model.train_time, 'test_time': model.test_time, 'auc': model.auc,
                 'params': model.params, 'space_size': model.space_size, 'model': copy.deepcopy(model),
                 'X_train_shape': X_train.shape, 'X_test_shape': X_test.shape}
 
@@ -571,16 +509,11 @@ def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
     # for stat in top_stats[:5]:
     #     lg.debug(stat)
 
-    del model
-
-    import gc
-    gc.collect()
-
     return info
 
 
 @execute_time
-def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, is_parallel=False, random_state=42):
+def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, random_state=42):
     """
 
     Parameters
@@ -593,7 +526,6 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, is_
     y_test
     params: dict
         model_params
-    is_parallel
     random_state
 
     Returns
@@ -620,8 +552,7 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, is_
 
     ################################################################################################################
     # 1. Get the best result
-    if is_parallel:
-        parallel = Parallel(n_jobs=params['n_jobs'], verbose=30, backend='loky', pre_dispatch=1, batch_size=1)
+    parallel = Parallel(n_jobs=params['n_jobs'], verbose=30, backend='loky', pre_dispatch=1, batch_size=1)
 
     # best params and defaults params use the same API
     if 'GMM' in params['model_name']:
@@ -632,22 +563,12 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, is_
         if params['model_name'] == 'GMM(full)' or params['model_name'] == 'GMM(diag)':
             ################################################################################################################
             # only GMM
-            if is_parallel:
-                with parallel:
-                    outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                                               copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                                               copy.deepcopy(params),
-                                                               GMM_n_components=n_components) for n_components, _ in
-                                    list(itertools.product(n_components_arr, [0])))
-            else:
-                outs = []
-                for n_components, _ in list(itertools.product(n_components_arr, [0])):
-                    out = _model_train_test(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                            copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                            copy.deepcopy(params),
-                                            GMM_n_components=n_components)
-                    outs.append(out)
-
+            with parallel:
+                outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
+                                                           copy.deepcopy(X_val), copy.deepcopy(y_val),
+                                                           copy.deepcopy(params),
+                                                           GMM_n_components=n_components) for n_components, _ in
+                                list(itertools.product(n_components_arr, [0])))
 
         elif params['is_kjl']:  # KJL-GMM
             ################################################################################################################
@@ -659,77 +580,43 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, is_
             del params['kjl_ns']
             del params['kjl_qs']
             if params['model_name'] == 'KJL-GMM(full)' or params['model_name'] == 'KJL-GMM(diag)':
-                if is_parallel:
-                    with parallel:
-                        outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                                                   copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                                                   copy.deepcopy(params),
-                                                                   kjl_d=kjl_d, kjl_n=kjl_n, kjl_q=kjl_q,
-                                                                   GMM_n_components=n_components) for
-                                        kjl_d, kjl_n, kjl_q, n_components in
-                                        list(itertools.product(kjl_ds, kjl_ns, kjl_qs, n_components_arr)))
-                else:
-                    outs = []
-                    for kjl_d, kjl_n, kjl_q, n_components in list(itertools.product(kjl_ds, kjl_ns,
-                                                                                    kjl_qs, n_components_arr)):
-                        out = _model_train_test(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                                copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                                copy.deepcopy(params),
-                                                kjl_d=kjl_d, kjl_n=kjl_n, kjl_q=kjl_q,
-                                                GMM_n_components=n_components)
-                        outs.append(out)
+                with parallel:
+                    outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
+                                                               copy.deepcopy(X_val), copy.deepcopy(y_val),
+                                                               copy.deepcopy(params),
+                                                               kjl_d=kjl_d, kjl_n=kjl_n, kjl_q=kjl_q,
+                                                               GMM_n_components=n_components) for
+                                    kjl_d, kjl_n, kjl_q, n_components in
+                                    list(itertools.product(kjl_ds, kjl_ns, kjl_qs, n_components_arr)))
 
             elif params['model_name'] == 'KJL-QS-GMM(full)' or params['model_name'] == 'KJL-QS-GMM(diag)' or \
-                    params['model_name'] == 'KJL-QS-init_GMM(full)' or params['model_name'] == 'KJL-QS-init_GMM(diag)':
+                params['model_name'] == 'KJL-QS-init_GMM(full)' or params['model_name'] == 'KJL-QS-init_GMM(diag)':
                 quickshift_ks = params['quickshift_ks']
                 quickshift_betas = params['quickshift_betas']
                 del params['quickshift_ks']
                 del params['quickshift_betas']
-                if is_parallel:
-                    with parallel:
-                        outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                                                   copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                                                   copy.deepcopy(params),
-                                                                   kjl_d=kjl_d, kjl_n=kjl_n, kjl_q=kjl_q,
-                                                                   quickshift_k=quickshift_k,
-                                                                   quickshift_beta=quickshift_beta)
-                                        for kjl_d, kjl_n, kjl_q, quickshift_k, quickshift_beta in
-                                        list(
-                                            itertools.product(kjl_ds, kjl_ns, kjl_qs, quickshift_ks, quickshift_betas)))
-                else:
-                    outs = []
-                    for kjl_d, kjl_n, kjl_q, quickshift_k, quickshift_beta in list(itertools.product(
-                            kjl_ds, kjl_ns, kjl_qs, quickshift_ks, quickshift_betas)):
-                        out = _model_train_test(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                                copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                                copy.deepcopy(params),
-                                                kjl_d=kjl_d, kjl_n=kjl_n, kjl_q=kjl_q,
-                                                quickshift_k=quickshift_k,
-                                                quickshift_beta=quickshift_beta)
-                        outs.append(out)
+                with parallel:
+                    outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
+                                                               copy.deepcopy(X_val), copy.deepcopy(y_val),
+                                                               copy.deepcopy(params),
+                                                               kjl_d=kjl_d, kjl_n=kjl_n, kjl_q=kjl_q,
+                                                               quickshift_k=quickshift_k,
+                                                               quickshift_beta=quickshift_beta)
+                                    for kjl_d, kjl_n, kjl_q, quickshift_k, quickshift_beta in
+                                    list(itertools.product(kjl_ds, kjl_ns, kjl_qs, quickshift_ks, quickshift_betas)))
 
             elif params['model_name'] == 'KJL-MS-GMM(full)' or params['model_name'] == 'KJL-MS-GMM(diag)':
                 # meanshift uses the same kjl_qs, and only needs to tune one of them
                 meanshift_qs = params['meanshift_qs']
                 del params['meanshift_qs']
-                if is_parallel:
-                    with parallel:
-                        outs = parallel(
-                            delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                                       copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                                       copy.deepcopy(params),
-                                                       kjl_d=kjl_d, kjl_n=kjl_n, kjl_q=kjl_q)
-                            for kjl_d, kjl_n, kjl_q in
-                            list(itertools.product(kjl_ds, kjl_ns, kjl_qs)))
-                else:
-                    outs = []
-                    for kjl_d, kjl_n, kjl_q in list(itertools.product(kjl_ds, kjl_ns, kjl_qs)):
-                        out = _model_train_test(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                                copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                                copy.deepcopy(params),
-                                                kjl_d=kjl_d, kjl_n=kjl_n, kjl_q=kjl_q)
-                        outs.append(out)
-
+                with parallel:
+                    outs = parallel(
+                        delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
+                                                   copy.deepcopy(X_val), copy.deepcopy(y_val),
+                                                   copy.deepcopy(params),
+                                                   kjl_d=kjl_d, kjl_n=kjl_n, kjl_q=kjl_q)
+                        for kjl_d, kjl_n, kjl_q in
+                        list(itertools.product(kjl_ds, kjl_ns, kjl_qs)))
             else:
                 msg = params['model_name']
                 raise NotImplementedError(f'Error: {msg}')
@@ -744,82 +631,46 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, is_
             del params['nystrom_ds']
             del params['nystrom_qs']
             if params['model_name'] == 'Nystrom-GMM(full)' or params['model_name'] == 'Nystrom-GMM(diag)':
-                if is_parallel:
-                    with parallel:
-                        outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                                                   copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                                                   copy.deepcopy(params),
-                                                                   nystrom_n=nystrom_n, nystrom_d=nystrom_d,
-                                                                   nystrom_q=nystrom_q,
-                                                                   GMM_n_components=n_components) for
-                                        nystrom_n, nystrom_d, nystrom_q, n_components in
-                                        list(itertools.product(nystrom_ns, nystrom_ds, nystrom_qs, n_components_arr)))
-                else:
-                    outs = []
-                    for nystrom_n, nystrom_d, nystrom_q, n_components in list(itertools.product(
-                            nystrom_ns, nystrom_ds, nystrom_qs, n_components_arr)):
-                        out = _model_train_test(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                                copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                                copy.deepcopy(params),
-                                                nystrom_n=nystrom_n, nystrom_d=nystrom_d,
-                                                nystrom_q=nystrom_q,
-                                                GMM_n_components=n_components)
-                        outs.append(out)
+                with parallel:
+                    outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
+                                                               copy.deepcopy(X_val), copy.deepcopy(y_val),
+                                                               copy.deepcopy(params),
+                                                               nystrom_n=nystrom_n, nystrom_d=nystrom_d,
+                                                               nystrom_q=nystrom_q,
+                                                               GMM_n_components=n_components) for
+                                    nystrom_n, nystrom_d, nystrom_q, n_components in
+                                    list(itertools.product(nystrom_ns, nystrom_ds, nystrom_qs, n_components_arr)))
 
             elif params['model_name'] == 'Nystrom-QS-GMM(full)' or params['model_name'] == 'Nystrom-QS-GMM(diag)' or \
-                    params['model_name'] == 'Nystrom-QS-init_GMM(full)' or params['model_name'] == \
+                 params['model_name'] == 'Nystrom-QS-init_GMM(full)' or params['model_name'] == \
                     'Nystrom-QS-init_GMM(diag)':
                 quickshift_ks = params['quickshift_ks']
                 quickshift_betas = params['quickshift_betas']
                 del params['quickshift_ks']
                 del params['quickshift_betas']
-                if is_parallel:
-                    with parallel:
-                        outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                                                   copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                                                   copy.deepcopy(params),
-                                                                   nystrom_n=nystrom_n, nystrom_d=nystrom_d,
-                                                                   nystrom_q=nystrom_q,
-                                                                   quickshift_k=quickshift_k,
-                                                                   quickshift_beta=quickshift_beta)
-                                        for nystrom_n, nystrom_d, nystrom_q, quickshift_k, quickshift_beta in
-                                        list(itertools.product(nystrom_ns, nystrom_ds, nystrom_qs, quickshift_ks,
-                                                               quickshift_betas)))
-                else:
-                    outs = []
-                    for nystrom_n, nystrom_d, nystrom_q, quickshift_k, quickshift_beta in list(itertools.product(
-                            nystrom_ns, nystrom_ds, nystrom_qs, quickshift_ks, quickshift_betas)):
-                        out = _model_train_test(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                                copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                                copy.deepcopy(params),
-                                                nystrom_n=nystrom_n, nystrom_d=nystrom_d,
-                                                nystrom_q=nystrom_q,
-                                                quickshift_k=quickshift_k,
-                                                quickshift_beta=quickshift_beta)
-                        outs.append(out)
+                with parallel:
+                    outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
+                                                               copy.deepcopy(X_val), copy.deepcopy(y_val),
+                                                               copy.deepcopy(params),
+                                                               nystrom_n=nystrom_n, nystrom_d=nystrom_d,
+                                                               nystrom_q=nystrom_q,
+                                                               quickshift_k=quickshift_k,
+                                                               quickshift_beta=quickshift_beta)
+                                    for nystrom_n, nystrom_d, nystrom_q, quickshift_k, quickshift_beta in
+                                    list(itertools.product(nystrom_ns, nystrom_ds, nystrom_qs, quickshift_ks,
+                                                           quickshift_betas)))
 
             elif params['model_name'] == 'Nystrom-MS-GMM(full)' or params['model_name'] == 'Nystrom-MS-GMM(diag)':
                 # meanshift_qs = params[ 'meanshift_qs']  # meanshift uses the same kjl_qs, and only needs to tune one of them
                 del params['meanshift_qs']
-                if is_parallel:
-                    with parallel:
-                        outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                                                   copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                                                   copy.deepcopy(params),
-                                                                   nystrom_n=nystrom_n, nystrom_d=nystrom_d,
-                                                                   nystrom_q=nystrom_q)
-                                        for nystrom_n, nystrom_d, nystrom_q in
-                                        list(itertools.product(nystrom_ns, nystrom_ds, nystrom_qs)))
-                else:
-                    outs = []
-                    for nystrom_n, nystrom_d, nystrom_q in list(itertools.product(nystrom_ns, nystrom_ds, nystrom_qs)):
-                        out = _model_train_test(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                                copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                                copy.deepcopy(params),
-                                                nystrom_n=nystrom_n, nystrom_d=nystrom_d,
-                                                nystrom_q=nystrom_q)
-                        outs.append(out)
-
+                with parallel:
+                    outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
+                                                               copy.deepcopy(X_val), copy.deepcopy(y_val),
+                                                               copy.deepcopy(params),
+                                                               nystrom_n=nystrom_n, nystrom_d=nystrom_d,
+                                                               nystrom_q=nystrom_q)
+                                    for nystrom_n, nystrom_d, nystrom_q in
+                                    list(itertools.product(nystrom_ns, nystrom_ds, nystrom_qs)))
         else:
             msg = params['model_name']
             raise NotImplementedError(f'Error: {msg}')
@@ -827,26 +678,19 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, is_
     elif 'OCSVM' in params['model_name']:  # OCSVM
         ################################################################################################################
         # 2.2 OCSVM
+
         if params['model_name'] == 'OCSVM(rbf)':  # OCSVM(rbf)
             model_qs = params['OCSVM_qs']
             model_nus = params['OCSVM_nus']
             del params['OCSVM_qs']
             del params['OCSVM_nus']
-            if is_parallel:
-                with parallel:
-                    outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                                               copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                                               copy.deepcopy(params),
-                                                               OCSVM_q=OCSVM_q, OCSVM_nu=OCSVM_nu) for
-                                    OCSVM_q, OCSVM_nu in list(itertools.product(model_qs, model_nus)))
-            else:
-                outs = []
-                for OCSVM_q, OCSVM_nu in list(itertools.product(model_qs, model_nus)):
-                    out = _model_train_test(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                            copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                            copy.deepcopy(params),
-                                            OCSVM_q=OCSVM_q, OCSVM_nu=OCSVM_nu)
-                    outs.append(out)
+
+            with parallel:
+                outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
+                                                           copy.deepcopy(X_val), copy.deepcopy(y_val),
+                                                           copy.deepcopy(params),
+                                                           OCSVM_q=OCSVM_q, OCSVM_nu=OCSVM_nu) for
+                                OCSVM_q, OCSVM_nu in list(itertools.product(model_qs, model_nus)))
 
         elif params['model_name'] == 'KJL-OCSVM(linear)':
             kjl_ds = params['kjl_ds']
@@ -857,24 +701,14 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, is_
             del params['kjl_qs']
             model_nus = params['OCSVM_nus']
             del params['OCSVM_nus']
-            if is_parallel:
-                with parallel:
-                    outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                                               copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                                               copy.deepcopy(params),
-                                                               kjl_d=kjl_d, kjl_n=kjl_n, kjl_q=kjl_q,
-                                                               OCSVM_nu=OCSVM_nu) for
-                                    kjl_d, kjl_n, kjl_q, OCSVM_nu in
-                                    list(itertools.product(kjl_ds, kjl_ns, kjl_qs, model_nus)))
-            else:
-                outs = []
-                for kjl_d, kjl_n, kjl_q, OCSVM_nu in list(itertools.product(kjl_ds, kjl_ns, kjl_qs, model_nus)):
-                    out = _model_train_test(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                            copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                            copy.deepcopy(params),
-                                            kjl_d=kjl_d, kjl_n=kjl_n, kjl_q=kjl_q,
-                                            OCSVM_nu=OCSVM_nu)
-                    outs.append(out)
+            with parallel:
+                outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
+                                                           copy.deepcopy(X_val), copy.deepcopy(y_val),
+                                                           copy.deepcopy(params),
+                                                           kjl_d=kjl_d, kjl_n=kjl_n, kjl_q=kjl_q,
+                                                           OCSVM_nu=OCSVM_nu) for
+                                kjl_d, kjl_n, kjl_q, OCSVM_nu in
+                                list(itertools.product(kjl_ds, kjl_ns, kjl_qs, model_nus)))
 
         elif params['model_name'] == 'Nystrom-OCSVM(linear)':
             nystrom_ns = params['nystrom_ns']
@@ -885,27 +719,16 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, is_
             del params['nystrom_qs']
             model_nus = params['OCSVM_nus']
             del params['OCSVM_nus']
-            if is_parallel:
-                with parallel:
-                    outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                                               copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                                               copy.deepcopy(params),
-                                                               nystrom_n=nystrom_n, nystrom_d=nystrom_d,
-                                                               nystrom_q=nystrom_q,
-                                                               OCSVM_nu=OCSVM_nu) for
-                                    nystrom_n, nystrom_d, nystrom_q, OCSVM_nu in
-                                    list(itertools.product(nystrom_ns, nystrom_ds, nystrom_qs, model_nus)))
-            else:
-                outs = []
-                for nystrom_n, nystrom_d, nystrom_q, OCSVM_nu in list(itertools.product(
-                        nystrom_ns, nystrom_ds, nystrom_qs, model_nus)):
-                    out = _model_train_test(copy.deepcopy(X_train), copy.deepcopy(y_train),
-                                            copy.deepcopy(X_val), copy.deepcopy(y_val),
-                                            copy.deepcopy(params),
-                                            nystrom_n=nystrom_n, nystrom_d=nystrom_d,
-                                            nystrom_q=nystrom_q,
-                                            OCSVM_nu=OCSVM_nu)
-                    outs.append(out)
+            with parallel:
+                outs = parallel(delayed(_model_train_test)(copy.deepcopy(X_train), copy.deepcopy(y_train),
+                                                           copy.deepcopy(X_val), copy.deepcopy(y_val),
+                                                           copy.deepcopy(params),
+                                                           nystrom_n=nystrom_n, nystrom_d=nystrom_d,
+                                                           nystrom_q=nystrom_q,
+                                                           OCSVM_nu=OCSVM_nu) for
+                                nystrom_n, nystrom_d, nystrom_q, OCSVM_nu in
+                                list(itertools.product(nystrom_ns, nystrom_ds, nystrom_qs, model_nus)))
+
         else:
             msg = params['model_name']
             raise NotImplementedError(f'Error: {msg}')
@@ -923,19 +746,13 @@ def get_best_results(X_train, y_train, X_val, y_val, X_test, y_test, params, is_
             best_avg_auc = out['auc']
             best_results = copy.deepcopy(out)
 
-
     ################################################################################################################
     # it's better to save all middle results too
     middle_results = outs
-    time.sleep(10)   # sleep 5 seconds
 
     ################################################################################################################
     # 4. Build a new model with the best parameters
-    lg.info('---Pick the best parameters from val set and then get accurate time of training and testing '
-            'with the best params---')
-    if 'qs_res' in best_results['params']:
-        del best_results['params']['qs_res']
-
+    lg.info('---get accurate time of training and testing with the best params---')
     out = _model_train_test(X_train, y_train, X_test, y_test, params=best_results['params'])
     best_results = out
 
@@ -1077,7 +894,7 @@ def _get_single_result(model_cfg, data_cfg):
 
         # Run 5 times
         for i in range(n_repeats):
-            lg.info(f"\n\n==={i + 1}/{n_repeats}(n_repeats): {data_file}, {model_cfg}===")
+            lg.debug(f"\n\n==={i + 1}/{n_repeats}(n_repeats): {model_cfg}===")
             ###########################################################################################################
             # a) According to the different random seed (here is random_state), it will generate different
             # train set and val set

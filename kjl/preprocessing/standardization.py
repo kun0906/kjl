@@ -1,12 +1,11 @@
-from sklearn.preprocessing import StandardScaler
-
 # from examples.main_online_gmm import online_update_mean_variance
 import numpy as np
+from sklearn.preprocessing import StandardScaler
 
 
 class STD():
 
-    def __init__(self, with_means = True):
+    def __init__(self, with_means=True):
         self.with_means = with_means
 
     def fit(self, X_train):

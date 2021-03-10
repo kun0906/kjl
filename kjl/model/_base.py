@@ -91,6 +91,7 @@ class BASE_MODEL:
 
     def test(self, X_test, y_test):
 
+        start = datetime.now()
         # For inlier, a small value is used; a larger value is for outlier (positive)
         # it must be abnormal score because we use y=1 as abnormal and roc_acu(pos_label=1)
         y_score = self.model.decision_function(X_test)

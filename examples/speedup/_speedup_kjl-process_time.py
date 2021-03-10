@@ -2,13 +2,6 @@
 """
 # Authors: kun.bj@outlook.com
 # License: xxx
-import os
-# must set these before loading numpy:
-os.environ["OMP_NUM_THREADS"] = '1'  # export OMP_NUM_THREADS=4
-os.environ["OPENBLAS_NUM_THREADS"] = '1'  # export OPENBLAS_NUM_THREADS=4
-os.environ["MKL_NUM_THREADS"] = '1'  # export MKL_NUM_THREADS=6
-os.environ["VECLIB_MAXIMUM_THREADS"] = '1' # export VECLIB_MAXIMUM_THREADS=4
-os.environ["NUMEXPR_NUM_THREADS"] = '1' # export NUMEXPR_NUM_THREADS=6
 
 import copy
 import itertools
@@ -16,7 +9,6 @@ import os.path as pth
 import time
 import traceback
 from collections import Counter
-import cProfile
 
 import numpy as np
 import sklearn
@@ -26,7 +18,6 @@ from sklearn import metrics
 from sklearn.metrics import pairwise_distances, roc_curve
 
 from kjl.log import get_log
-from kjl import pstats
 from kjl.model.gmm import GMM, compute_gmm_init
 from kjl.model.kjl import KJL
 from kjl.model.nystrom import NYSTROM
@@ -39,7 +30,7 @@ from kjl.utils.tool import execute_time
 lg = get_log(level='info')
 
 FUNC_TIMEOUT = 3 * 60  # (if function takes more than 3 mins, then it will be killed)
-np.set_printoptions(precision=2, suppress=True)
+
 
 class BASE:
 
@@ -65,22 +56,19 @@ class BASE:
         -------
 
         """
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time()
         try:
             model.fit(X_train)
         except (TimeoutError, Exception) as e:
             msg = f'fit error: {e}'
             raise ValueError(f'{msg}')
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        train_time = ps.total_tt
+        end = time.process_time()
+        train_time = end - start
         # lg.debug("Fitting model takes {} seconds".format(train_time))
 
         return model, train_time
 
-    def _test(self, model, X_test, y_test, idx=None):
+    def _test(self, model, X_test, y_test):
         """Evaluate the model on the X_test, y_test
 
         Parameters
@@ -94,54 +82,45 @@ class BASE:
            y_score: abnormal score
            testing_time, auc, apc
         """
-        # lg.info(X_test[0, :])
+
         self.test_time = 0
 
         #####################################################################################################
         # 1. standardization
-        # pr = cProfile.Profile(time.process_time)
-        # pr.enable()
+        # start = time.process_time()
         # # if self.params['is_std']:
         # #     X_test = self.scaler.transform(X_test)
         # # else:
         # #     pass
-        # pr.disable()
-        #ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        # self.std_test_time = ps.total_tt
+        # end = time.process_time()
+        # self.std_test_time = end - start
         self.std_test_time = 0
         self.test_time += self.std_test_time
 
         #####################################################################################################
         # 2. projection
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time()
         if 'is_kjl' in self.params.keys() and self.params['is_kjl']:
             X_test = self.project.transform(X_test)
         elif 'is_nystrom' in self.params.keys() and self.params['is_nystrom']:
             X_test = self.project.transform(X_test)
         else:
             pass
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.proj_test_time = ps.total_tt
+        end = time.process_time()
+        self.proj_test_time = end - start
         self.test_time += self.proj_test_time
-        # lg.info(X_test[0, :])
+
         # no need to do seek in the testing phase
         self.seek_test_time = 0
 
         #####################################################################################################
         # 3. prediction
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time()
         # For inlier, a small value is used; a larger value is for outlier (positive)
         # it must be abnormal score because we use y=1 as abnormal and roc_acu(pos_label=1)
         y_score = model.decision_function(X_test)
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.model_test_time = ps.total_tt
+        end = time.process_time()
+        self.model_test_time = end - start
         self.test_time += self.model_test_time
 
         # For binary  y_true, y_score is supposed to be the score of the class with greater label.
@@ -153,7 +132,7 @@ class BASE:
 
         lg.info(f'Total test time: {self.test_time} <= std_test_time: {self.std_test_time}, '
                 f'seek_test_time: {self.seek_test_time}, proj_test_time: {self.proj_test_time}, '
-                f'model_test_time: {self.model_test_time}, idx={idx}')
+                f'model_test_time: {self.model_test_time}')
 
         return self.auc, self.test_time
 
@@ -187,8 +166,7 @@ class GMM_MAIN(BASE):
 
         #####################################################################################################
         # 1.1 normalization
-        # pr = cProfile.Profile(time.process_time)
-        # pr.enable()
+        # start = time.process_time()
         # # if self.params['is_std']:
         # #     self.scaler = StandardScaler(with_mean=self.params['is_std_mean'])
         # #     self.scaler.fit(X_train)
@@ -196,17 +174,14 @@ class GMM_MAIN(BASE):
         # #     # if self.verbose > 10: data_info(X_train, name='X_train')
         # # else:
         # #     pass
-        # pr.disable()
-        #ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        # self.std_train_time = ps.total_tt
+        # end = time.process_time()
+        # self.std_train_time = end - start
         self.std_train_time = 0
         self.train_time += self.std_train_time
 
         #####################################################################################################
         # 1.2. projection
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time()
         if 'is_kjl' in self.params.keys() and self.params['is_kjl']:
             self.project = KJL(self.params)
             self.project.fit(X_train, y_train)
@@ -231,16 +206,13 @@ class GMM_MAIN(BASE):
             q = 0.25
         # self.params['is_kjl'] = False # for debugging
         # d, n, q = D, N, self.params['kjl_q']
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.proj_train_time = ps.total_tt
+        end = time.process_time()
+        self.proj_train_time = end - start
         self.train_time += self.proj_train_time
 
         #####################################################################################################
         # 1.3 seek modes after projection
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time()
         if self.params['after_proj']:
             self.thres_n = 0.95  # used to filter clusters
             if 'is_quickshift' in self.params.keys() and self.params['is_quickshift']:
@@ -276,16 +248,13 @@ class GMM_MAIN(BASE):
 
         else:
             pass
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.seek_train_time = ps.total_tt
+        end = time.process_time()
+        self.seek_train_time = end - start
         self.train_time += self.seek_train_time
 
         #####################################################################################################
         # 2.1 Initialize the model
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time()
         model = GMM()
         if self.params['GMM_is_init_all'] and (self.params['is_quickshift'] or self.params['is_meanshift']):
             # get the init params of GMM
@@ -308,10 +277,8 @@ class GMM_MAIN(BASE):
                             'means_init': None, 'random_state': self.random_state}
         # set model default parameters
         model.set_params(**model_params)
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.init_model_time = ps.total_tt
+        end = time.process_time()
+        self.init_model_time = end - start
         self.train_time += self.init_model_time
         lg.debug(f'model.get_params(): {model.get_params()}')
 
@@ -327,8 +294,7 @@ class GMM_MAIN(BASE):
 
         #####################################################################################################
         # 3. get space size
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time()
         if self.model.covariance_type == 'full':
             # space_size = (d ** 2 + d) * n_comps + n * (d + D)
             self.space_size = (d ** 2 + d) * self.model.n_components + n * (d + D)
@@ -338,10 +304,8 @@ class GMM_MAIN(BASE):
         else:
             msg = self.model.covariance_type
             raise NotImplementedError(msg)
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.space_train_time = ps.total_tt
+        end = time.process_time()
+        self.space_train_time = end - start
         # self.train_time += self.space_train_time
 
         self.N = N
@@ -355,8 +319,8 @@ class GMM_MAIN(BASE):
         
         return self
 
-    def test(self, X_test, y_test, idx=None):
-        return self._test(self.model, X_test, y_test, idx=idx)
+    def test(self, X_test, y_test):
+        return self._test(self.model, X_test, y_test)
 
 
 class OCSVM_MAIN(BASE):
@@ -384,8 +348,7 @@ class OCSVM_MAIN(BASE):
 
         #####################################################################################################
         # 1.1 normalization
-        # pr = cProfile.Profile(time.process_time)
-        # pr.enable()
+        # start = time.process_time()
         # # if self.params['is_std']:
         # #     self.scaler = StandardScaler(with_mean=self.params['is_std_mean'])
         # #     self.scaler.fit(X_train)
@@ -393,10 +356,8 @@ class OCSVM_MAIN(BASE):
         # #     # if self.verbose > 10: data_info(X_train, name='X_train')
         # # else:
         # #     pass
-        # pr.disable()
-        #ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        # self.std_train_time = ps.total_tt
+        # end = time.process_time()
+        # self.std_train_time = end - start
         self.std_train_time = 0
         self.train_time += self.std_train_time
 
@@ -406,8 +367,7 @@ class OCSVM_MAIN(BASE):
 
         ######################################################################################################
         # 1.3 Projection
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time()
         if 'is_kjl' in self.params.keys() and self.params['is_kjl']:
             # self.sigma = np.sqrt(X_train.shape[0]* X_train.var())
             self.project = KJL(self.params)
@@ -445,23 +405,18 @@ class OCSVM_MAIN(BASE):
             model_params = {'kernel': self.params['OCSVM_kernel'], 'gamma': self.model_gamma,
                             'nu': self.params['OCSVM_nu']}
 
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.proj_train_time = ps.total_tt
+        end = time.process_time()
+        self.proj_train_time = end - start
         self.train_time += self.proj_train_time
 
         ######################################################################################################
         # 2.1 Initialize the model with preset parameters
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time()
         model = OCSVM()
         # set model default parameters
         model.set_params(**model_params)
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.init_model_time = ps.total_tt
+        end = time.process_time()
+        self.init_model_time = end - start
         self.train_time += self.init_model_time
         lg.info(f'model.get_params(): {model.get_params()}')
 
@@ -477,8 +432,7 @@ class OCSVM_MAIN(BASE):
 
         ######################################################################################################
         # 3. Get space size based on support vectors
-        pr = cProfile.Profile(time.process_time)
-        pr.enable()
+        start = time.process_time()
         n_sv = self.model.support_vectors_.shape[0]  # number of support vectors
         if 'is_kjl' in self.params.keys() and self.params['is_kjl']:
             self.space_size = n_sv + n_sv * d + n * (d + D)
@@ -486,10 +440,8 @@ class OCSVM_MAIN(BASE):
             self.space_size = n_sv + n_sv * d + n * (d + D)
         else:
             self.space_size = n_sv + n_sv * D
-        pr.disable()
-        ps = pstats.Stats(pr).sort_stats('line')  # cumulative
-        # ps.print_stats()
-        self.space_train_time = ps.total_tt
+        end = time.process_time()
+        self.space_train_time = end - start
         # self.train_time += self.space_train_time
 
         self.n_sv = n_sv
@@ -503,8 +455,8 @@ class OCSVM_MAIN(BASE):
 
         return self
 
-    def test(self, X_test, y_test, idx=None):
-        return self._test(self.model, X_test, y_test, idx=idx)
+    def test(self, X_test, y_test):
+        return self._test(self.model, X_test, y_test)
 
 
 def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
@@ -543,8 +495,8 @@ def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
         if is_average: # time more stable
             auc = []
             test_time = []
-            for idx_ in range(100):
-                auc_, test_time_ = model.test(copy.deepcopy(X_test), copy.deepcopy(y_test), idx_)
+            for _ in range(100):
+                auc_, test_time_ = model.test(copy.deepcopy(X_test), copy.deepcopy(y_test))
                 auc.append(auc_)
                 test_time.append(test_time_)
             auc = np.mean(auc)
@@ -1077,7 +1029,7 @@ def _get_single_result(model_cfg, data_cfg):
 
         # Run 5 times
         for i in range(n_repeats):
-            lg.info(f"\n\n==={i + 1}/{n_repeats}(n_repeats): {data_file}, {model_cfg}===")
+            lg.debug(f"\n\n==={i + 1}/{n_repeats}(n_repeats): {model_cfg}===")
             ###########################################################################################################
             # a) According to the different random seed (here is random_state), it will generate different
             # train set and val set
