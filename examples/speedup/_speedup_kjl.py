@@ -2,13 +2,6 @@
 """
 # Authors: kun.bj@outlook.com
 # License: xxx
-import os
-# must set these before loading numpy:
-os.environ["OMP_NUM_THREADS"] = '1'  # export OMP_NUM_THREADS=4
-os.environ["OPENBLAS_NUM_THREADS"] = '1'  # export OPENBLAS_NUM_THREADS=4
-os.environ["MKL_NUM_THREADS"] = '1'  # export MKL_NUM_THREADS=6
-os.environ["VECLIB_MAXIMUM_THREADS"] = '1' # export VECLIB_MAXIMUM_THREADS=4
-os.environ["NUMEXPR_NUM_THREADS"] = '1' # export NUMEXPR_NUM_THREADS=6
 
 import copy
 import itertools
@@ -51,6 +44,7 @@ class BASE:
     # # use_signals=True: it only works on main thread (here train_test_intf is not the main thread)
     # @timeout_decorator.timeout(seconds=30 * 60, use_signals=False, timeout_exception=StopIteration)
     # @profile
+    # func_timeout will run the specified function in a thread with the specified arguments until it returns.
     @func_set_timeout(FUNC_TIMEOUT)  # seconds
     def _train(self, model, X_train, y_train=None):
         """Train model on the (X_train, y_train)
@@ -65,7 +59,7 @@ class BASE:
         -------
 
         """
-        pr = cProfile.Profile(time.process_time)
+        pr = cProfile.Profile(time.perf_counter)
         pr.enable()
         try:
             model.fit(X_train)
@@ -99,7 +93,7 @@ class BASE:
 
         #####################################################################################################
         # 1. standardization
-        # pr = cProfile.Profile(time.process_time)
+        # pr = cProfile.Profile(time.perf_counter)
         # pr.enable()
         # # if self.params['is_std']:
         # #     X_test = self.scaler.transform(X_test)
@@ -114,7 +108,7 @@ class BASE:
 
         #####################################################################################################
         # 2. projection
-        pr = cProfile.Profile(time.process_time)
+        pr = cProfile.Profile(time.perf_counter)
         pr.enable()
         if 'is_kjl' in self.params.keys() and self.params['is_kjl']:
             X_test = self.project.transform(X_test)
@@ -133,7 +127,7 @@ class BASE:
 
         #####################################################################################################
         # 3. prediction
-        pr = cProfile.Profile(time.process_time)
+        pr = cProfile.Profile(time.perf_counter)
         pr.enable()
         # For inlier, a small value is used; a larger value is for outlier (positive)
         # it must be abnormal score because we use y=1 as abnormal and roc_acu(pos_label=1)
@@ -187,7 +181,7 @@ class GMM_MAIN(BASE):
 
         #####################################################################################################
         # 1.1 normalization
-        # pr = cProfile.Profile(time.process_time)
+        # pr = cProfile.Profile(time.perf_counter)
         # pr.enable()
         # # if self.params['is_std']:
         # #     self.scaler = StandardScaler(with_mean=self.params['is_std_mean'])
@@ -205,7 +199,7 @@ class GMM_MAIN(BASE):
 
         #####################################################################################################
         # 1.2. projection
-        pr = cProfile.Profile(time.process_time)
+        pr = cProfile.Profile(time.perf_counter)
         pr.enable()
         if 'is_kjl' in self.params.keys() and self.params['is_kjl']:
             self.project = KJL(self.params)
@@ -239,7 +233,7 @@ class GMM_MAIN(BASE):
 
         #####################################################################################################
         # 1.3 seek modes after projection
-        pr = cProfile.Profile(time.process_time)
+        pr = cProfile.Profile(time.perf_counter)
         pr.enable()
         if self.params['after_proj']:
             self.thres_n = 0.95  # used to filter clusters
@@ -284,7 +278,7 @@ class GMM_MAIN(BASE):
 
         #####################################################################################################
         # 2.1 Initialize the model
-        pr = cProfile.Profile(time.process_time)
+        pr = cProfile.Profile(time.perf_counter)
         pr.enable()
         model = GMM()
         if self.params['GMM_is_init_all'] and (self.params['is_quickshift'] or self.params['is_meanshift']):
@@ -327,7 +321,7 @@ class GMM_MAIN(BASE):
 
         #####################################################################################################
         # 3. get space size
-        pr = cProfile.Profile(time.process_time)
+        pr = cProfile.Profile(time.perf_counter)
         pr.enable()
         if self.model.covariance_type == 'full':
             # space_size = (d ** 2 + d) * n_comps + n * (d + D)
@@ -384,7 +378,7 @@ class OCSVM_MAIN(BASE):
 
         #####################################################################################################
         # 1.1 normalization
-        # pr = cProfile.Profile(time.process_time)
+        # pr = cProfile.Profile(time.perf_counter)
         # pr.enable()
         # # if self.params['is_std']:
         # #     self.scaler = StandardScaler(with_mean=self.params['is_std_mean'])
@@ -406,7 +400,7 @@ class OCSVM_MAIN(BASE):
 
         ######################################################################################################
         # 1.3 Projection
-        pr = cProfile.Profile(time.process_time)
+        pr = cProfile.Profile(time.perf_counter)
         pr.enable()
         if 'is_kjl' in self.params.keys() and self.params['is_kjl']:
             # self.sigma = np.sqrt(X_train.shape[0]* X_train.var())
@@ -453,7 +447,7 @@ class OCSVM_MAIN(BASE):
 
         ######################################################################################################
         # 2.1 Initialize the model with preset parameters
-        pr = cProfile.Profile(time.process_time)
+        pr = cProfile.Profile(time.perf_counter)
         pr.enable()
         model = OCSVM()
         # set model default parameters
@@ -477,7 +471,7 @@ class OCSVM_MAIN(BASE):
 
         ######################################################################################################
         # 3. Get space size based on support vectors
-        pr = cProfile.Profile(time.process_time)
+        pr = cProfile.Profile(time.perf_counter)
         pr.enable()
         n_sv = self.model.support_vectors_.shape[0]  # number of support vectors
         if 'is_kjl' in self.params.keys() and self.params['is_kjl']:
@@ -522,7 +516,7 @@ def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
     # ##################### memory allocation snapshot
     #
     # tracemalloc.start()
-    # start_time = time.process_time()
+    # start_time = time.perf_counter()
     # snapshot1 = tracemalloc.take_snapshot()
     # lg.debug(kwargs, params)
     try:
@@ -540,10 +534,11 @@ def _model_train_test(X_train, y_train, X_test, y_test, params, **kwargs):
         model.train(X_train, y_train)
 
         is_average = True
+        nums_average = 20
         if is_average: # time more stable
             auc = []
             test_time = []
-            for idx_ in range(100):
+            for idx_ in range(nums_average):
                 auc_, test_time_ = model.test(copy.deepcopy(X_test), copy.deepcopy(y_test), idx_)
                 auc.append(auc_)
                 test_time.append(test_time_)

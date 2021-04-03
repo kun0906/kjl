@@ -116,13 +116,13 @@ DATASETS = [
 
     ################################################################################################################
     # Final datasets for the paper
-    # 'UNB345_3',  # Combine UNB3, UNB3 and UNB5 attack data as attack data and only use UNB3's normal as normal data
+    'UNB345_3',  # Combine UNB3, UNB3 and UNB5 attack data as attack data and only use UNB3's normal as normal data
     'CTU1',      # Two different abnormal data
-    # 'MAWI1_2020', # Two different normal data
-    # 'MACCDC1',    # Two different normal data
-    # 'SFRIG1_2020', #  Two different normal data
-    # 'AECHO1_2020', # Two different normal data
-    # 'DWSHR_WSHR_2020',  # only use Dwshr normal as normal data, and combine Dwshr and wshr novelties as novelty
+    'MAWI1_2020', # Two different normal data
+    'MACCDC1',    # Two different normal data
+    'SFRIG1_2020', #  Two different normal data
+    'AECHO1_2020', # Two different normal data
+    'DWSHR_WSHR_2020',  # only use Dwshr normal as normal data, and combine Dwshr and wshr novelties as novelty
 ]
 
 MODELS = [
@@ -137,8 +137,8 @@ MODELS = [
 
     # ################################################################################################################s
     # # 2. KJL/Nystrom
-    "KJL-GMM(full)", #"KJL-GMM(diag)",
-    "Nystrom-GMM(full)", #"Nystrom-GMM(diag)",
+    "KJL-GMM(full)", "KJL-GMM(diag)",
+    "Nystrom-GMM(full)", "Nystrom-GMM(diag)",
 
     ################################################################################################################
     # quickshift(QS)/meanshift(MS) are used before KJL/Nystrom projection
@@ -150,16 +150,16 @@ MODELS = [
 
     ################################################################################################################
     # 3. quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection
-    "KJL-QS-GMM(full)",   #"KJL-QS-GMM(diag)",
+    "KJL-QS-GMM(full)",   "KJL-QS-GMM(diag)",
     # "KJL-MS-GMM(full)", "KJL-MS-GMM(diag)"
 
-    "Nystrom-QS-GMM(full)",   #"Nystrom-QS-GMM(diag)",
+    "Nystrom-QS-GMM(full)",   "Nystrom-QS-GMM(diag)",
     # # "Nystrom-MS-GMM(full)", "Nystrom-MS-GMM(diag)"
     #
     # ################################################################################################################
     # # 4. quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection and initialize GMM (set 'GMM_is_init_all'=True)
-    "KJL-QS-init_GMM(full)",   #"KJL-QS-init_GMM(diag)",
-    "Nystrom-QS-init_GMM(full)",  # "Nystrom-QS-init_GMM(diag)",
+    "KJL-QS-init_GMM(full)",   "KJL-QS-init_GMM(diag)",
+    "Nystrom-QS-init_GMM(full)",   "Nystrom-QS-init_GMM(diag)",
 ]
 
 # if it ues grid search or not. True for best params and False for default params
@@ -767,7 +767,7 @@ def main1(directions=[('direction', 'src_dst'), ],
         # The reason may be that loky module manages a pool of worker that can be re-used across time.
         # It provides a robust and dynamic implementation os the ProcessPoolExecutor and a function
         # get_reusable_executor() which hide the pool management under the hood.
-        with Parallel(n_jobs=-1, verbose=30, backend='multiprocessing') as parallel:
+        with Parallel(n_jobs=30, verbose=0, backend='loky') as parallel:
                 res = parallel(delayed(single_main)(copy.deepcopy(dict(data_cfg_)), copy.deepcopy(dict(model_cfg_)),
                                                     copy.deepcopy(out_dir)) for data_cfg_,
                                                                                 model_cfg_ in
@@ -790,14 +790,14 @@ def main1(directions=[('direction', 'src_dst'), ],
 
 
 def main():
-    out_dir = 'speedup/out/kjl-without_init_params-parallel-10x1'
+    out_dir = 'speedup/out/kjl_joblib_30'
     # out_dir = 'speedup/out/kjl-with_init_params'    # modify __speedup_kjl.py
     try:
         ###########################################################################################################
         # Get results with IAT_SIZE
         main1(feats=[('feat', 'iat_size')],
               headers=[('is_header', False)],
-              gses=[('is_gs', True)],
+              # gses=[('is_gs', True)],
               before_projs=[('before_proj', False), ],
               ds=[('kjl_d', 5), ],
               train_sizes=[('train_size', 5000)],

@@ -1,17 +1,10 @@
-"""Common functions.
-
-"""
-# Authors: kun.bj@outlook.com
-#
-# License: xxx
-
 
 """Useful tools includes 'data_info', 'dump_data', etc.
 
 """
 # Authors: kun.bj@outlook.com
 #
-# License: GNU GENERAL PUBLIC LICENSE
+# License: XXX
 
 import inspect
 import os

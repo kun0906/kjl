@@ -96,13 +96,13 @@ DATASETS = [
 MODELS = [
     ### Algorithm name
     "OCSVM(rbf)",
-    # "KJL-OCSVM(linear)",
-    # "Nystrom-OCSVM(linear)",
+    "KJL-OCSVM(linear)",
+    "Nystrom-OCSVM(linear)",
 
     # "GMM(full)", "GMM(diag)",
 
-    "KJL-GMM(full)",  # "KJL-GMM(diag)",
-    "Nystrom-GMM(full)",  # "Nystrom-GMM(diag)",
+    "KJL-GMM(full)",   "KJL-GMM(diag)",
+    "Nystrom-GMM(full)",   "Nystrom-GMM(diag)",
     #
     # ### quickshift(QS)/meanshift(MS) are used before KJL/Nystrom projection
     # # "QS-KJL-GMM(full)", "QS-KJL-GMM(diag)",
@@ -121,8 +121,8 @@ MODELS = [
     #
     # ################################################################################################################
     # # 4. quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection and initialize GMM (set 'GMM_is_init_all'=True)
-    "KJL-QS-init_GMM(full)",  # "KJL-QS-init_GMM(diag)",
-    "Nystrom-QS-init_GMM(full)",  # "Nystrom-QS-init_GMM(diag)",
+    "KJL-QS-init_GMM(full)",   "KJL-QS-init_GMM(diag)",
+    "Nystrom-QS-init_GMM(full)",   "Nystrom-QS-init_GMM(diag)",
 
 ]
 
@@ -146,10 +146,10 @@ ALL_MODELS = [
     #
     ################################################################################################################
     # 3. quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection
-    "KJL-QS-GMM(full)", "KJL-QS-GMM(diag)",
+    # "KJL-QS-GMM(full)", "KJL-QS-GMM(diag)",
     # "KJL-MS-GMM(full)", "KJL-MS-GMM(diag)"
 
-    "Nystrom-QS-GMM(full)", "Nystrom-QS-GMM(diag)",
+    # "Nystrom-QS-GMM(full)", "Nystrom-QS-GMM(diag)",
     # # "Nystrom-MS-GMM(full)", "Nystrom-MS-GMM(diag)"
     #
     # ################################################################################################################
@@ -229,7 +229,7 @@ def _test(model, X_test, y_test, params, project):
     auc = metrics.auc(fpr, tpr)
     lg.debug(f"AUC: {auc}")
 
-    lg.info(f'Total test time: {test_time} <= std_test_time: {std_test_time}, '
+    lg.debug(f'Total test time: {test_time} <= std_test_time: {std_test_time}, '
             f'seek_test_time: {seek_test_time}, proj_test_time: {proj_test_time}, '
             f'model_test_time: {model_test_time}')
 
@@ -604,7 +604,7 @@ def get_test_set_space(test_set_file, unit='KB'):
 
 
 # @profile(precision=8)
-def _main(in_dir, data_name, model_name, feat_set='iat_size'):
+def _main(in_dir, data_name, model_name, feat_set='iat_size', is_gs=True, is_header=False):
     """ Get the result by one model on one dataset
 
     Parameters
@@ -628,10 +628,10 @@ def _main(in_dir, data_name, model_name, feat_set='iat_size'):
 
     in_dir = pth.join(in_dir,
                       'src_dst',
-                      feat_set + "-header_False",
+                      feat_set + f"-header_{is_header}",
                       data_name,
                       "before_proj_False" + \
-                      "-gs_True",
+                      f"-gs_{is_gs}",
                       model_name + "-std_False"
                       + "_center_False" + "-d_5" \
                       + f"-{GMM_covariance_type}")
@@ -708,7 +708,7 @@ def _main(in_dir, data_name, model_name, feat_set='iat_size'):
     return res
 
 
-def clean(in_dir, dataset_name="CTU1", model_name="OCSVM(rbf)", feat_set='iat_size', is_gs=True, start_time=None):
+def clean(in_dir, dataset_name="CTU1", model_name="OCSVM(rbf)", feat_set='iat_size', is_gs=True, is_header=True, start_time=None):
     """
 
     Parameters
@@ -734,18 +734,18 @@ def clean(in_dir, dataset_name="CTU1", model_name="OCSVM(rbf)", feat_set='iat_si
     else:
         GMM_covariance_type = 'full'
 
-    tmp_dir = pth.join(in_dir, 'src_dst', 'stats-header_False')
-    if 'stats' in tmp_dir:
-        if os.path.exists(tmp_dir):
-            shutil.rmtree(tmp_dir)
-    tmp_dir = pth.join(in_dir, 'src_dst', 'stats-header_True')
-    if 'stats' in tmp_dir:
-        if os.path.exists(tmp_dir):
-            shutil.rmtree(tmp_dir)
+    # tmp_dir = pth.join(in_dir, 'src_dst', 'stats-header_False')
+    # if 'stats' in tmp_dir:
+    #     if os.path.exists(tmp_dir):
+    #         shutil.rmtree(tmp_dir)
+    # tmp_dir = pth.join(in_dir, 'src_dst', 'stats-header_True')
+    # if 'stats' in tmp_dir:
+    #     if os.path.exists(tmp_dir):
+    #         shutil.rmtree(tmp_dir)
 
     in_dir = pth.join(in_dir,
                       'src_dst',
-                      feat_set + "-header_False",
+                      feat_set + f"-header_{is_header}",
                       dataset_name,
                       "before_proj_False" + \
                       f"-gs_{is_gs}",
@@ -753,17 +753,17 @@ def clean(in_dir, dataset_name="CTU1", model_name="OCSVM(rbf)", feat_set='iat_si
                       + "_center_False" + "-d_5" \
                       + f"-{GMM_covariance_type}")
 
-    if 'gs_False' in in_dir:
-        if os.path.exists(in_dir):
-            tmp_dir = os.path.dirname(in_dir)
-            # tmp_dir = os.path.dirname(tmp_dir)
-            lg.warning(f'remove: {tmp_dir}')
-            shutil.rmtree(tmp_dir)
+    # if 'gs_False' in in_dir:
+    #     if os.path.exists(in_dir):
+    #         tmp_dir = os.path.dirname(in_dir)
+    #         # tmp_dir = os.path.dirname(tmp_dir)
+    #         lg.warning(f'remove: {tmp_dir}')
+    #         shutil.rmtree(tmp_dir)
     # if 'diag' in in_dir or 'OCSVM(linear)' in in_dir:
-    if model_name not in MODELS:
-        if os.path.exists(in_dir):
-            lg.warning(f'remove: {in_dir}')
-            shutil.rmtree(in_dir)
+    # if model_name not in MODELS:
+    #     if os.path.exists(in_dir):
+    #         lg.warning(f'remove: {in_dir}')
+    #         shutil.rmtree(in_dir)
 
     lg.info(f'***{dataset_name}, {model_name}, {feat_set}, {in_dir}')
 
@@ -791,24 +791,13 @@ def clean(in_dir, dataset_name="CTU1", model_name="OCSVM(rbf)", feat_set='iat_si
 
 
 # @profile()
-def main():
+def main(in_dir, feat_set, is_gs =True, is_header=False):
     res = {}
-    feat_set = 'iat_size'
-    # in_dir = 'speedup/out/kjl_serial_ind_32_threads-cProfile_perf_counter'
-    # in_dir = 'speedup/out/models'
-    # in_dir = 'speedup/out/kjl_joblib_parallel_30'
-    in_dir_src = 'speedup/out/kjl_serial_ind_32_threads-cProfile_perf_counter-20times-4'
-    in_dir = 'speedup/data/models'
-    if os.path.exists(in_dir):
-        # os.makedirs(in_dir)
-        shutil.rmtree(in_dir)
-    shutil.copytree(in_dir_src, in_dir)
-
     # Load models and evaluate them on test data
     tot_spaces = {}
     datasets = []
     for i, (data_name, model_name) in enumerate(itertools.product(DATASETS, MODELS)):
-        out = _main(in_dir, data_name, model_name, feat_set)
+        out = _main(in_dir, data_name, model_name, feat_set, is_gs, is_header)
         if data_name not in res.keys():
             res[data_name] = {model_name: out}
             tot_spaces[data_name] = [[out['test_spaces'][0]], out['model_spaces']]
@@ -825,8 +814,8 @@ def main():
 
     # remove files
     for dataset_name, model_name in itertools.product(DATASETS, ALL_MODELS):
-        clean(in_dir, dataset_name=dataset_name, model_name=model_name, start_time=None, is_gs=True)
-        clean(in_dir, dataset_name=dataset_name, model_name=model_name, start_time=None, is_gs=False)
+        clean(in_dir, dataset_name=dataset_name, model_name=model_name, feat_set=feat_set, start_time=None, is_gs=is_gs, is_header=is_header)
+        # clean(in_dir, dataset_name=dataset_name, model_name=model_name, start_time=None, is_gs=False)
 
     # # Save results
     # out_file = f'{in_dir}/res.csv'
@@ -847,4 +836,17 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    in_dir_src = 'speedup/out/kjl_serial_ind_32_threads-cProfile_perf_counter-20times-4'
+    in_dir_src = 'speedup/out/kjl_serial_ind_32_threads-cProfile_perf_counter-20times-5'
+    in_dir = 'speedup/data/models'
+    if os.path.exists(in_dir):
+        # os.makedirs(in_dir)
+        shutil.rmtree(in_dir)
+    shutil.copytree(in_dir_src, in_dir)
+
+    for feat_set in ['iat_size', 'stats']:   # 'iat_size',
+        for is_gs in [True, False]:
+            for is_header in [True, False]:
+                if feat_set =='iat_size' and is_header: continue
+                if feat_set =='stats' and not is_header: continue
+                main(in_dir, feat_set, is_gs, is_header)

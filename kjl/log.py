@@ -1,5 +1,11 @@
 class MyLog:
     def __init__(self, level='info'):
+        """ Need to be modified
+
+        Parameters
+        ----------
+        level
+        """
         self.level = level
 
     def debug(self, s):

@@ -146,7 +146,7 @@ def _get_diff(cell_1, cell_2, same=False):
 
 
 def get_all_aucs(raw_values):
-    values = raw_values.split(':')[1].split('-')
+    values = raw_values.split(':')[-1].split('-')
     values = [float(v) for v in values]
     # for i, v in enumerate(raw_values):
     #     if i == 0:
@@ -221,8 +221,9 @@ def get_diff(df1, df2, feat_set='iat', same=False, file_type=None, is_sample=Fal
                     n_train = int(df1.iloc[i][2].split('(')[1].split('-')[0])
                     # get the test time for each point
                     # scale = 100
-                    ocsvm_train_times = [v / n_train * scale for v in ocsvm_train_times]
-                    gmm_train_times = [v / n_train * scale for v in gmm_train_times]
+                    # * 1000 (ms)
+                    ocsvm_train_times = [v / n_train * scale *1000 for v in ocsvm_train_times]
+                    gmm_train_times = [v / n_train * scale *1000 for v in gmm_train_times]
 
                     diff = get_auc_ratio(gmm_train_times, ocsvm_train_times,
                                          same)  # training time ratio should be OCSVM/GMM
@@ -248,8 +249,9 @@ def get_diff(df1, df2, feat_set='iat', same=False, file_type=None, is_sample=Fal
                     # get 'number of points of the test set': df1.iloc[i][3] = ' X_test_shape: (514-33)'
                     n_test = int(df1.iloc[i][3].split('(')[1].split('-')[0])
                     # get the test time for each point
-                    ocsvm_test_times = [v / n_test * scale for v in ocsvm_test_times]
-                    gmm_test_times = [v / n_test * scale for v in gmm_test_times]
+                    # * 1000 (ms)
+                    ocsvm_test_times = [v / n_test * scale *1000 for v in ocsvm_test_times]
+                    gmm_test_times = [v / n_test * scale * 1000 for v in gmm_test_times]
                     diff = get_auc_ratio(gmm_test_times, ocsvm_test_times,
                                          same)  # testing time ratio should be OCSVM/GMM
                     if file_type == 'tmp':
@@ -262,7 +264,7 @@ def get_diff(df1, df2, feat_set='iat', same=False, file_type=None, is_sample=Fal
                     ocsvm_space_sizes = get_all_aucs(df1.iloc[i][j + 3])
                     gmm_space_sizes = get_all_aucs(df2.iloc[i][j + 3])
                     # get 'number of points of the test set': df1.iloc[i][3] = ' X_test_shape: (514-33)'
-                    n_test = int(df1.iloc[i][3].split('(')[1].split('-')[0])
+                    # n_test = int(df1.iloc[i][3].split('(')[1].split('-')[0])
                     # get the test time for each point
                     ocsvm_space_sizes = [v for v in ocsvm_space_sizes]
                     gmm_space_sizes = [v for v in gmm_space_sizes]

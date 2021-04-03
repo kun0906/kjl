@@ -5,13 +5,15 @@
 #
 # License: GNU GENERAL PUBLIC LICENSE
 
-import os, sys
-import pickle
-import traceback
+import os
+import sys
 from collections import OrderedDict
-import pandas as pd
+
 import numpy as np
-from kjl.utils.tool import check_path
+import pandas as pd
+
+from kjl.utils.tool import load_data
+from speedup.name import *
 
 lib_path = os.path.abspath('.')
 sys.path.append(lib_path)
@@ -20,18 +22,12 @@ print(f"add \'{lib_path}\' into sys.path: {sys.path}")
 # import matplotlib
 # matplotlib.use('TkAgg')     # pycharm can't use subplots_adjust() to show the legend and modified subplots correctly.
 
-import copy
-from operator import itemgetter
-
 import xlsxwriter
-from matplotlib import rcParams
 from pandas import ExcelWriter
 
 import matplotlib.pyplot as plt
 import textwrap
 from matplotlib.colors import ListedColormap
-from itertools import chain
-from fractions import Fraction
 
 import seaborn as sns
 
@@ -219,7 +215,7 @@ MODELS = [  # algorithm name
     "KJL-QS-GMM(full)", "KJL-QS-GMM(diag)",
     "KJL-MS-GMM(full)", "KJL-MS-GMM(diag)"
 
-    "Nystrom-QS-GMM(full)", "Nystrom-QS-GMM(diag)",
+                        "Nystrom-QS-GMM(full)", "Nystrom-QS-GMM(diag)",
     "Nystrom-MS-GMM(full)", "Nystrom-MS-GMM(diag)"
 
 ]
@@ -271,9 +267,9 @@ DATASETS = [
     'AECHO1_2020',
 ]
 
-def parse_xlsx(input_file='xxx.dat-ratio.xlsx', tab_type = f'iat_size-header_False-gs_False-KJL-QS+Nystrom-QS'):
 
-    df = pd.read_excel(input_file, header=0,index_col=None)  # index_col=False: not use the first columns as index
+def parse_xlsx(input_file='xxx.dat-ratio.xlsx', tab_type=f'iat_size-header_False-gs_False-KJL-QS+Nystrom-QS'):
+    df = pd.read_excel(input_file, header=0, index_col=None)  # index_col=False: not use the first columns as index
     vs = df.values
     res = {}
 
@@ -285,32 +281,35 @@ def parse_xlsx(input_file='xxx.dat-ratio.xlsx', tab_type = f'iat_size-header_Fal
     start_idx = 3
     while idx_first_line <= vs.shape[0] - i:
         line = vs[idx_first_line]
-        data_name = str(line[0]).split('|')[0]   # (data_name, data_file)
+        data_name = str(line[0]).split('|')[0]  # (data_name, data_file)
         if data_name in DATASETS:
             res[data_name] = {}
             if tab_type == 'iat_size-header_False-gs_True-KJL-OCSVM+OCSVM-full' or tab_type == 'iat_size-header_False-gs_False-KJL-OCSVM+OCSVM-full' or \
-                 tab_type == 'iat_size-header_False-gs_True-KJL-OCSVM+OCSVM-diag' or tab_type == 'iat_size-header_False-gs_False-KJL-OCSVM+OCSVM-diag':
-                Needed_MOLDES = {'OCSVM': start_idx, 'KJL-OCSVM': start_idx + 1, 'Nystrom-OCSVM': start_idx + 2}  # (name:idx)
-            elif tab_type == 'iat_size-header_False-gs_True-KJL-GMM-KJL-OCSVM(linear)-full'  or \
+                    tab_type == 'iat_size-header_False-gs_True-KJL-OCSVM+OCSVM-diag' or tab_type == 'iat_size-header_False-gs_False-KJL-OCSVM+OCSVM-diag':
+                Needed_MOLDES = {'OCSVM': start_idx, 'KJL-OCSVM': start_idx + 1,
+                                 'Nystrom-OCSVM': start_idx + 2}  # (name:idx)
+            elif tab_type == 'iat_size-header_False-gs_True-KJL-GMM-KJL-OCSVM(linear)-full' or \
                     tab_type == 'iat_size-header_False-gs_True-KJL-GMM-KJL-OCSVM(linear)-diag' or \
-                    tab_type == 'iat_size-header_False-gs_True-Nystrom-GMM-Nystrom-OCSVM(linear)-full'  or \
+                    tab_type == 'iat_size-header_False-gs_True-Nystrom-GMM-Nystrom-OCSVM(linear)-full' or \
                     tab_type == 'iat_size-header_False-gs_True-Nystrom-GMM-Nystrom-OCSVM(linear)-diag':
                 if 'KJL' in tab_type:
                     Needed_MOLDES = {'OC-KJL': 6, 'OC-KJL-SVM': 4}  # (name:idx)
                 elif 'Nystrom' in tab_type:
                     Needed_MOLDES = {'OC-Nystrom': 7, 'OC-Nystrom-SVM': 5}  # (name:idx)
             elif tab_type == 'iat_size-header_False-gs_False-KJL-QS-Nystrom-QS-full' or \
-                     tab_type == 'iat_size-header_False-gs_False-KJL-QS-Nystrom-QS-diag' :
-                    Needed_MOLDES = {'OC-KJL-QS': -2, 'OC-Nystrom-QS': -1} # (name:idx)
+                    tab_type == 'iat_size-header_False-gs_False-KJL-QS-Nystrom-QS-diag':
+                Needed_MOLDES = {'OC-KJL-QS': -2, 'OC-Nystrom-QS': -1}  # (name:idx)
 
             for model_name, t in Needed_MOLDES.items():
                 # if model_name not in res[data_name].keys():
-                res[data_name][model_name]={'Speedup AUC': vs[idx_first_line][t], 'Speedup training':vs[idx_first_line+1][t],
-                                        'Speedup testing':vs[idx_first_line+2][t], 'Saving space': vs[idx_first_line+3][t]}
-            idx_first_line +=4 + 1  # one blank line between two results
+                res[data_name][model_name] = {'Speedup AUC': vs[idx_first_line][t],
+                                              'Speedup training': vs[idx_first_line + 1][t],
+                                              'Speedup testing': vs[idx_first_line + 2][t],
+                                              'Saving space': vs[idx_first_line + 3][t]}
+            idx_first_line += 4 + 1  # one blank line between two results
             continue
-        else: # avoid dead loop
-            idx_first_line +=1
+        else:  # avoid dead loop
+            idx_first_line += 1
 
     return res
 
@@ -321,10 +320,9 @@ def process_value(v):
     return v_t
 
 
-
 def show_KJL_QS_Nystrom_QS(input_file='', out_file='output_data', tab_type='', fig_flg='main_paper',
-                      n_repeats = 5, gs =False,
-                      verbose=1):
+                           n_repeats=5, gs=False,
+                           verbose=1):
     """
 
     Parameters
@@ -408,7 +406,7 @@ def show_KJL_QS_Nystrom_QS(input_file='', out_file='output_data', tab_type='', f
             elif 'AECHO' in k:
                 k = 'AECHO'
             for model_name, diff_vs in vs.items():
-                v= diff_vs[diff_name].split('+/-')
+                v = diff_vs[diff_name].split('+/-')
                 mean_, std_ = float(v[0]), float(v[1].split("(")[0])
                 if diff_name == 'Speedup AUC':
                     sub_dataset.append([k, f"{model_name} / OCSVM", mean_])
@@ -430,7 +428,7 @@ def show_KJL_QS_Nystrom_QS(input_file='', out_file='output_data', tab_type='', f
         # colors = [ 'green', 'orange', 'c', 'm',  'b', 'r','tab:brown', 'tab:green'][:2]
         # g = sns.barplot(y="diff", x='dataset', hue='model_name', data=df, palette=colors, ci=None,
         #                 capsize=.2, ax=axes[t, j % c])
-        g = sns.barplot(y="diff", x='dataset', hue='model_name', data=df,  ci=None,
+        g = sns.barplot(y="diff", x='dataset', hue='model_name', data=df, ci=None,
                         capsize=.2, ax=axes[t, j % c])
         ys = []
         xs = []
@@ -460,8 +458,6 @@ def show_KJL_QS_Nystrom_QS(input_file='', out_file='output_data', tab_type='', f
 
         axes[t, j % c].errorbar(x=xs + width / 2, y=ys,
                                 yerr=yerrs, fmt='none', c='b', capsize=3)
-
-
 
         # for p in g.patches:
         #     height = p.get_height()
@@ -505,7 +501,7 @@ def show_KJL_QS_Nystrom_QS(input_file='', out_file='output_data', tab_type='', f
         elif 'test' in diff_name:
             y_v = [0, 25, 50, 75]
         elif 'space' in diff_name:
-            y_v = [0,  10,  20, 30]
+            y_v = [0, 10, 20, 30]
 
         g.set_yticks(y_v)  # set value locations in y axis
         # g.set_yticklabels([v_tmp if v_tmp in [0, 0.5, -0.5, 1, -1] else '' for v_tmp in y_v],
@@ -527,7 +523,7 @@ def show_KJL_QS_Nystrom_QS(input_file='', out_file='output_data', tab_type='', f
         #     g.get_legend().set_visible()
         g.get_legend().set_visible(True)
         handles, labels = g.get_legend_handles_labels()
-        axes[t, j % c].legend(handles, labels, loc="upper right",fontsize=font_size-4) #bbox_to_anchor=(0.5, 0.5)
+        axes[t, j % c].legend(handles, labels, loc="upper right", fontsize=font_size - 4)  # bbox_to_anchor=(0.5, 0.5)
     #
     # # # get the legend only from the last 'ax' (here is 'g')
     # handles, labels = g.get_legend_handles_labels()
@@ -603,12 +599,9 @@ def show_KJL_QS_Nystrom_QS(input_file='', out_file='output_data', tab_type='', f
     return out_file
 
 
-
-
-
 def show_KJL_GMM_KJL_OCSVM(input_file='', out_file='output_data', tab_type='', fig_flg='main_paper',
-                      n_repeats = 5, gs =False,
-                      verbose=1):
+                           n_repeats=5, gs=False,
+                           verbose=1):
     """
 
     Parameters
@@ -663,7 +656,7 @@ def show_KJL_GMM_KJL_OCSVM(input_file='', out_file='output_data', tab_type='', f
         else:
             r = 1
             fig, axes = plt.subplots(r, num_figs, figsize=(8, 5))  # (width, height)
-            axes = np.asarray([axes]).reshape(1,1)
+            axes = np.asarray([axes]).reshape(1, 1)
     print(f'subplots: ({r}, {c})')
     # fig, axes = plt.subplots(r, c, figsize=(18, 10))  # (width, height)
     if r == 1:
@@ -673,7 +666,7 @@ def show_KJL_GMM_KJL_OCSVM(input_file='', out_file='output_data', tab_type='', f
     # s = min(len(show_repres), len(colors))
     new_data = OrderedDict()
     metrics = ['Speedup AUC', 'Speedup training', 'Speedup testing', 'Saving space']
-    metrics= ['Speedup AUC']
+    metrics = ['Speedup AUC']
     for j, diff_name in enumerate(metrics):
         sub_dataset = []
         yerrs = []  # std/sqrt(n_repeats)
@@ -693,7 +686,7 @@ def show_KJL_GMM_KJL_OCSVM(input_file='', out_file='output_data', tab_type='', f
             elif 'AECHO' in k:
                 k = 'AECHO'
             for model_name, diff_vs in vs.items():
-                v= diff_vs[diff_name].split('+/-')
+                v = diff_vs[diff_name].split('+/-')
                 mean_, std_ = float(v[0]), float(v[1].split("(")[0])
                 if diff_name == 'Speedup AUC':
                     sub_dataset.append([k, f"{model_name}", mean_])
@@ -715,7 +708,7 @@ def show_KJL_GMM_KJL_OCSVM(input_file='', out_file='output_data', tab_type='', f
         # colors = [ 'green', 'orange', 'c', 'm',  'b', 'r','tab:brown', 'tab:green'][:2]
         # g = sns.barplot(y="diff", x='dataset', hue='model_name', data=df, palette=colors, ci=None,
         #                 capsize=.2, ax=axes[t, j % c])
-        g = sns.barplot(y="diff", x='dataset', hue='model_name', data=df,  ci=None,
+        g = sns.barplot(y="diff", x='dataset', hue='model_name', data=df, ci=None,
                         capsize=.2, ax=axes[t, j % c])
         # g = sns.barplot(y="diff", x='dataset', hue='model_name', data=df, ci=None,
         #                 capsize=.2, ax=axes)
@@ -748,8 +741,6 @@ def show_KJL_GMM_KJL_OCSVM(input_file='', out_file='output_data', tab_type='', f
         axes[t, j % c].errorbar(x=xs + width / 2, y=ys,
                                 yerr=yerrs, fmt='none', c='b', capsize=3)
 
-
-
         # for p in g.patches:
         #     height = p.get_height()
         #     # print(height)
@@ -781,7 +772,7 @@ def show_KJL_GMM_KJL_OCSVM(input_file='', out_file='output_data', tab_type='', f
 
         # y_v = [float(f'{x:.1f}') for x in g.get_yticks() if x%0.5==0]
         # y_v = [float(f'{x:.2f}') for x in g.get_yticks()]
-        y_v = [ 0, 0.5, 1.0, 1.5]
+        y_v = [0, 0.5, 1.0, 1.5]
         g.set_yticks(y_v)  # set value locations in y axis
         # g.set_yticklabels([v_tmp if v_tmp in [0, 0.5, -0.5, 1, -1] else '' for v_tmp in y_v],
         #                   fontsize=font_size + 6)  # set the number of each value in y axis
@@ -878,12 +869,8 @@ def show_KJL_GMM_KJL_OCSVM(input_file='', out_file='output_data', tab_type='', f
     return out_file
 
 
-
-
-
-def parse_xlsx_col(input_file='xxx.dat-ratio.xlsx', model_name  = 'KJL'):
-
-    df = pd.read_excel(input_file, header=0,index_col=None)  # index_col=False: not use the first columns as index
+def parse_xlsx_col(input_file='xxx.dat-ratio.xlsx', model_name='KJL'):
+    df = pd.read_excel(input_file, header=0, index_col=None)  # index_col=False: not use the first columns as index
     vs = df.values
     res = {}
 
@@ -895,12 +882,12 @@ def parse_xlsx_col(input_file='xxx.dat-ratio.xlsx', model_name  = 'KJL'):
 
     while idx_first_line <= vs.shape[0] - i:
         line = vs[idx_first_line]
-        data_name = str(line[0]).split('|')[0]   # (data_name, data_file)
+        data_name = str(line[0]).split('|')[0]  # (data_name, data_file)
         start_idx = 3
         if data_name in DATASETS:
             res[data_name] = {}
             if model_name == 'KJL-QS-GMM':
-                Needed_MOLDES = {'KJL-QS-GMM': -2} # (name:idx)
+                Needed_MOLDES = {'KJL-QS-GMM': -2}  # (name:idx)
             elif model_name == 'Nystrom-QS-GMM':
                 Needed_MOLDES = {'Nystrom-QS-GMM': -1}  # (name:idx)
             # elif model_name == 'OCSVM':
@@ -911,17 +898,19 @@ def parse_xlsx_col(input_file='xxx.dat-ratio.xlsx', model_name  = 'KJL'):
             #     Needed_MOLDES = {'Nystrom-OCSVM': start_idx+2}  # (name:idx)
             for model_name, t in Needed_MOLDES.items():
                 # if model_name not in res[data_name].keys():
-                res[data_name][model_name]={'Speedup AUC': vs[idx_first_line][t], 'Speedup training':vs[idx_first_line+1][t],
-                                        'Speedup testing':vs[idx_first_line+2][t], 'Saving space': vs[idx_first_line+3][t]}
-            idx_first_line +=4 + 1  # one blank line between two results
+                res[data_name][model_name] = {'Speedup AUC': vs[idx_first_line][t],
+                                              'Speedup training': vs[idx_first_line + 1][t],
+                                              'Speedup testing': vs[idx_first_line + 2][t],
+                                              'Saving space': vs[idx_first_line + 3][t]}
+            idx_first_line += 4 + 1  # one blank line between two results
             continue
-        else: # avoid dead loop
-            idx_first_line +=1
+        else:  # avoid dead loop
+            idx_first_line += 1
 
     return res
 
 
-model_name_mapping={
+model_name_mapping = {
     'OCSVM(rbf)': 'OCSVM',
     "KJL-OCSVM(linear)": "OC-KJL-OCSVM",
     "Nystrom-OCSVM(linear)": "OC-Nystrom-OCSVM",
@@ -948,9 +937,11 @@ model_name_mapping={
     "Nystrom-QS-GMM(diag)": "OC-Nystrom-QS-diag",
     # "Nystrom-MS-GMM(full)", "Nystrom-MS-GMM(diag)"
 }
+
+
 def show_full_diag(full_file, diag_file, out_file='output_data', model_name='KJL', tab_type='', fig_flg='main_paper',
-                      n_repeats = 5, gs =False,
-                      verbose=1):
+                   n_repeats=5, gs=False,
+                   verbose=1):
     """
 
     Parameters
@@ -1036,7 +1027,7 @@ def show_full_diag(full_file, diag_file, out_file='output_data', model_name='KJL
                 k_abbr = 'AECHO'
             for model_name, diff_vs in vs.items():
                 # full result
-                v= diff_vs[diff_name].split('+/-')
+                v = diff_vs[diff_name].split('+/-')
                 mean_full, std_full = float(v[0]), float(v[1].split("(")[0])
                 # diag result
                 v = diag_dict[k][model_name][diff_name].split('+/-')
@@ -1048,7 +1039,7 @@ def show_full_diag(full_file, diag_file, out_file='output_data', model_name='KJL
                     sub_dataset.append([k_abbr, f"OCSVM / {model_name_mapping[f'{model_name}(full)']}", mean_full])
                     sub_dataset.append([k_abbr, f"OCSVM / {model_name_mapping[f'{model_name}(diag)']}", mean_diag])
                 yerrs.append(std_full)
-                yerrs.append(std_diag )
+                yerrs.append(std_diag)
 
         new_colors = []
         if j % c == 0:
@@ -1064,7 +1055,7 @@ def show_full_diag(full_file, diag_file, out_file='output_data', model_name='KJL
         # colors = [ 'green', 'orange', 'c', 'm',  'b', 'r','tab:brown', 'tab:green'][:2]
         # g = sns.barplot(y="diff", x='dataset', hue='model_name', data=df, palette=colors, ci=None,
         #                 capsize=.2, ax=axes[t, j % c])
-        g = sns.barplot(y="diff", x='dataset', hue='model_name', data=df,  ci=None,
+        g = sns.barplot(y="diff", x='dataset', hue='model_name', data=df, ci=None,
                         capsize=.2, ax=axes[t, j % c])
         ys = []
         xs = []
@@ -1094,8 +1085,6 @@ def show_full_diag(full_file, diag_file, out_file='output_data', model_name='KJL
 
         axes[t, j % c].errorbar(x=xs + width / 2, y=ys,
                                 yerr=yerrs, fmt='none', c='b', capsize=3)
-
-
 
         # for p in g.patches:
         #     height = p.get_height()
@@ -1157,7 +1146,7 @@ def show_full_diag(full_file, diag_file, out_file='output_data', model_name='KJL
         # #     g.get_legend().set_visible()
         g.get_legend().set_visible(True)
         handles, labels = g.get_legend_handles_labels()
-        axes[t, j % c].legend(handles, labels, loc="upper right",fontsize=font_size-4) #bbox_to_anchor=(0.5, 0.5)
+        axes[t, j % c].legend(handles, labels, loc="upper right", fontsize=font_size - 4)  # bbox_to_anchor=(0.5, 0.5)
 
     # # # get the legend only from the last 'ax' (here is 'g')
     # handles, labels = g.get_legend_handles_labels()
@@ -1514,7 +1503,7 @@ def plot_bar_difference_seaborn(data=[], show_detectors=['OCSVM', 'AE'],
                 new_data[dataset_name] = {detector_name: {}, 'test_size': [], 'yerr': []}
 
             if tab_type.upper() == "basic_representation".upper():
-                features = ['STATS', 'IAT', 'IAT-FFT', 'SAMP-NUM', 'SAMP-NUM-FFT','SAMP-SIZE', 'SAMP-SIZE-FFT']
+                features = ['STATS', 'IAT', 'IAT-FFT', 'SAMP-NUM', 'SAMP-NUM-FFT', 'SAMP-SIZE', 'SAMP-SIZE-FFT']
                 f_dict = dict(zip(features, [i for i in range(len(features))]))
                 # datasets[key][d_name][gs] = (fig2, label2, caption2, d)
                 A = 'IAT'
@@ -1972,151 +1961,1342 @@ def plot_bar_ML_seaborn(new_data=[], new_colors=[], show_detectors=[], gs=True,
     # rcParams.update({'figure.autolayout': True})
 
 
+def combine_train_test(train_file, test_file, out_file='merged.xlsx'):
+    train_df = pd.read_excel(train_file, header=0,
+                             index_col=None)  # index_col=False: not use the first columns as index
+    test_df = pd.read_excel(test_file, header=0,
+                            index_col=None)  # index_col=False: not use the first columns as index
+    train_vs = train_df.values
+    test_vs = test_df.values
+    res = [['-']]
 
-def main():
-    case = 'find_difference'
-    case = 'csv2figs'
-    out_dir = 'speedup/out/report/src_dst/'
-    if case == 'csv2latex2':
-        out_file = out_dir + 'results_latex.txt'
-        header = False
-        num_feat = 3
-        # if num_feat == 3:
-        #     tab_latex = tab_latex_3
-        # else:
-        #     tab_latex = tab_latex_7
-        # with open(out_file, 'w') as f:
-        #     for i, (detector, input_file) in enumerate(input_files.items()):
-        #         tab_false, tab_true = csv2latex_previous(input_file=input_file,
-        #                                                  tab_latex=tab_latex, caption=detector, do_header=header,
-        #                                                  previous_result=True,
-        #                                                  num_feat=num_feat,
-        #                                                  verbose=0)
-        #
-        #         # tab_false, tab_true = csv2latex(input_file=input_file,
-        #         #                                 tab_latex=tab_latex, caption=detector, do_header=header,
-        #         #                                 num_feat=num_feat,
-        #         #                                 verbose=0)
-        #
-        #         f.write(detector + ':' + input_file + '\n')
-        #         for line in tab_false:
-        #             f.write(line + '\n')
-        #         print()
-        #
-        #         for line in tab_true:
-        #             f.write(line + '\n')
-        #         print()
-        #         f.write('\n')
-    elif case == 'csv2figs':
-        # # case 1
-        # gs = True
-        # name = 'show_KJL_GMM_KJL_OCSVM'
-        #
-        # case 2
-        gs = False
-        name = 'show_KJL_QS_Nystrom_QS'
-
-        # case 3
-        # gs = True
-        # name = 'show_full_diag'
-
-
-        covariance = 'full'
-        fig_flg = 'main'
-        # feat_header = 'iat_size-header_False'
-        feat_header = 'stats-header_True'
-        file_name = f'speedup/calumet_out-20210204/src_dst/{feat_header}/before_proj_False-gs_{gs}/std_False_center_False-d_5-{covariance}/res.csv-ratio.xlsx'
-
-
-
-        if gs ==True and name == 'show_KJL_GMM_KJL_OCSVM':
-            # KJL-GMM vs. KJL-OCSVM(linear)
-            for i, name in enumerate(['KJL', 'Nystrom']):
-                tab_type = f'{feat_header}-gs_{gs}-{name}-GMM-{name}-OCSVM(linear)-{covariance}'
-                out_dir = os.path.dirname(file_name)
-                out_file = f'{out_dir}/All_latex_tables_figs.txt'  # for main paper results
-                check_path(out_file)
-                with open(out_file, 'w') as f:
-                    print('\n\n******************')
-                    print(i, tab_type, gs)
-                    try:
-
-                        # # only for best params
-                        # if tab_type == 'iat_size-header_False-gs_True-KJL-GMM-KJL-OCSVM(linear)-full'  or \
-                        #         tab_type == 'iat_size-header_False-gs_True-KJL-GMM-KJL-OCSVM(linear)-diag':
-                        show_KJL_GMM_KJL_OCSVM(input_file=file_name,
-                                               out_file=os.path.dirname(
-                                                   out_file) + "/" + tab_type + '-' + fig_flg,
-                                               tab_type=tab_type, fig_flg=fig_flg, gs=gs,
-                                           n_repeats=5)
-                    except Exception as e:
-                        print('Error: ', i, e)
-                        traceback.print_exc()
-                        continue
-
-                # release the matplotlib memory
-                # Clear the current figure.
-                plt.clf()
-                # Closes all the figure windows.
-                plt.close('all')
-
-                import gc
-                gc.collect()
-
-        elif gs == False and name == 'show_KJL_QS_Nystrom_QS':
-            # KJL-QS-GMM, Nystrom-QS-GMM
-            # tab_type = f'{feat_header}-gs_{gs}-{name}-GMM-{name}-OCSVM(linear)-{covariance}'
-            tab_type = 'iat_size-header_False-gs_False-KJL-QS-Nystrom-QS-full'
-            out_dir = os.path.dirname(file_name)
-            out_file = f'{out_dir}/All_latex_tables_figs.txt'  # for main paper results
-            check_path(out_file)
-            i = 0
-            with open(out_file, 'w') as f:
-                print('\n\n******************')
-                print(i, tab_type, gs)
-                try:
-
-                    # # only for best params
-                    # if tab_type == 'iat_size-header_False-gs_True-KJL-GMM-KJL-OCSVM(linear)-full'  or \
-                    #         tab_type == 'iat_size-header_False-gs_True-KJL-GMM-KJL-OCSVM(linear)-diag':
-                    show_KJL_QS_Nystrom_QS(input_file=file_name,
-                                           out_file=os.path.dirname(
-                                               out_file) + "/" + tab_type + '-' + fig_flg,
-                                           tab_type=tab_type, fig_flg=fig_flg, gs=gs,
-                                           n_repeats=5)
-                except Exception as e:
-                    print('Error: ', i, e)
-                    traceback.print_exc()
-
-
-            # release the matplotlib memory
-            # Clear the current figure.
-            plt.clf()
-            # Closes all the figure windows.
-            plt.close('all')
-
-            import gc
-            gc.collect()
+    # find the first_data line index, ignore the first few line in xlsx
+    idx_first_line = 0
+    first_flg = False
+    for i, line in enumerate(train_vs):
+        # print(i, line)
+        if 'Xy-normal-abnormal.dat' in str(line[0]):
+            idx_first_line = i
+            step = 0
+            first_flg = True
+            res.append(train_vs[i])
+        elif first_flg:
+            step += 1
+            if step == 1:
+                res.append(train_vs[idx_first_line + step])
+            else:
+                res.append(test_vs[idx_first_line + step])
         else:
-            # tab_type = f'{feat_header}-gs_{gs}-KJL-QS-full+KJL-QS-diag'
-            for model_name, tab_type in  [('KJL-QS-GMM', 'iat_size-header_False-gs_True-KJL-QS-full+KJL-QS-diag'),
-                              ('Nystrom-QS-GMM', 'iat_size-header_False-gs_True-Nystrom-QS-full+Nystrom-QS-diag')]:
+            first_flg = False
+            res.append(train_vs[i])
 
-                full_file =   f'speedup/calumet_out-20210204/src_dst/{feat_header}/before_proj_False-gs_True/std_False_center_False-d_5-{covariance}/res.csv-ratio.xlsx'
-                diag_file  = f'speedup/calumet_out-20210204/src_dst/{feat_header}/before_proj_False-gs_False/std_False_center_False-d_5-{covariance}/res.csv-ratio.xlsx'
+    with ExcelWriter(out_file) as writer:
+        pd.DataFrame(res).to_excel(writer, sheet_name='', index=False, header=False)
+        writer.save()
 
-
-                out_dir = os.path.dirname(full_file)
-                out_file = f'{out_dir}/All_latex_tables_figs.txt'  # for main paper results
-                check_path(out_file)
-
-                show_full_diag(full_file, diag_file,
-                               out_file=os.path.dirname(
-                                   out_file) + "/" + tab_type + '-' + fig_flg,
-                               tab_type=tab_type, model_name=model_name, gs=gs,
-                           n_repeats=5)
+    return out_file
 
 
+#
+# def main():
+#     case = 'find_difference'
+#     case = 'csv2figs'
+#     out_dir = 'speedup/out/report/src_dst/'
+#     if case == 'csv2latex2':
+#         out_file = out_dir + 'results_latex.txt'
+#         header = False
+#         num_feat = 3
+#         # if num_feat == 3:
+#         #     tab_latex = tab_latex_3
+#         # else:
+#         #     tab_latex = tab_latex_7
+#         # with open(out_file, 'w') as f:
+#         #     for i, (detector, input_file) in enumerate(input_files.items()):
+#         #         tab_false, tab_true = csv2latex_previous(input_file=input_file,
+#         #                                                  tab_latex=tab_latex, caption=detector, do_header=header,
+#         #                                                  previous_result=True,
+#         #                                                  num_feat=num_feat,
+#         #                                                  verbose=0)
+#         #
+#         #         # tab_false, tab_true = csv2latex(input_file=input_file,
+#         #         #                                 tab_latex=tab_latex, caption=detector, do_header=header,
+#         #         #                                 num_feat=num_feat,
+#         #         #                                 verbose=0)
+#         #
+#         #         f.write(detector + ':' + input_file + '\n')
+#         #         for line in tab_false:
+#         #             f.write(line + '\n')
+#         #         print()
+#         #
+#         #         for line in tab_true:
+#         #             f.write(line + '\n')
+#         #         print()
+#         #         f.write('\n')
+#     elif case == 'csv2figs':
+#         # # # case 1
+#         # gs = True
+#         # name = 'show_KJL_GMM_KJL_OCSVM'
+#         # #
+#         # case 2
+#         gs = False
+#         name = 'show_KJL_QS_Nystrom_QS'
+#
+#         # case 3
+#         gs = True
+#         name = 'show_full_diag'
+#
+#
+#         covariance = 'diag'
+#         fig_flg = 'main'
+#         feat_header = 'iat_size-header_False'
+#         # feat_header = 'stats-header_True'
+#         # file_name = f'speedup/calumet_out-20210204/src_dst/{feat_header}/before_proj_False-gs_{gs}/std_False_center_False-d_5-{covariance}/res.csv-ratio.xlsx'
+#
+#         # train_out
+#         train_out_file = f'speedup/paper_data/neon_train_out/out/src_dst/{feat_header}/before_proj_False-gs_{gs}/std_False_center_False-d_5-{covariance}/res.csv-ratio.xlsx'
+#         # test_out
+#         test_file_name = f'speedup/paper_data/neon_out/out/models_res/src_dst/{feat_header}/before_proj_False-gs_{gs}/std_False_center_False-d_5-{covariance}/res.csv-ratio.xlsx'
+#         # merge train_out and test_out
+#         file_name = f'speedup/paper_data/neon_out/out/models_res/src_dst/{feat_header}/before_proj_False-gs_{gs}/std_False_center_False-d_5-{covariance}/res.csv-ratio-merged.xlsx'
+#         file_name=merge_train_test(train_out_file, test_file_name, out_file=file_name)
+#         print(file_name)
+#
+#         if gs ==True and name == 'show_KJL_GMM_KJL_OCSVM':
+#             # KJL-GMM vs. KJL-OCSVM(linear)
+#             for i, name in enumerate(['KJL', 'Nystrom']):
+#                 tab_type = f'{feat_header}-gs_{gs}-{name}-GMM-{name}-OCSVM(linear)-{covariance}'
+#                 out_dir = os.path.dirname(file_name)
+#                 out_file = f'{out_dir}/All_latex_tables_figs.txt'  # for main paper results
+#                 check_path(out_file)
+#                 with open(out_file, 'w') as f:
+#                     print('\n\n******************')
+#                     print(i, tab_type, gs)
+#                     try:
+#
+#                         # # only for best params
+#                         # if tab_type == 'iat_size-header_False-gs_True-KJL-GMM-KJL-OCSVM(linear)-full'  or \
+#                         #         tab_type == 'iat_size-header_False-gs_True-KJL-GMM-KJL-OCSVM(linear)-diag':
+#                         show_KJL_GMM_KJL_OCSVM(input_file=file_name,
+#                                                out_file=os.path.dirname(
+#                                                    out_file) + "/" + tab_type + '-' + fig_flg,
+#                                                tab_type=tab_type, fig_flg=fig_flg, gs=gs,
+#                                            n_repeats=5)
+#                     except Exception as e:
+#                         print('Error: ', i, e)
+#                         traceback.print_exc()
+#                         continue
+#
+#                 # release the matplotlib memory
+#                 # Clear the current figure.
+#                 plt.clf()
+#                 # Closes all the figure windows.
+#                 plt.close('all')
+#
+#                 import gc
+#                 gc.collect()
+#
+#         elif gs == False and name == 'show_KJL_QS_Nystrom_QS':
+#             # KJL-QS-GMM, Nystrom-QS-GMM
+#             # tab_type = f'{feat_header}-gs_{gs}-{name}-GMM-{name}-OCSVM(linear)-{covariance}'
+#             tab_type = 'iat_size-header_False-gs_False-KJL-QS-Nystrom-QS-full'
+#             out_dir = os.path.dirname(file_name)
+#             out_file = f'{out_dir}/All_latex_tables_figs.txt'  # for main paper results
+#             check_path(out_file)
+#             i = 0
+#             with open(out_file, 'w') as f:
+#                 print('\n\n******************')
+#                 print(i, tab_type, gs)
+#                 try:
+#
+#                     # # only for best params
+#                     # if tab_type == 'iat_size-header_False-gs_True-KJL-GMM-KJL-OCSVM(linear)-full'  or \
+#                     #         tab_type == 'iat_size-header_False-gs_True-KJL-GMM-KJL-OCSVM(linear)-diag':
+#                     show_KJL_QS_Nystrom_QS(input_file=file_name,
+#                                            out_file=os.path.dirname(
+#                                                out_file) + "/" + tab_type + '-' + fig_flg,
+#                                            tab_type=tab_type, fig_flg=fig_flg, gs=gs,
+#                                            n_repeats=5)
+#                 except Exception as e:
+#                     print('Error: ', i, e)
+#                     traceback.print_exc()
+#
+#
+#             # release the matplotlib memory
+#             # Clear the current figure.
+#             plt.clf()
+#             # Closes all the figure windows.
+#             plt.close('all')
+#
+#             import gc
+#             gc.collect()
+#         else:
+#             # tab_type = f'{feat_header}-gs_{gs}-KJL-QS-full+KJL-QS-diag'
+#             for model_name, tab_type in  [('KJL-QS-GMM', 'iat_size-header_False-gs_True-KJL-QS-full+KJL-QS-diag'),
+#                               ('Nystrom-QS-GMM', 'iat_size-header_False-gs_True-Nystrom-QS-full+Nystrom-QS-diag')]:
+#
+#                 full_file =   f'speedup/calumet_out-20210204/src_dst/{feat_header}/before_proj_False-gs_True/std_False_center_False-d_5-{covariance}/res.csv-ratio.xlsx'
+#                 diag_file  = f'speedup/calumet_out-20210204/src_dst/{feat_header}/before_proj_False-gs_False/std_False_center_False-d_5-{covariance}/res.csv-ratio.xlsx'
+#
+#
+#                 out_dir = os.path.dirname(full_file)
+#                 out_file = f'{out_dir}/All_latex_tables_figs.txt'  # for main paper results
+#                 check_path(out_file)
+#
+#                 show_full_diag(full_file, diag_file,
+#                                out_file=os.path.dirname(
+#                                    out_file) + "/" + tab_type + '-' + fig_flg,
+#                                tab_type=tab_type, model_name=model_name, gs=gs,
+#                            n_repeats=5)
+
+
+def show_kjl_gmm_vs_kjl_ocsvm(res, out_file='output_data',
+                              datasets=['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DWSHR'],
+                              tab_type='', fig_flg='main_paper',
+                              n_repeats=5, gs=False,
+                              verbose=1):
+    """
+
+    Parameters
+    ----------
+    input_file
+    tab_latex
+    caption
+    do_header
+    num_feat
+    verbose
+
+    Returns
+    -------
+
+    """
+
+    sns.set_style("darkgrid")
+    r = 1
+    c = 1
+    fig, axes = plt.subplots(r, c, figsize=(8, 5))  # (width, height)
+    if r == 1:
+        axes = np.asarray(axes).reshape(1, -1)
+
+    t = 0
+    # metrics = ['Speedup AUC', 'Speedup training', 'Speedup testing', 'Saving space']
+    metrics = ['Speedup AUC']
+    for j, diff_name in enumerate(metrics):
+        sub_dataset = []
+        yerrs = []  # std/sqrt(n_repeats)
+        for data_name, ds in res.items():
+            for model_name, vs in ds.items():
+                vs = vs.split('+/-')
+                mean_, std_ = float(vs[0]), float(vs[1])
+                if diff_name == 'Speedup AUC':
+                    sub_dataset.append([data_name, f"{model_name}", mean_])
+                elif diff_name in ['Speedup training', 'Speedup testing', 'Saving space']:
+                    sub_dataset.append([data_name, f"{model_name}", mean_])
+                yerrs.append(std_)
+
+        new_colors = []
+        if j % c == 0:
+            if j == 0:
+                t = 0
+            else:
+                t += 1
+
+        print(f'{diff_name}: {sub_dataset}')
+        df = pd.DataFrame(sub_dataset, columns=['dataset', 'model_name', 'diff'])
+        print('yerrs:', yerrs)
+        # colors = [ 'green', 'orange', 'c', 'm',  'b', 'r','tab:brown', 'tab:green'][:2]
+        g = sns.barplot(y="diff", x='dataset', hue='model_name', data=df, ci=None,
+                        capsize=.2, ax=axes[t, j % c])
+        ys = []
+        xs = []
+        width = 0
+        sub_fig_width = 0
+        for i_p, p in enumerate(g.patches):
+            height = p.get_height()
+            # g.text(p.get_x() + p.get_width() / 2.,
+            #        height,
+            #        '{:0.3f}'.format(new_yerrs[i_p]),
+            #        ha="center")
+            width = p.get_width()
+            ys.append(height)
+            xs.append(p.get_x())
+            # yerr.append(i_p + p.get_height())
+
+            num_bars = df['model_name'].nunique()
+            # print(f'num_bars:',num_bars)
+            if i_p == 0:
+                pre = p.get_x() + p.get_width() * num_bars
+                sub_fig_width = p.get_bbox().width
+            if i_p < df['dataset'].nunique() and i_p > 0:
+                cur = p.get_x()
+                # g.axvline(color='black', linestyle='--', x=pre + (cur - pre) / 2, alpha=0.3)
+                g.axvline(color='black', linestyle='--', x=pre + (cur - pre) / 2, ymin=0, ymax=1, alpha=0.3)
+                pre = cur + p.get_width() * num_bars
+
+        axes[t, j % c].errorbar(x=xs + width / 2, y=ys,
+                                yerr=yerrs, fmt='none', c='b', capsize=3)
+
+        # g.set(xlabel=detector_name)       # set name at the bottom
+        g.set(xlabel=None)
+        g.set(ylabel=None)
+        # g.set_ylim(-1, 1)
+        font_size = 20
+        # g.set_ylabel(diff_name, fontsize=font_size + 4)
+        g.set_ylabel('AUC', fontsize=font_size + 4)
+        appendix = False
+        if appendix:
+            show_detectors = []
+            if j < len(show_detectors) - 1:
+                g.set_xticklabels([])
+            else:
+                g.set_xticklabels(g.get_xticklabels(), fontsize=font_size + 4, rotation=30, ha="center")
+        else:
+            g.set_xticklabels(g.get_xticklabels(), fontsize=font_size + 4, rotation=30, ha="center")
+        # yticks(np.arange(0, 1, step=0.2))
+        # g.set_yticklabels([f'{x:.2f}' for x in g.get_yticks() if x%0.5==0], fontsize=font_size + 4)
+
+        # y_v = [float(f'{x:.1f}') for x in g.get_yticks() if x%0.5==0]
+        # y_v = [float(f'{x:.2f}') for x in g.get_yticks()]
+        y_v = [0, 0.25, 0.5, 0.75, 1.0]
+        g.set_yticks(y_v)  # set value locations in y axis
+        # g.set_yticklabels([v_tmp if v_tmp in [0, 0.5, -0.5, 1, -1] else '' for v_tmp in y_v],
+        #                   fontsize=font_size + 6)  # set the number of each value in y axis
+        g.set_yticklabels(y_v, fontsize=font_size + 4)  # set the number of each value in y axis
+        print(g.get_yticks(), y_v)
+        # if j % c != 0:
+        #     # g.get_yaxis().set_visible(False)
+        #     g.set_yticklabels(['' for v_tmp in y_v])
+        #     g.set_ylabel('')
+
+        # g.set_title(diff_name, fontsize=font_size + 8)
+        # print(f'ind...{ind}')
+        # if j == 1:
+        #     # g.get_legend().set_visible()
+        #     handles, labels = g.get_legend_handles_labels()
+        #     axes[0, 1].legend(handles, labels, loc=8,fontsize=font_size-4) #bbox_to_anchor=(0.5, 0.5)
+        # else:
+        #     g.get_legend().set_visible()
+        g.get_legend().set_visible(False)
+        # handles, labels = g.get_legend_handles_labels()
+        # axes[t, j % c].legend(handles, labels, loc="upper right",fontsize=font_size-4) #bbox_to_anchor=(0.5, 0.5)
+
+    # # get the legend only from the last 'ax' (here is 'g')
+    handles, labels = g.get_legend_handles_labels()
+    labels = ["\n".join(textwrap.wrap(v, width=45)) for v in labels]
+    # pos1 = axes[-1, -1].get_position()  # get the original position
+    # # pos2 = [pos1.x0 + 0.3, pos1.y0 + 0.3,  pos1.width / 2.0, pos1.height / 2.0]
+    # # ax.set_position(pos2) # set a new position
+    # loc = (pos1.x0 + (pos1.x1 - pos1.x0) / 2, pos1.y0 + 0.05)
+    # print(f'loc: {loc}, pos1: {pos1.bounds}')
+    # # axes[-1, -1].legend(handles, labels, loc=2, # upper right
+    # #             ncol=1, prop={'size': font_size-13})  # loc='lower right',  loc = (0.74, 0.13)
+    # axes[-1, -1].legend(handles, labels, loc='lower center', bbox_to_anchor=(0.0, 0.95, 1, 0.5),borderaxespad=0, fancybox=True, # upper right
+    #                     ncol=1, prop={'size': font_size - 4})  # loc='lower right',  loc = (0.74, 0.13)
+
+    # share one legend
+    fig.legend(handles, labels, loc='lower center',  # upper left
+               ncol=3, prop={'size': font_size - 2})  # l
+
+    # # plt.xlabel('Catagory')
+    # plt.ylabel('AUC')
+    # plt.ylim(0,1.07)
+    # # # plt.title('F1 Scores by category')
+    # n_groups = len(show_datasets)
+    # index = np.arange(n_groups)
+    # # print(index)
+    # # plt.xlim(xlim[0], n_groups)
+    # plt.xticks(index + len(show_repres) // 2 * bar_width, labels=[v for v in show_datasets])
+    plt.tight_layout()
+    #
+    try:
+        if r == 1:
+            plt.subplots_adjust(bottom=0.35)
+        else:
+            if appendix:
+                if "GMM" in ",".join(show_detectors):
+                    plt.subplots_adjust(bottom=0.2)
+                else:
+                    plt.subplots_adjust(bottom=0.10)
+            else:
+                plt.subplots_adjust(bottom=0.13, top=0.95)
+    except Warning as e:
+        raise ValueError(e)
+
+    # plt.legend(show_repres, loc='lower right')
+    # # plt.savefig("DT_CNN_F1"+".jpg", dpi = 400)
+    out_file += '.pdf'
+    plt.savefig(out_file)  # should use before plt.show()
+    plt.show()
+    plt.close(fig)
+
+    # sns.reset_orig()
+    # sns.reset_defaults()
+    # rcParams.update({'figure.autolayout': True})
+    # release the matplotlib memory
+    # Clear the current figure.
+    plt.clf()
+    # Closes all the figure windows.
+    plt.close('all')
+
+    return out_file
+
+
+def show_oc_kjl_qs_vs_nystrom_qs(res, out_file='output_data',
+                                 datasets=['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DWSHR'],
+                                 tab_type='', fig_flg='main_paper',
+                                 n_repeats=5, gs=False,
+                                 verbose=1):
+    """
+
+    Parameters
+    ----------
+    input_file
+    tab_latex
+    caption
+    do_header
+    num_feat
+    verbose
+
+    Returns
+    -------
+
+    """
+
+    sns.set_style("darkgrid")
+    r = 2
+    c = 2
+    if r == 1 and c == 1:
+        fig, axes = plt.subplots(r, c, figsize=(8, 5))  # (width, height)
+    elif r == 2 and c == 2:
+        fig, axes = plt.subplots(r, c, figsize=(18, 10))  # (width, height)
+    elif r == 2 and c == 3:
+        fig, axes = plt.subplots(r, c, figsize=(18, 10))  # (width, height)
+        gs = axes[1, 0].get_gridspec()
+        # remove the underlying axes
+        for ax in axes[1, :]:
+            ax.remove()
+        axes[1, 0] = fig.add_subplot(gs[1, :])
+    if r == 1:
+        axes = np.asarray(axes).reshape(1, -1)
+
+    t = 0
+    metrics = ['Speedup AUC', 'Speedup train', 'Space saving', 'Speedup test']
+    for j, diff_name in enumerate(metrics):
+        sub_dataset = []
+        yerrs = []  # std/sqrt(n_repeats)
+        for data_name, ds in res.items():
+            for device_name in ['NEON']:
+                for model_name, vs in ds.items():
+                    if type(vs) == dict:
+                        if 'AUC' in diff_name:
+                            vs = vs['aucs']
+                        elif 'train' in diff_name:
+                            vs = vs['train_times']
+                        elif 'test' in diff_name:
+                            vs = vs['test_times']
+                        elif 'Space' in diff_name:
+                            vs = vs['spaces']
+                        vs = vs.split('+/-')
+                        mean_, std_ = float(vs[0]), float(vs[1])
+                        if diff_name == 'Speedup AUC' and device_name == 'NEON':
+                            sub_dataset.append([data_name, f"{model_name} / OCSVM", mean_])
+                            yerrs.append(std_)
+                        elif diff_name in ['Speedup train', 'Space saving'] and device_name == 'NEON':
+                            sub_dataset.append([data_name, f"OCSVM / {model_name}", mean_])
+                            yerrs.append(std_)
+                        elif diff_name in ['Speedup test']:
+                            sub_dataset.append([data_name, f"OCSVM / {model_name}({device_name})", mean_])
+                            yerrs.append(std_)
+
+        new_colors = []
+        if j % c == 0:
+            if j == 0:
+                t = 0
+            else:
+                t += 1
+
+        print(f'{diff_name}: {sub_dataset}')
+        df = pd.DataFrame(sub_dataset, columns=['dataset', 'model_name', 'diff'])
+        print('yerrs:', yerrs)
+        # colors = [ 'green', 'orange', 'c', 'm',  'b', 'r','tab:brown', 'tab:green'][:2]
+        g = sns.barplot(y="diff", x='dataset', hue='model_name', data=df, ci=None,
+                        capsize=.2, ax=axes[t, j % c])
+        ys = []
+        xs = []
+        width = 0
+        sub_fig_width = 0
+        for i_p, p in enumerate(g.patches):
+            height = p.get_height()
+            # g.text(p.get_x() + p.get_width() / 2.,
+            #        height,
+            #        '{:0.3f}'.format(new_yerrs[i_p]),
+            #        ha="center")
+            width = p.get_width()
+            ys.append(height)
+            xs.append(p.get_x())
+            # yerr.append(i_p + p.get_height())
+
+            num_bars = df['model_name'].nunique()
+            # print(f'num_bars:',num_bars)
+            if i_p == 0:
+                pre = p.get_x() + p.get_width() * num_bars
+                sub_fig_width = p.get_bbox().width
+            if i_p < df['dataset'].nunique() and i_p > 0:
+                cur = p.get_x()
+                # g.axvline(color='black', linestyle='--', x=pre + (cur - pre) / 2, alpha=0.3)
+                g.axvline(color='black', linestyle='--', x=pre + (cur - pre) / 2, ymin=0, ymax=1, alpha=0.3)
+                pre = cur + p.get_width() * num_bars
+
+        axes[t, j % c].errorbar(x=xs + width / 2, y=ys,
+                                yerr=yerrs, fmt='none', c='b', capsize=3)
+
+        # g.set(xlabel=detector_name)       # set name at the bottom
+        g.set(xlabel=None)
+        g.set(ylabel=None)
+        # g.set_ylim(-1, 1)
+        font_size = 20
+        # g.set_ylabel(diff_name, fontsize=font_size + 4)
+        g.set_ylabel(diff_name, fontsize=font_size + 4)
+        appendix = False
+        if appendix:
+            show_detectors = []
+            if j < len(show_detectors) - 1:
+                g.set_xticklabels([])
+            else:
+                g.set_xticklabels(g.get_xticklabels(), fontsize=font_size + 4, rotation=30, ha="center")
+        else:
+            g.set_xticklabels(g.get_xticklabels(), fontsize=font_size + 4, rotation=30, ha="center")
+        # yticks(np.arange(0, 1, step=0.2))
+        # g.set_yticklabels([f'{x:.2f}' for x in g.get_yticks() if x%0.5==0], fontsize=font_size + 4)
+
+        # y_v = [float(f'{x:.1f}') for x in g.get_yticks() if x%0.5==0]
+        # y_v = [float(f'{x:.2f}') for x in g.get_yticks()]
+        if 'AUC' in diff_name:
+            y_v = [0.0, 0.5, 1.0, 1.5, 2.0]
+        elif 'train' in diff_name:
+            y_v = [0.0, 0.5, 1.0, 1.5, 2.0]
+        elif 'test' in diff_name:
+            y_v = [0, 15, 25, 35]
+        elif 'Space' in diff_name:
+            y_v = [0, 10, 20, 30]
+        g.set_yticks(y_v)  # set value locations in y axis
+        # g.set_yticklabels([v_tmp if v_tmp in [0, 0.5, -0.5, 1, -1] else '' for v_tmp in y_v],
+        #                   fontsize=font_size + 6)  # set the number of each value in y axis
+        g.set_yticklabels(y_v, fontsize=font_size + 4)  # set the number of each value in y axis
+        print(g.get_yticks(), y_v)
+        # if j % c != 0:
+        #     # g.get_yaxis().set_visible(False)
+        #     g.set_yticklabels(['' for v_tmp in y_v])
+        #     g.set_ylabel('')
+
+        # g.set_title(diff_name, fontsize=font_size + 8)
+        # print(f'ind...{ind}')
+        # if j == 1:
+        #     # g.get_legend().set_visible()
+        #     handles, labels = g.get_legend_handles_labels()
+        #     axes[0, 1].legend(handles, labels, loc=8,fontsize=font_size-4) #bbox_to_anchor=(0.5, 0.5)
+        # else:
+        #     g.get_legend().set_visible()
+        # g.get_legend().set_visible(False)
+        # handles, labels = g.get_legend_handles_labels()
+        # axes[t, j % c].legend(handles, labels, loc="upper right",fontsize=font_size-4) #bbox_to_anchor=(0.5, 0.5)
+
+        g.get_legend().set_visible(True)
+        handles, labels = g.get_legend_handles_labels()
+        axes[t, j % c].legend(handles, labels, loc="upper right", fontsize=font_size - 4)  # bbox_to_anchor=(0.5, 0.5)
+
+    # # get the legend only from the last 'ax' (here is 'g')
+    # handles, labels = g.get_legend_handles_labels()
+    # labels = ["\n".join(textwrap.wrap(v, width=45)) for v in labels]
+    # pos1 = axes[-1, -1].get_position()  # get the original position
+    # # pos2 = [pos1.x0 + 0.3, pos1.y0 + 0.3,  pos1.width / 2.0, pos1.height / 2.0]
+    # # ax.set_position(pos2) # set a new position
+    # loc = (pos1.x0 + (pos1.x1 - pos1.x0) / 2, pos1.y0 + 0.05)
+    # print(f'loc: {loc}, pos1: {pos1.bounds}')
+    # # axes[-1, -1].legend(handles, labels, loc=2, # upper right
+    # #             ncol=1, prop={'size': font_size-13})  # loc='lower right',  loc = (0.74, 0.13)
+    # axes[-1, -1].legend(handles, labels, loc='lower center', bbox_to_anchor=(0.0, 0.95, 1, 0.5),borderaxespad=0, fancybox=True, # upper right
+    #                     ncol=1, prop={'size': font_size - 4})  # loc='lower right',  loc = (0.74, 0.13)
+
+    # # share one legend
+    # fig.legend(handles, labels, loc='lower center',  # upper left
+    #            ncol=3, prop={'size': font_size - 2})  # l
+
+    # # plt.xlabel('Catagory')
+    # plt.ylabel('AUC')
+    # plt.ylim(0,1.07)
+    # # # plt.title('F1 Scores by category')
+    # n_groups = len(show_datasets)
+    # index = np.arange(n_groups)
+    # # print(index)
+    # # plt.xlim(xlim[0], n_groups)
+    # plt.xticks(index + len(show_repres) // 2 * bar_width, labels=[v for v in show_datasets])
+    plt.tight_layout()
+    #
+    try:
+        if r == 1:
+            plt.subplots_adjust(bottom=0.35)
+        else:
+            if appendix:
+                if "GMM" in ",".join(show_detectors):
+                    plt.subplots_adjust(bottom=0.2)
+                else:
+                    plt.subplots_adjust(bottom=0.10)
+            else:
+                plt.subplots_adjust(bottom=0.13, top=0.95)
+    except Warning as e:
+        raise ValueError(e)
+
+    # plt.legend(show_repres, loc='lower right')
+    # # plt.savefig("DT_CNN_F1"+".jpg", dpi = 400)
+    out_file += '.pdf'
+    plt.savefig(out_file)  # should use before plt.show()
+    plt.show()
+    plt.close(fig)
+
+    # sns.reset_orig()
+    # sns.reset_defaults()
+    # rcParams.update({'figure.autolayout': True})
+    # release the matplotlib memory
+    # Clear the current figure.
+    plt.clf()
+    # Closes all the figure windows.
+    plt.close('all')
+
+    return out_file
+
+
+def show_oc_kjl_qs_vs_nystrom_qs2(res, out_file='output_data',
+                                  datasets=['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DWSHR'],
+                                  tab_type='', fig_flg='main_paper',
+                                  n_repeats=5, gs=False,
+                                  verbose=1):
+    """
+
+    Parameters
+    ----------
+    input_file
+    tab_latex
+    caption
+    do_header
+    num_feat
+    verbose
+
+    Returns
+    -------
+
+    """
+
+    sns.set_style("darkgrid")
+    r = 2
+    c = 3
+    if r == 1 and c == 1:
+        fig, axes = plt.subplots(r, c, figsize=(8, 5))  # (width, height)
+    elif r == 2 and c == 2:
+        fig, axes = plt.subplots(r, c, figsize=(18, 10))  # (width, height)
+    elif r == 2 and c == 3:
+        fig, axes = plt.subplots(r, c, figsize=(18, 10))  # (width, height)
+        gs = axes[1, 0].get_gridspec()
+        # remove the underlying axes
+        for ax in axes[1, :]:
+            ax.remove()
+        axes[1, 0] = fig.add_subplot(gs[1, :])
+    if r == 1:
+        axes = np.asarray(axes).reshape(1, -1)
+
+    t = 0
+    metrics = ['Speedup AUC', 'Speedup train', 'Space saving', 'Speedup test']
+    for j, diff_name in enumerate(metrics):
+        sub_dataset = []
+        yerrs = []  # std/sqrt(n_repeats)
+        for data_name, ds in res.items():
+            for device_name in ['RSPI', 'NANO', 'NEON']:
+                for model_name, vs in ds.items():
+                    if type(vs) == dict:
+                        if 'AUC' in diff_name:
+                            vs = vs['aucs']
+                        elif 'train' in diff_name:
+                            vs = vs['train_times']
+                        elif 'test' in diff_name:
+                            vs = vs[f'{device_name}-test_times']
+                        elif 'Space' in diff_name:
+                            vs = vs['spaces']
+                        vs = vs.split('+/-')
+                        mean_, std_ = float(vs[0]), float(vs[1])
+                        if diff_name == 'Speedup AUC' and device_name == 'NEON':
+                            sub_dataset.append([data_name, f"{model_name} / OCSVM", mean_])
+                            yerrs.append(std_)
+                        elif diff_name in ['Speedup train', 'Space saving'] and device_name == 'NEON':
+                            sub_dataset.append([data_name, f"OCSVM / {model_name}", mean_])
+                            yerrs.append(std_)
+                        elif diff_name in ['Speedup test']:
+                            if device_name == 'NEON':
+                                sub_dataset.append([data_name, f"OCSVM / {model_name}(Server)", mean_])
+                            else:
+                                sub_dataset.append([data_name, f"OCSVM / {model_name}({device_name})", mean_])
+                            yerrs.append(std_)
+
+        new_colors = []
+        if j % c == 0:
+            if j == 0:
+                t = 0
+            else:
+                t += 1
+
+        print(f'{diff_name}: {sub_dataset}')
+        df = pd.DataFrame(sub_dataset, columns=['dataset', 'model_name', 'diff'])
+        print('yerrs:', yerrs)
+        # colors = [ 'green', 'orange', 'c', 'm',  'b', 'r','tab:brown', 'tab:green'][:2]
+        g = sns.barplot(y="diff", x='dataset', hue='model_name', data=df, ci=None,
+                        capsize=.2, ax=axes[t, j % c])
+        ys = []
+        xs = []
+        width = 0
+        sub_fig_width = 0
+        for i_p, p in enumerate(g.patches):
+            height = p.get_height()
+            # g.text(p.get_x() + p.get_width() / 2.,
+            #        height,
+            #        '{:0.3f}'.format(new_yerrs[i_p]),
+            #        ha="center")
+            width = p.get_width()
+            ys.append(height)
+            xs.append(p.get_x())
+            # yerr.append(i_p + p.get_height())
+
+            num_bars = df['model_name'].nunique()
+            # print(f'num_bars:',num_bars)
+            if i_p == 0:
+                pre = p.get_x() + p.get_width() * num_bars
+                # sub_fig_width = p.get_bbox().width
+                if 'test' in diff_name:
+                    pre1 = pre
+                    cur1 = p.get_x()
+                    for m in [2, 4]:
+                        pre1 = cur1 + p.get_width() * m
+                        # g.axvline(color='black', linestyle='--', x=pre + (cur - pre) / 2, alpha=0.3)
+                        g.axvline(color='green', linestyle='--', x=pre1, ymin=0, ymax=0.8, alpha=0.3)
+                        # print(pre1)
+            if i_p < df['dataset'].nunique() and i_p > 0:
+                if 'test' in diff_name:
+                    pre1 = pre
+                    cur1 = p.get_x()
+                    for m in [2, 4]:
+                        pre1 = cur1 + p.get_width() * m
+                        g.axvline(color='green', linestyle='--', x=pre1, ymin=0, ymax=0.8, alpha=0.3)
+                cur = p.get_x()
+                # g.axvline(color='black', linestyle='--', x=pre + (cur - pre) / 2, alpha=0.3)
+                g.axvline(color='black', linestyle='--', x=pre + (cur - pre) / 2, ymin=0, ymax=1, alpha=0.3)
+                pre = cur + p.get_width() * num_bars
+
+        axes[t, j % c].errorbar(x=xs + width / 2, y=ys,
+                                yerr=yerrs, fmt='none', c='b', capsize=3)
+
+        # g.set(xlabel=detector_name)       # set name at the bottom
+        g.set(xlabel=None)
+        g.set(ylabel=None)
+        # g.set_ylim(-1, 1)
+        font_size = 20
+        # g.set_ylabel(diff_name, fontsize=font_size + 4)
+        g.set_ylabel(diff_name, fontsize=font_size + 4)
+        appendix = False
+        if appendix:
+            show_detectors = []
+            if j < len(show_detectors) - 1:
+                g.set_xticklabels([])
+            else:
+                g.set_xticklabels(g.get_xticklabels(), fontsize=font_size + 4, rotation=40, ha="center")
+        else:
+            g.set_xticklabels(g.get_xticklabels(), fontsize=font_size + 4, rotation=40, ha="center")
+        # yticks(np.arange(0, 1, step=0.2))
+        # g.set_yticklabels([f'{x:.2f}' for x in g.get_yticks() if x%0.5==0], fontsize=font_size + 4)
+
+        # y_v = [float(f'{x:.1f}') for x in g.get_yticks() if x%0.5==0]
+        # y_v = [float(f'{x:.2f}') for x in g.get_yticks()]
+        if 'AUC' in diff_name:
+            y_v = [0.0, 0.5, 1.0, 1.5, 2.0]
+        elif 'train' in diff_name:
+            y_v = [0.0, 0.5, 1.0, 1.5, 2.0]
+        elif 'test' in diff_name:
+            y_v = [0, 15, 25, 35]
+        elif 'Space' in diff_name:
+            y_v = [0, 10, 20, 30]
+        g.set_yticks(y_v)  # set value locations in y axis
+        # g.set_yticklabels([v_tmp if v_tmp in [0, 0.5, -0.5, 1, -1] else '' for v_tmp in y_v],
+        #                   fontsize=font_size + 6)  # set the number of each value in y axis
+        g.set_yticklabels(y_v, fontsize=font_size + 4)  # set the number of each value in y axis
+        print(g.get_yticks(), y_v)
+        # if j % c != 0:
+        #     # g.get_yaxis().set_visible(False)
+        #     g.set_yticklabels(['' for v_tmp in y_v])
+        #     g.set_ylabel('')
+
+        # g.set_title(diff_name, fontsize=font_size + 8)
+        # print(f'ind...{ind}')
+        # if j == 1:
+        #     # g.get_legend().set_visible()
+        #     handles, labels = g.get_legend_handles_labels()
+        #     axes[0, 1].legend(handles, labels, loc=8,fontsize=font_size-4) #bbox_to_anchor=(0.5, 0.5)
+        # else:
+        #     g.get_legend().set_visible()
+        # g.get_legend().set_visible(False)
+        # handles, labels = g.get_legend_handles_labels()
+        # axes[t, j % c].legend(handles, labels, loc="upper right",fontsize=font_size-4) #bbox_to_anchor=(0.5, 0.5)
+
+        g.get_legend().set_visible(True)
+        handles, labels = g.get_legend_handles_labels()
+        if t == 1:
+            axes[t, j % c].legend(handles, labels, loc="upper right", fontsize=font_size - 4, ncol=3)
+        else:
+            axes[t, j % c].legend(handles, labels, loc="upper right",
+                                  fontsize=font_size - 4)  # bbox_to_anchor=(0.5, 0.5)
+
+    # # get the legend only from the last 'ax' (here is 'g')
+    # handles, labels = g.get_legend_handles_labels()
+    # labels = ["\n".join(textwrap.wrap(v, width=45)) for v in labels]
+    # pos1 = axes[-1, -1].get_position()  # get the original position
+    # # pos2 = [pos1.x0 + 0.3, pos1.y0 + 0.3,  pos1.width / 2.0, pos1.height / 2.0]
+    # # ax.set_position(pos2) # set a new position
+    # loc = (pos1.x0 + (pos1.x1 - pos1.x0) / 2, pos1.y0 + 0.05)
+    # print(f'loc: {loc}, pos1: {pos1.bounds}')
+    # # axes[-1, -1].legend(handles, labels, loc=2, # upper right
+    # #             ncol=1, prop={'size': font_size-13})  # loc='lower right',  loc = (0.74, 0.13)
+    # axes[-1, -1].legend(handles, labels, loc='lower center', bbox_to_anchor=(0.0, 0.95, 1, 0.5),borderaxespad=0, fancybox=True, # upper right
+    #                     ncol=1, prop={'size': font_size - 4})  # loc='lower right',  loc = (0.74, 0.13)
+
+    # # share one legend
+    # fig.legend(handles, labels, loc='lower center',  # upper left
+    #            ncol=3, prop={'size': font_size - 2})  # l
+
+    # # plt.xlabel('Catagory')
+    # plt.ylabel('AUC')
+    # plt.ylim(0,1.07)
+    # # # plt.title('F1 Scores by category')
+    # n_groups = len(show_datasets)
+    # index = np.arange(n_groups)
+    # # print(index)
+    # # plt.xlim(xlim[0], n_groups)
+    # plt.xticks(index + len(show_repres) // 2 * bar_width, labels=[v for v in show_datasets])
+    plt.tight_layout()
+    #
+    try:
+        if r == 1:
+            plt.subplots_adjust(bottom=0.35)
+        else:
+            if appendix:
+                if "GMM" in ",".join(show_detectors):
+                    plt.subplots_adjust(bottom=0.2)
+                else:
+                    plt.subplots_adjust(bottom=0.10)
+            else:
+                plt.subplots_adjust(bottom=0.13, top=0.95)
+    except Warning as e:
+        raise ValueError(e)
+
+    # plt.legend(show_repres, loc='lower right')
+    # # plt.savefig("DT_CNN_F1"+".jpg", dpi = 400)
+    out_file += '.pdf'
+    plt.savefig(out_file)  # should use before plt.show()
+    plt.show()
+    plt.close(fig)
+
+    # sns.reset_orig()
+    # sns.reset_defaults()
+    # rcParams.update({'figure.autolayout': True})
+    # release the matplotlib memory
+    # Clear the current figure.
+    plt.clf()
+    # Closes all the figure windows.
+    plt.close('all')
+
+    return out_file
+
+
+def show_oc_kjl_qs_full_vs_oc_kjl_qs_diag(res, out_file='output_data',
+                                          datasets=['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DWSHR'],
+                                          tab_type='', fig_flg='main_paper',
+                                          n_repeats=5, gs=False,
+                                          verbose=1):
+    """
+
+    Parameters
+    ----------
+    input_file
+    tab_latex
+    caption
+    do_header
+    num_feat
+    verbose
+
+    Returns
+    -------
+
+    """
+
+    sns.set_style("darkgrid")
+    r = 2
+    c = 3
+    if r == 1 and c == 1:
+        fig, axes = plt.subplots(r, c, figsize=(8, 5))  # (width, height)
+    elif r == 2 and c == 2:
+        fig, axes = plt.subplots(r, c, figsize=(18, 10))  # (width, height)
+    elif r == 2 and c == 3:
+        fig, axes = plt.subplots(r, c, figsize=(18, 10))  # (width, height)
+        gs = axes[1, 0].get_gridspec()
+        # remove the underlying axes
+        for ax in axes[1, :]:
+            ax.remove()
+        axes[1, 0] = fig.add_subplot(gs[1, :])
+    if r == 1:
+        axes = np.asarray(axes).reshape(1, -1)
+
+    t = 0
+    metrics = ['Speedup AUC', 'Speedup train', 'Space saving', 'Speedup test']
+    for j, diff_name in enumerate(metrics):
+        sub_dataset = []
+        yerrs = []  # std/sqrt(n_repeats)
+        res_ = res['full']
+        for data_name, ds in res_.items():
+            for device_name in ['RSPI', 'NANO', 'NEON']:
+                for covarince_type in ['full', 'diag']:
+                    ds = res[covarince_type][data_name]
+                    for model_name, vs in ds.items():
+                        if model_name == 'OC-KJL-QS(full)': model_name = 'OC-KJL-QS'
+                        if type(vs) == dict:
+                            if 'AUC' in diff_name:
+                                vs = vs['aucs']
+                            elif 'train' in diff_name:
+                                vs = vs['train_times']
+                            elif 'test' in diff_name:
+                                vs = vs[f'{device_name}-test_times']
+                            elif 'Space' in diff_name:
+                                vs = vs['spaces']
+                            vs = vs.split('+/-')
+                            mean_, std_ = float(vs[0]), float(vs[1])
+                            if diff_name == 'Speedup AUC' and device_name == 'NEON':
+                                sub_dataset.append([data_name, f"{model_name} / OCSVM", mean_])
+                                yerrs.append(std_)
+                            elif diff_name in ['Speedup train', 'Space saving'] and device_name == 'NEON':
+                                sub_dataset.append([data_name, f"OCSVM / {model_name}", mean_])
+                                yerrs.append(std_)
+                            elif diff_name in ['Speedup test']:
+                                if device_name == 'NEON':
+                                    sub_dataset.append([data_name, f"OCSVM / {model_name}(Server)", mean_])
+                                else:
+                                    sub_dataset.append([data_name, f"OCSVM / {model_name}({device_name})", mean_])
+                                yerrs.append(std_)
+
+        new_colors = []
+        if j % c == 0:
+            if j == 0:
+                t = 0
+            else:
+                t += 1
+
+        print(f'{diff_name}: {sub_dataset}')
+        df = pd.DataFrame(sub_dataset, columns=['dataset', 'model_name', 'diff'])
+        print('yerrs:', yerrs)
+        # colors = [ 'green', 'orange', 'c', 'm',  'b', 'r','tab:brown', 'tab:green'][:2]
+        g = sns.barplot(y="diff", x='dataset', hue='model_name', data=df, ci=None,
+                        capsize=.2, ax=axes[t, j % c])
+        ys = []
+        xs = []
+        width = 0
+        sub_fig_width = 0
+        for i_p, p in enumerate(g.patches):
+            height = p.get_height()
+            # g.text(p.get_x() + p.get_width() / 2.,
+            #        height,
+            #        '{:0.3f}'.format(new_yerrs[i_p]),
+            #        ha="center")
+            width = p.get_width()
+            ys.append(height)
+            xs.append(p.get_x())
+            # yerr.append(i_p + p.get_height())
+
+            num_bars = df['model_name'].nunique()
+            # print(f'num_bars:',num_bars)
+            if i_p == 0:
+                pre = p.get_x() + p.get_width() * num_bars
+                # sub_fig_width = p.get_bbox().width
+                if 'test' in diff_name:
+                    pre1 = pre
+                    cur1 = p.get_x()
+                    for m in [2, 4]:
+                        pre1 = cur1 + p.get_width() * m
+                        # g.axvline(color='black', linestyle='--', x=pre + (cur - pre) / 2, alpha=0.3)
+                        g.axvline(color='green', linestyle='--', x=pre1, ymin=0, ymax=0.8, alpha=0.3)
+                        # print(pre1)
+            if i_p < df['dataset'].nunique() and i_p > 0:
+                if 'test' in diff_name:
+                    pre1 = pre
+                    cur1 = p.get_x()
+                    for m in [2, 4]:
+                        pre1 = cur1 + p.get_width() * m
+                        g.axvline(color='green', linestyle='--', x=pre1, ymin=0, ymax=0.8, alpha=0.3)
+                cur = p.get_x()
+                # g.axvline(color='black', linestyle='--', x=pre + (cur - pre) / 2, alpha=0.3)
+                g.axvline(color='black', linestyle='--', x=pre + (cur - pre) / 2, ymin=0, ymax=1, alpha=0.3)
+                pre = cur + p.get_width() * num_bars
+
+        axes[t, j % c].errorbar(x=xs + width / 2, y=ys,
+                                yerr=yerrs, fmt='none', c='b', capsize=3)
+
+        # g.set(xlabel=detector_name)       # set name at the bottom
+        g.set(xlabel=None)
+        g.set(ylabel=None)
+        # g.set_ylim(-1, 1)
+        font_size = 20
+        # g.set_ylabel(diff_name, fontsize=font_size + 4)
+        g.set_ylabel(diff_name, fontsize=font_size + 4)
+        appendix = False
+        if appendix:
+            show_detectors = []
+            if j < len(show_detectors) - 1:
+                g.set_xticklabels([])
+            else:
+                g.set_xticklabels(g.get_xticklabels(), fontsize=font_size + 4, rotation=40, ha="center")
+        else:
+            g.set_xticklabels(g.get_xticklabels(), fontsize=font_size + 4, rotation=40, ha="center")
+        # yticks(np.arange(0, 1, step=0.2))
+        # g.set_yticklabels([f'{x:.2f}' for x in g.get_yticks() if x%0.5==0], fontsize=font_size + 4)
+
+        # y_v = [float(f'{x:.1f}') for x in g.get_yticks() if x%0.5==0]
+        # y_v = [float(f'{x:.2f}') for x in g.get_yticks()]
+        if 'AUC' in diff_name:
+            y_v = [0.0, 0.5, 1.0, 1.5, 2.0]
+        elif 'train' in diff_name:
+            y_v = [0.0, 0.5, 1.0, 1.5, 2.0]
+        elif 'test' in diff_name:
+            y_v = [0, 15, 25, 35]
+        elif 'Space' in diff_name:
+            y_v = [0, 10, 20, 30]
+        g.set_yticks(y_v)  # set value locations in y axis
+        # g.set_yticklabels([v_tmp if v_tmp in [0, 0.5, -0.5, 1, -1] else '' for v_tmp in y_v],
+        #                   fontsize=font_size + 6)  # set the number of each value in y axis
+        g.set_yticklabels(y_v, fontsize=font_size + 4)  # set the number of each value in y axis
+        print(g.get_yticks(), y_v)
+        # if j % c != 0:
+        #     # g.get_yaxis().set_visible(False)
+        #     g.set_yticklabels(['' for v_tmp in y_v])
+        #     g.set_ylabel('')
+
+        # g.set_title(diff_name, fontsize=font_size + 8)
+        # print(f'ind...{ind}')
+        # if j == 1:
+        #     # g.get_legend().set_visible()
+        #     handles, labels = g.get_legend_handles_labels()
+        #     axes[0, 1].legend(handles, labels, loc=8,fontsize=font_size-4) #bbox_to_anchor=(0.5, 0.5)
+        # else:
+        #     g.get_legend().set_visible()
+        # g.get_legend().set_visible(False)
+        # handles, labels = g.get_legend_handles_labels()
+        # axes[t, j % c].legend(handles, labels, loc="upper right",fontsize=font_size-4) #bbox_to_anchor=(0.5, 0.5)
+
+        g.get_legend().set_visible(True)
+        handles, labels = g.get_legend_handles_labels()
+        if t == 1:
+            axes[t, j % c].legend(handles, labels, loc="upper right", fontsize=font_size - 4, ncol=3)
+        else:
+            axes[t, j % c].legend(handles, labels, loc="upper right",
+                                  fontsize=font_size - 4)  # bbox_to_anchor=(0.5, 0.5)
+
+    # # get the legend only from the last 'ax' (here is 'g')
+    # handles, labels = g.get_legend_handles_labels()
+    # labels = ["\n".join(textwrap.wrap(v, width=45)) for v in labels]
+    # pos1 = axes[-1, -1].get_position()  # get the original position
+    # # pos2 = [pos1.x0 + 0.3, pos1.y0 + 0.3,  pos1.width / 2.0, pos1.height / 2.0]
+    # # ax.set_position(pos2) # set a new position
+    # loc = (pos1.x0 + (pos1.x1 - pos1.x0) / 2, pos1.y0 + 0.05)
+    # print(f'loc: {loc}, pos1: {pos1.bounds}')
+    # # axes[-1, -1].legend(handles, labels, loc=2, # upper right
+    # #             ncol=1, prop={'size': font_size-13})  # loc='lower right',  loc = (0.74, 0.13)
+    # axes[-1, -1].legend(handles, labels, loc='lower center', bbox_to_anchor=(0.0, 0.95, 1, 0.5),borderaxespad=0, fancybox=True, # upper right
+    #                     ncol=1, prop={'size': font_size - 4})  # loc='lower right',  loc = (0.74, 0.13)
+
+    # # share one legend
+    # fig.legend(handles, labels, loc='lower center',  # upper left
+    #            ncol=3, prop={'size': font_size - 2})  # l
+
+    # # plt.xlabel('Catagory')
+    # plt.ylabel('AUC')
+    # plt.ylim(0,1.07)
+    # # # plt.title('F1 Scores by category')
+    # n_groups = len(show_datasets)
+    # index = np.arange(n_groups)
+    # # print(index)
+    # # plt.xlim(xlim[0], n_groups)
+    # plt.xticks(index + len(show_repres) // 2 * bar_width, labels=[v for v in show_datasets])
+    plt.tight_layout()
+    #
+    try:
+        if r == 1:
+            plt.subplots_adjust(bottom=0.35)
+        else:
+            if appendix:
+                if "GMM" in ",".join(show_detectors):
+                    plt.subplots_adjust(bottom=0.2)
+                else:
+                    plt.subplots_adjust(bottom=0.10)
+            else:
+                plt.subplots_adjust(bottom=0.13, top=0.95)
+    except Warning as e:
+        raise ValueError(e)
+
+    # plt.legend(show_repres, loc='lower right')
+    # # plt.savefig("DT_CNN_F1"+".jpg", dpi = 400)
+    out_file += '.pdf'
+    plt.savefig(out_file)  # should use before plt.show()
+    plt.show()
+    plt.close(fig)
+
+    # sns.reset_orig()
+    # sns.reset_defaults()
+    # rcParams.update({'figure.autolayout': True})
+    # release the matplotlib memory
+    # Clear the current figure.
+    plt.clf()
+    # Closes all the figure windows.
+    plt.close('all')
+
+    return out_file
+
+
+def str2float(vs):
+    res = []
+    for v in vs:
+        v = v.split(':')[-1].split('-')
+        v = [float(v_) for v_ in v]
+        # res.append(f'{np.mean(v):.2f} +/- {np.std(v):.2f}')
+        res.append(v)
+    return res
+
+
+def extract_original_data(in_file, models=['OC-KJL', 'OC-KJL-SVM'], name='OC-KJL-GMM-vs-OC-KJL-SVM',
+                          datasets=['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DWSHR']):
+    res = {}
+
+    data = load_data(in_file)
+    for data_name in datasets:
+        for model_name in models:
+            #######################################################################################################
+            # get AUCs
+            if name == 'OC-KJL-GMM-vs-OC-KJL-SVM':
+                for vs in data[model_name2orig[model_name]]:
+                    if data_name in vs[0]:
+                        vs = [float(v) for v in vs[7].split(':')[-1].split('-')]
+                        vs = f'{np.mean(vs):.2f} +/- {np.std(vs):.2f}'
+                        if data_name not in res.keys():
+                            res[data_name] = {model_name: vs}
+                        else:
+                            res[data_name][model_name] = vs
+    # xls = pd.ExcelFile(in_file)
+    # print(f'xls.sheet_names:', xls.sheet_names)
+    # for i, sheet_name in xls.sheet_names:
+    #     # index_col=False: not use the first columns as index
+    #     df = pd.read_excel(in_file, header=3, sheet_name= sheet_name, index_col=None)
+    #     if name=='OC-KJL_GMM-OC-KJL_OCSVM':
+    #         if 'KJL-OCSVM(linear)' in sheet_name or 'KJL-GMM':
+    #             for data_name in datasets:
+    #                 res[data_name][model_name] = (str2float(df.values[:, 3]))
+    return res
+
+
+def oc_kjl_gmm_vs_oc_kjl_svm(feat_set='iat_size', is_header=False, is_gs=False, covariance_type='full',
+                             name='OC-KJL-GMM-vs-OC-KJL-SVM',
+                             models=['OC-KJL', 'OC-KJL-SVM']):
+    # covariance = 'diag'
+    # fig_flg = 'main'
+    # feat_header = 'iat_size-header_False'
+    # feat_header = 'stats-header_True'
+    # file_name = f'speedup/calumet_out-20210204/src_dst/{feat_header}/before_proj_False-gs_{gs}/std_False_center_False-d_5-{covariance}/res.csv-ratio.xlsx'
+    in_dir = f'speedup/paper_data/neon_out/out/models_res'
+    sub_dir = f'src_dst/{feat_set}-header_{is_header}/before_proj_False-gs_{is_gs}' \
+              f'/std_False_center_False-d_5-{covariance_type}'
+
+    ################################################################################################################
+    # step 2: get original OC-KJL-GMM and OC-KJL-SVM AUCs from 'res.csv.dat'
+    in_file = os.path.join(in_dir, sub_dir, 'res.csv.dat')
+    res = extract_original_data(in_file, models=models, name=name,
+                                datasets=['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DWSHR'])
+    ################################################################################################################
+    # step 3: plot data
+    out_file = show_kjl_gmm_vs_kjl_ocsvm(res, out_file=os.path.join(os.path.dirname(in_file), f'{name}'))
+    print(out_file)
+
+
+def extract_speedup_data(in_files, models=['OC-KJL-QS', 'OC-Nystrom-QS'], name='OC-KJL-QS-vs-OC-Nystrom-QS',
+                         datasets=['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DWSHR']):
+    res = {}
+
+    outs = {}
+    for device_name, in_file in in_files.items():
+        # index_col=False: not use the first columns as index
+        df = pd.read_excel(in_file, header=0, index_col=None)
+        outs[device_name] = df.values
+        if 'NEON' in device_name:
+            values = df.values
+    for data_name in datasets:
+        for model_name in models:
+            #######################################################################################################
+            # get AUCs, train times, test times and spaces
+            if name == 'OC-KJL-QS-vs-OC-Nystrom-QS':
+                for i, vs in enumerate(values):
+                    if data_name in str(vs[0]):
+                        if model_name == 'OC-KJL-QS' or model_name == 'OC-KJL-QS(diag)': idx = -2
+                        if model_name == 'OC-Nystrom-QS' or model_name == 'OC-Nystrom-QS(diag)': idx = -1
+                        tmp_dict = {'aucs': values[i][idx],
+                                    'train_times': values[i + 1][idx].split('(')[0],
+                                    # 'test_times':values[i+2][idx],
+                                    'RSPI-test_times': outs['RSPI'][i + 2][idx],
+                                    'NANO-test_times': outs['NANO'][i + 2][idx],
+                                    'NEON-test_times': outs['NEON'][i + 2][idx],
+                                    'spaces': values[i + 3][idx]}
+                        if data_name not in res.keys():
+                            res[data_name] = {model_name: tmp_dict}
+                        else:
+                            res[data_name][model_name] = tmp_dict
+
+            elif name == 'OC-KJL-QS(full)-vs-OC-KJL-QS(diag)':
+                for i, vs in enumerate(values):
+                    if data_name in str(vs[0]):
+                        if model_name == 'OC-KJL-QS(full)' or model_name == 'OC-KJL-QS(diag)': idx = -2
+                        tmp_dict = {'aucs': values[i][idx],
+                                    'train_times': values[i + 1][idx].split('(')[0],
+                                    # 'test_times':values[i+2][idx],
+                                    'RSPI-test_times': outs['RSPI'][i + 2][idx],
+                                    'NANO-test_times': outs['NANO'][i + 2][idx],
+                                    'NEON-test_times': outs['NEON'][i + 2][idx],
+                                    'spaces': values[i + 3][idx]}
+                        if data_name not in res.keys():
+                            res[data_name] = {model_name: tmp_dict}
+                        else:
+                            res[data_name][model_name] = tmp_dict
+    return res
+
+
+def oc_kjl_qs_vs_oc_nystrom_qs(feat_set='iat_size', is_header=False, is_gs=False, covariance_type='full',
+                               name='OC-KJL-QS-vs-OC-Nystrom-QS',
+                               models=['OC-KJL-QS', 'OC-Nystrom-QS']):
+    ################################################################################################################
+    # step 1: combine train_out and test_out data
+    in_files = {}
+    for i, device_name in enumerate(['RSPI', 'NANO', 'NEON']):
+        if device_name == 'NEON':
+            # train_out: includes training time
+            train_out_dir = 'speedup/paper_data/neon_train_out/out/'
+            sub_dir = f'src_dst/{feat_set}-header_{is_header}/before_proj_False-gs_{is_gs}' \
+                      f'/std_False_center_False-d_5-{covariance_type}'
+            train_out_file = os.path.join(train_out_dir, sub_dir, 'res.csv-ratio.xlsx')
+
+            # test_out: includes AUCs, testing time and spaces
+            test_out_dir = f'speedup/paper_data/neon_out/out/models_res'
+            test_out_file = os.path.join(test_out_dir, sub_dir, 'res.csv-ratio.xlsx')
+
+            # Combine train_out and test_out to a new file:
+            # (AUC(test_out), training_time(train_out), testing time(test_out), space(test_out))
+            in_file = os.path.join(test_out_dir, sub_dir, 'res.csv-ratio-comb.xlsx')
+
+            in_file = combine_train_test(train_out_file, test_out_file, out_file=in_file)
+        else:
+            sub_dir = f'src_dst/{feat_set}-header_{is_header}/before_proj_False-gs_{is_gs}' \
+                      f'/std_False_center_False-d_5-{covariance_type}'
+            # test_out: includes AUCs, testing time and spaces
+            test_out_dir = f'speedup/paper_data/{device_name.lower()}_out/out/models_res'
+            in_file = os.path.join(test_out_dir, sub_dir, 'res.csv-ratio.xlsx')
+        print(in_file)
+        in_files[device_name] = in_file
+    ################################################################################################################
+    # step 2: get OC-KJL-QS and OC-Nystrom-QS data from in_file
+    res = extract_speedup_data(in_files, models=models, name=name,
+                               datasets=['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DWSHR'])
+
+    ################################################################################################################
+    # step 3: plot data
+    # out_file = show_oc_kjl_qs_vs_nystrom_qs(res, out_file=os.path.join(os.path.dirname(in_file), f'{name}'))
+    out_file = show_oc_kjl_qs_vs_nystrom_qs2(res, out_file=os.path.join(os.path.dirname(in_file), f'{name}'))
+    print(out_file)
+
+
+def oc_kjl_qs_full_vs_oc_kjl_qs_diag(feat_set='iat_size', is_header=False, is_gs=False):
+    outs = {}
+    for covariance_type in ['full', 'diag']:
+        ################################################################################################################
+        # step 1: combine train_out and test_out data
+        in_files = {}
+        for i, device_name in enumerate(['RSPI', 'NANO', 'NEON']):
+            if device_name == 'NEON':
+                # train_out: includes training time
+                train_out_dir = 'speedup/paper_data/neon_train_out/out/'
+                sub_dir = f'src_dst/{feat_set}-header_{is_header}/before_proj_False-gs_{is_gs}' \
+                          f'/std_False_center_False-d_5-{covariance_type}'
+                train_out_file = os.path.join(train_out_dir, sub_dir, 'res.csv-ratio.xlsx')
+
+                # test_out: includes AUCs, testing time and spaces
+                test_out_dir = f'speedup/paper_data/neon_out/out/models_res'
+                test_out_file = os.path.join(test_out_dir, sub_dir, 'res.csv-ratio.xlsx')
+
+                # Combine train_out and test_out to a new file:
+                # (AUC(test_out), training_time(train_out), testing time(test_out), space(test_out))
+                in_file = os.path.join(test_out_dir, sub_dir, 'res.csv-ratio-comb.xlsx')
+
+                in_file = combine_train_test(train_out_file, test_out_file, out_file=in_file)
+            else:
+                sub_dir = f'src_dst/{feat_set}-header_{is_header}/before_proj_False-gs_{is_gs}' \
+                          f'/std_False_center_False-d_5-{covariance_type}'
+                # test_out: includes AUCs, testing time and spaces
+                test_out_dir = f'speedup/paper_data/{device_name.lower()}_out/out/models_res'
+                in_file = os.path.join(test_out_dir, sub_dir, 'res.csv-ratio.xlsx')
+            print(in_file)
+            in_files[device_name] = in_file
+        ################################################################################################################
+        # step 2: get OC-KJL-QS and OC-Nystrom-QS data from in_file
+        name = 'OC-KJL-QS(full)-vs-OC-KJL-QS(diag)'
+        res = extract_speedup_data(in_files, models=[f'OC-KJL-QS({covariance_type})'], name=name,
+                                   datasets=['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DWSHR'])
+
+        outs[covariance_type] = res
+    ################################################################################################################
+    # step 3: plot data
+    # out_file = show_oc_kjl_qs_vs_nystrom_qs(res, out_file=os.path.join(os.path.dirname(in_file), f'{name}'))
+    out_file = show_oc_kjl_qs_full_vs_oc_kjl_qs_diag(outs, out_file=os.path.join(os.path.dirname(in_file), f'{name}'))
+    print(out_file)
+
+
+def main(feat_set='iat_size', is_header=False, is_gs=False):
+    for feat_set in ['iat_size', 'stats']:
+        for is_header in [False, True]:
+            for is_gs in [True, False]:
+                if feat_set == 'iat_size' and is_header == True: continue
+                if feat_set == 'stats' and is_header == False: continue
+                for covariance_type in ['full', 'diag']:
+                    #################################################################################################################
+                    # case 1: OC-KJL vs OCSVM
+                    # (feat_set='iat_size', is_header=False, is_gs=True, covariance_type='full')
+                    if covariance_type == 'full':
+                        oc_kjl_gmm_vs_oc_kjl_svm(feat_set, is_header, is_gs, covariance_type,
+                                                 name='OC-KJL-GMM-vs-OC-KJL-SVM',
+                                                 models=[f'OC-KJL', 'OC-KJL-SVM'])
+
+                        #################################################################################################################
+                        # case 2: OC-KJL-QS vs OC-Nystrom-QS
+                        oc_kjl_qs_vs_oc_nystrom_qs(feat_set, is_header, is_gs, covariance_type,
+                                                   name='OC-KJL-QS-vs-OC-Nystrom-QS',
+                                                   models=['OC-KJL-QS', 'OC-Nystrom-QS'])
+                    else:
+                        oc_kjl_gmm_vs_oc_kjl_svm(feat_set, is_header, is_gs, covariance_type,
+                                                 name='OC-KJL-GMM-vs-OC-KJL-SVM',
+                                                 models=[f'OC-KJL({covariance_type})', 'OC-KJL-SVM'])
+
+                        #################################################################################################################
+                        # case 2: OC-KJL-QS vs OC-Nystrom-QS
+                        oc_kjl_qs_vs_oc_nystrom_qs(feat_set, is_header, is_gs, covariance_type,
+                                                   name='OC-KJL-QS-vs-OC-Nystrom-QS',
+                                                   models=[f'OC-KJL-QS({covariance_type})',
+                                                           f'OC-Nystrom-QS({covariance_type})'])
+
+                #################################################################################################################
+                # case 3: OC-KJL-QS(full) vs OC-KJL-QS(diag)
+                oc_kjl_qs_full_vs_oc_kjl_qs_diag(feat_set, is_header, is_gs)
 
 
 if __name__ == '__main__':

@@ -28,14 +28,12 @@
 # Authors: kun.bj@outlook.com
 # License: XXX
 import os
-# must set these before loading numpy:
-import shutil
-
-os.environ["OMP_NUM_THREADS"] = '1'  # export OMP_NUM_THREADS=4
-os.environ["OPENBLAS_NUM_THREADS"] = '1'  # export OPENBLAS_NUM_THREADS=4
-os.environ["MKL_NUM_THREADS"] = '1'  # export MKL_NUM_THREADS=6
-os.environ["VECLIB_MAXIMUM_THREADS"] = '1' # export VECLIB_MAXIMUM_THREADS=4
-os.environ["NUMEXPR_NUM_THREADS"] = '1' # export NUMEXPR_NUM_THREADS=6
+# # must set these before loading numpy:
+# os.environ["OMP_NUM_THREADS"] = '1'  # export OMP_NUM_THREADS=4
+# os.environ["OPENBLAS_NUM_THREADS"] = '1'  # export OPENBLAS_NUM_THREADS=4
+# os.environ["MKL_NUM_THREADS"] = '1'  # export MKL_NUM_THREADS=6
+# os.environ["VECLIB_MAXIMUM_THREADS"] = '1' # export VECLIB_MAXIMUM_THREADS=4
+# os.environ["NUMEXPR_NUM_THREADS"] = '1' # export NUMEXPR_NUM_THREADS=6
 import copy
 import itertools
 import os.path as pth
@@ -61,6 +59,9 @@ lg = get_log(level='info')
 # print(sklearn.get_config())
 np.random.seed(42)
 np.set_printoptions(precision=2, suppress=True)
+
+from threadpoolctl import threadpool_info, threadpool_limits
+print(threadpool_info())
 
 DATASETS = [
     ################################################################################################################
@@ -131,37 +132,37 @@ MODELS = [
     ################################################################################################################
     # 1. OCSVM
     "OCSVM(rbf)",
-    "KJL-OCSVM(linear)",
-    "Nystrom-OCSVM(linear)",
-
-    ################################################################################################################
-    # # "GMM(full)", "GMM(diag)",
-
-    # ################################################################################################################s
-    # # 2. KJL/Nystrom
-    "KJL-GMM(full)", "KJL-GMM(diag)",
-    "Nystrom-GMM(full)", "Nystrom-GMM(diag)",
-
-    ################################################################################################################
-    # quickshift(QS)/meanshift(MS) are used before KJL/Nystrom projection
-    # "QS-KJL-GMM(full)", "QS-KJL-GMM(diag)",
-    # "MS-KJL-GMM(full)", "MS-KJL-GMM(diag)",
-
-    # "QS-Nystrom-GMM(full)", "QS-Nystrom-GMM(diag)",
-    # "MS-Nystrom-GMM(full)", "MS-Nystrom-GMM(diag)",
-
-    ################################################################################################################
-    # 3. quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection
-    "KJL-QS-GMM(full)",   "KJL-QS-GMM(diag)",
-    # "KJL-MS-GMM(full)", "KJL-MS-GMM(diag)"
-
-    "Nystrom-QS-GMM(full)",   "Nystrom-QS-GMM(diag)",
-    # # "Nystrom-MS-GMM(full)", "Nystrom-MS-GMM(diag)"
+    # "KJL-OCSVM(linear)",
+    # "Nystrom-OCSVM(linear)",
     #
     # ################################################################################################################
-    # # 4. quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection and initialize GMM (set 'GMM_is_init_all'=True)
-    "KJL-QS-init_GMM(full)",   "KJL-QS-init_GMM(diag)",
-    "Nystrom-QS-init_GMM(full)",   "Nystrom-QS-init_GMM(diag)",
+    # # # "GMM(full)", "GMM(diag)",
+    #
+    # # ################################################################################################################s
+    # # # 2. KJL/Nystrom
+    # "KJL-GMM(full)", "KJL-GMM(diag)",
+    # "Nystrom-GMM(full)", "Nystrom-GMM(diag)",
+    #
+    # ################################################################################################################
+    # # quickshift(QS)/meanshift(MS) are used before KJL/Nystrom projection
+    # # "QS-KJL-GMM(full)", "QS-KJL-GMM(diag)",
+    # # "MS-KJL-GMM(full)", "MS-KJL-GMM(diag)",
+    #
+    # # "QS-Nystrom-GMM(full)", "QS-Nystrom-GMM(diag)",
+    # # "MS-Nystrom-GMM(full)", "MS-Nystrom-GMM(diag)",
+    #
+    # ################################################################################################################
+    # # 3. quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection
+    # "KJL-QS-GMM(full)",   "KJL-QS-GMM(diag)",
+    # # "KJL-MS-GMM(full)", "KJL-MS-GMM(diag)"
+    #
+    # "Nystrom-QS-GMM(full)",   "Nystrom-QS-GMM(diag)",
+    # # # "Nystrom-MS-GMM(full)", "Nystrom-MS-GMM(diag)"
+    # #
+    # # ################################################################################################################
+    # # # 4. quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection and initialize GMM (set 'GMM_is_init_all'=True)
+    # "KJL-QS-init_GMM(full)",   "KJL-QS-init_GMM(diag)",
+    # "Nystrom-QS-init_GMM(full)",   "Nystrom-QS-init_GMM(diag)",
 ]
 
 # if it ues grid search or not. True for best params and False for default params
@@ -719,7 +720,7 @@ def parse_cmd_args():
     TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dataset", help="dataset", default="CTU1")
-    parser.add_argument("-m", "--model", help="model", default="OCSVM(rbf)")
+    parser.add_argument("-m", "--model", help="model", default="Nystrom-QS-init_GMM(full)")
     parser.add_argument("-t", "--time", help="start time of the application",
                         default=time.strftime(TIME_FORMAT, time.localtime()))
     args = parser.parse_args()
@@ -811,88 +812,54 @@ def main1(DATASETS = [], MODELS = [],
     lg.info(f'\n***It takes {end - start:.5f}s to finish {n_tot} experiments!')
 
 
-def copy_merge_res(in_dir, out_dir):
-    if os.path.exists(out_dir):
-        shutil.rmtree(out_dir)
-    for feat_set in ['iat_size', 'stats']:
-        for is_header in [True, False]:
-            for is_gs in [True, False]:
-                # src_dst/iat_size-header_True/before_proj_False-gs_True
-                sub_dir = f"src_dst/{feat_set}-header_{is_header}/before_proj_False-gs_{is_gs}"
-                shutil.copytree(f"{in_dir}/{sub_dir}", f"{out_dir}/{sub_dir}")
-
-
-    current_path = os.getcwd()
-    print(current_path) # # 'kjl/examples/
-    zip_file = f'{current_path}/speedup/neon_train_out.zip'
-    os.chdir(in_dir)
-    cmd = f'zip -rq {zip_file} out'
-    print(f"cmd: {cmd}")
-    os.system(cmd)
-    os.chdir(current_path)
-
-    print(out_dir)
-    print(zip_file, os.path.exists(zip_file))
-    return out_dir
-
-
 def main(dataset = 'CTU1', model='OCSVM(rbf)', start_time = None):
-    # out_dir = 'speedup/out/kjl_parallel_30'
-    out_dir = 'speedup/out/kjl_serial_ind_32_threads'
-    out_dir = 'speedup/out/kjl_serial_ind_1_thread'
-    out_dir = 'speedup/out/kjl_serial_ind_32_threads-cProfile_perf_counter'
     # out_dir = 'speedup/out/kjl_serial_ind_1_thread-cProfile_perf_counter'
     # out_dir = 'speedup/out/kjl_serial_ind_32_threads-cProfile_perf_counter-libsvm'
-    out_dir = 'speedup/out/kjl_serial_ind_32_threads-cProfile_perf_counter-2'
-    out_dir = 'speedup/out/kjl_serial_ind_32_threads-cProfile_perf_counter-20times-4'
     out_dir = 'speedup/out/kjl_serial_ind_32_threads-cProfile_perf_counter-20times-5'
+    # # out_dir = 'speedup/out/kjl-with_init_params'    # modify __speedup_kjl.py
+    DATASETS = [dataset]
+    MODELS = [model]
+    try:
+        ###########################################################################################################
+        # Get results with IAT_SIZE
+        main1(DATASETS, MODELS,
+              feats=[('feat', 'iat_size')],
+              headers=[('is_header', False)],
+              # gses=[('is_gs', True)],
+              before_projs=[('before_proj', False), ],
+              ds=[('kjl_d', 5), ],
+              train_sizes=[('train_size', 5000)],
+              out_dir=out_dir,
+              )
+        ##########################################################################################################
+        # Get results with STATS
+        main1(DATASETS, MODELS,
+            feats=[('feat', 'stats')],
+             headers=[('is_header', True)],
+             # gses=[('is_gs', False)],
+             before_projs=[('before_proj', False), ],
+             ds=[('kjl_d', 5), ],
+             out_dir = out_dir,
+             )
+    except Exception as e:
+        traceback.print_exc()
+        lg.error(e)
 
-    # # # out_dir = 'speedup/out/kjl-with_init_params'    # modify __speedup_kjl.py
-    # DATASETS = [dataset]
-    # MODELS = [model]
-    # try:
-    #     ###########################################################################################################
-    #     # Get results with IAT_SIZE
-    #     main1(DATASETS, MODELS,
-    #           feats=[('feat', 'iat_size')],
-    #           headers=[('is_header', False)],
-    #           # gses=[('is_gs', True)],
-    #           before_projs=[('before_proj', False), ],
-    #           ds=[('kjl_d', 5), ],
-    #           train_sizes=[('train_size', 5000)],
-    #           out_dir=out_dir,
-    #           )
-    #     ##########################################################################################################
-    #     # Get results with STATS
-    #     main1(DATASETS, MODELS,
-    #         feats=[('feat', 'stats')],
-    #          headers=[('is_header', True)],
-    #          # gses=[('is_gs', False)],
-    #          before_projs=[('before_proj', False), ],
-    #          ds=[('kjl_d', 5), ],
-    #          out_dir = out_dir,
-    #          )
-    # except Exception as e:
-    #     traceback.print_exc()
-    #     lg.error(e)
-    #
-    # ###########################################################################################################
-    # # Merge all results
-    # merge_res(in_dir=out_dir, datasets=DATASETS,
-    #           directions=[('direction', 'src_dst'), ],
-    #           feats=[('feat', 'iat_size'),('feat', 'stats'), ],      #
-    #           headers=[('is_header', False), ('is_header', True)],
-    #           models=MODELS,
-    #           # gses=[('is_gs', True), ('is_gs', False)],
-    #           before_projs=[('before_proj', False), ],
-    #           ds=[('kjl_d', 5), ], )
+    ###########################################################################################################
+    # Merge all results
+    merge_res(in_dir=out_dir, datasets=DATASETS,
+              directions=[('direction', 'src_dst'), ],
+              feats=[('feat', 'iat_size'), ('feat', 'stats'), ],
+              headers=[('is_header', False)],
+              models=MODELS,
+              # gses=[('is_gs', True), ('is_gs', False)],
+              before_projs=[('before_proj', False), ],
+              ds=[('kjl_d', 5), ], )
 
-    in_dir = out_dir
-    out_dir = in_dir + '/out'
-    copy_merge_res(in_dir, out_dir)
 
 if __name__ == '__main__':
     # with sklearn.utils.parallel_backend('loky', inner_max_num_threads=32):
     args = parse_cmd_args()
     print(args)
     main(dataset=args.dataset, model=args.model, start_time=args.time)
+

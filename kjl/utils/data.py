@@ -13,6 +13,8 @@ from numpy import genfromtxt
 from sklearn.model_selection import train_test_split
 from sklearn.utils import resample
 
+from kjl.utils.tool import dump_data
+
 
 def split_train_test2(normal_data, abnormal_data, train_size=0.8, test_size=150 * 2, random_state=42, debug=False):
     """Split train and test set
@@ -342,29 +344,29 @@ def extract_data(normal_pth, abnormal_pth, meta_data={}):
 
     return normal_data, abnormal_data
 
-
-def dump_data(data, out_file='data.dat', dump_method='dill'):
-    """
-
-    Parameters
-    ----------
-    data
-    out_file
-
-    Returns
-    -------
-
-    """
-    out_dir = os.path.dirname(out_file)
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
-
-    with open(out_file, 'wb') as f:
-        if dump_method == 'dill':
-            # https://stackoverflow.com/questions/37906154/dill-vs-cpickle-speed-difference
-            dill.dump(data, f)
-        else:
-            pickle.dump(data, f)
+#
+# def dump_data(data, out_file='data.dat', dump_method='dill'):
+#     """
+#
+#     Parameters
+#     ----------
+#     data
+#     out_file
+#
+#     Returns
+#     -------
+#
+#     """
+#     out_dir = os.path.dirname(out_file)
+#     if not os.path.exists(out_dir):
+#         os.makedirs(out_dir)
+#
+#     with open(out_file, 'wb') as f:
+#         if dump_method == 'dill':
+#             # https://stackoverflow.com/questions/37906154/dill-vs-cpickle-speed-difference
+#             dill.dump(data, f)
+#         else:
+#             pickle.dump(data, f)
 
 
 def _get_line(result_each, feat_set=''):

@@ -1,14 +1,9 @@
 """GMM
-
     Required: quickshift++ (https://github.com/google/quickshift)
     "python3 setup build; python3 setup install" to install "quickshift++"
 """
 import numpy as np
 from sklearn.mixture import GaussianMixture
-
-# from loguru import logger as lg
-from kjl.utils.tool import execute_time
-
 
 # load quickshift++
 # using "pyximport.install()" fails for install quickshfit++ because it requires 'C++' in its setup.py.
