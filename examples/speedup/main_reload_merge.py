@@ -323,15 +323,15 @@ def xlsx2latex(res, out_file='res.txt'):
                            + ' \\\\' + '\n\midrule' \
                                        '\nServer train time (ms) &' + " & ".join(
                         [v.replace('+/-', '$\pm$').split('(')[0] for i_, v in enumerate(outs[3][2][1:])]) \
-                            + ' \\\\' + \
+                            + ' \\\\' + '\n\midrule'\
                         '\n\Cell{Test time (ms):\\\\RSPI} &' + " & ".join([v.replace('+/-', '$\pm$') for v in outs[0][3][1:]]) \
-                           + ' \\\\'+ \
+                           + ' \\\\' + '\n\cmidrule{2-8}' \
                       '\nNANO&' + " & ".join([v.replace('+/-', '$\pm$') for v in outs[1][3][1:]]) \
-                           + ' \\\\'+ \
-                      '\nNEON&' + " & ".join([v.replace('+/-', '$\pm$') for v in outs[2][3][1:]]) \
+                           + ' \\\\' + '\n\cmidrule{2-8}' \
+                      '\nServer&' + " & ".join([v.replace('+/-', '$\pm$') for v in outs[2][3][1:]]) \
                            + ' \\\\'+ '\n\midrule'\
                       '\n\\Cell{Space (kB)} &' + " & ".join([_space_format(v) for v in outs[0][4][1:]]) \
-                           + ' \\\\'+ '\n\midrule'
+                           + ' \\\\'+ '\n'
                 elif sheet_name == 'GMMs':
                     outs = []
                     for in_dir in res.keys():
@@ -353,7 +353,7 @@ def xlsx2latex(res, out_file='res.txt'):
                                 + ' \\\\' + \
                             '\n& NANO &' + " & ".join([v.replace('+/-', '$\pm$') for v in outs[1][i+2][1:]]) \
                                 + ' \\\\' + \
-                            '\n& NEON  &' + " & ".join([v.replace('+/-', '$\pm$') for v in outs[2][i+2][1:]]) \
+                            '\n& Server  &' + " & ".join([v.replace('+/-', '$\pm$') for v in outs[2][i+2][1:]]) \
                                 + ' \\\\'   + '\n\cmidrule{2-6}' \
                             '\n& Space saving &' + " & ".join([v.replace('+/-', '$\pm$') for v in outs[0][i+3][1:]]) \
                                 + ' \\\\'   + '\n\cmidrule{2-6}'
@@ -372,7 +372,7 @@ def xlsx2latex(res, out_file='res.txt'):
                         outs.append(df.values.tolist())
                     line = '\n\n'
                     for i, vs in enumerate(outs[-1]):
-                        line +=f"{DATASETS[i]} & " + " & ".join([v.replace('+/-', '$\pm$') for i_, v in enumerate(vs)  if i_ not in [0, 1]]) + '\\\\ \n'
+                        line +=f"{DATASETS[i]} & " + " & ".join([v.replace('+/-', '$\pm$') for i_, v in enumerate(vs)  if i_ not in [0, 1,2,3]]) + '\\\\ \n'
                 else:
                     outs = []
                     for in_dir in res.keys():
@@ -412,7 +412,7 @@ def main(feat_set = 'iat_size', is_gs = True, is_header=False, GMM_covariance_ty
     # in_dir = 'speedup/paper_data/neon_out31/models_res'
     # in_dir = 'speedup/paper_data/calumet_out31/models_res'
 
-    devices = ['speedup/paper_data/pi_out/out/models_res',
+    devices = ['speedup/paper_data/rspi_out/out/models_res',
                'speedup/paper_data/nano_out/out/models_res',
                'speedup/paper_data/neon_out/out/models_res',
                'speedup/paper_data/neon_train_out/out'
@@ -432,7 +432,7 @@ if __name__ == '__main__':
     import subprocess
     print(os.getcwd())  # it must be ".kjl/examples/
     root_dir = 'speedup/paper_data'
-    for tmp_dir in ['pi_out', 'nano_out', 'neon_out', 'neon_train_out']:
+    for tmp_dir in ['rspi_out', 'nano_out', 'neon_out', 'neon_train_out']:
         tmp_dir = os.path.join(root_dir, tmp_dir)
         cmd = f'unzip -q {tmp_dir}.zip -d {tmp_dir}'
         if os.path.exists(tmp_dir):

@@ -2502,7 +2502,7 @@ def show_oc_kjl_qs_vs_nystrom_qs(res, out_file='output_data',
 
         g.get_legend().set_visible(True)
         handles, labels = g.get_legend_handles_labels()
-        axes[t, j % c].legend(handles, labels, loc="upper right", fontsize=font_size - 4)  # bbox_to_anchor=(0.5, 0.5)
+        axes[t, j % c].legend(handles, labels, loc="upper right", fontsize=font_size - 6)  # bbox_to_anchor=(0.5, 0.5)
 
     # # get the legend only from the last 'ax' (here is 'g')
     # handles, labels = g.get_legend_handles_labels()
@@ -2745,10 +2745,10 @@ def show_oc_kjl_qs_vs_nystrom_qs2(res, out_file='output_data',
         g.get_legend().set_visible(True)
         handles, labels = g.get_legend_handles_labels()
         if t == 1:
-            axes[t, j % c].legend(handles, labels, loc="upper right", fontsize=font_size - 4, ncol=3)
+            axes[t, j % c].legend(handles, labels, loc="upper right", fontsize=font_size - 6, ncol=3)
         else:
             axes[t, j % c].legend(handles, labels, loc="upper right",
-                                  fontsize=font_size - 4)  # bbox_to_anchor=(0.5, 0.5)
+                                  fontsize=font_size - 6)  # bbox_to_anchor=(0.5, 0.5)
 
     # # get the legend only from the last 'ax' (here is 'g')
     # handles, labels = g.get_legend_handles_labels()
@@ -2897,7 +2897,7 @@ def show_oc_kjl_qs_full_vs_oc_kjl_qs_diag(res, out_file='output_data',
         print('yerrs:', yerrs)
         # colors = [ 'green', 'orange', 'c', 'm',  'b', 'r','tab:brown', 'tab:green'][:2]
         g = sns.barplot(y="diff", x='dataset', hue='model_name', data=df, ci=None,
-                        capsize=.2, ax=axes[t, j % c])
+                        capsize=.2, ax=axes[t, j % c])  # alpha=0.5
         ys = []
         xs = []
         width = 0
@@ -2995,10 +2995,10 @@ def show_oc_kjl_qs_full_vs_oc_kjl_qs_diag(res, out_file='output_data',
         g.get_legend().set_visible(True)
         handles, labels = g.get_legend_handles_labels()
         if t == 1:
-            axes[t, j % c].legend(handles, labels, loc="upper right", fontsize=font_size - 4, ncol=3)
+            axes[t, j % c].legend(handles, labels, loc="upper right", fontsize=font_size - 6, ncol=3)
         else:
             axes[t, j % c].legend(handles, labels, loc="upper right",
-                                  fontsize=font_size - 4)  # bbox_to_anchor=(0.5, 0.5)
+                                  fontsize=font_size - 6)  # bbox_to_anchor=(0.5, 0.5)
 
     # # get the legend only from the last 'ax' (here is 'g')
     # handles, labels = g.get_legend_handles_labels()
@@ -3109,7 +3109,7 @@ def oc_kjl_gmm_vs_oc_kjl_svm(feat_set='iat_size', is_header=False, is_gs=False, 
     # feat_header = 'iat_size-header_False'
     # feat_header = 'stats-header_True'
     # file_name = f'speedup/calumet_out-20210204/src_dst/{feat_header}/before_proj_False-gs_{gs}/std_False_center_False-d_5-{covariance}/res.csv-ratio.xlsx'
-    in_dir = f'speedup/paper_data/neon_out/out/models_res'
+    in_dir = f'speedup/paper_data/neon_out/out/models_res/'
     sub_dir = f'src_dst/{feat_set}-header_{is_header}/before_proj_False-gs_{is_gs}' \
               f'/std_False_center_False-d_5-{covariance_type}'
 
@@ -3120,8 +3120,12 @@ def oc_kjl_gmm_vs_oc_kjl_svm(feat_set='iat_size', is_header=False, is_gs=False, 
                                 datasets=['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DWSHR'])
     ################################################################################################################
     # step 3: plot data
-    out_file = show_kjl_gmm_vs_kjl_ocsvm(res, out_file=os.path.join(os.path.dirname(in_file), f'{name}'))
+    out_file = in_dir + '-'.join(sub_dir.split('/')) + '-'
+    # out_file = show_kjl_gmm_vs_kjl_ocsvm(res, out_file=os.path.join(os.path.dirname(in_file), f'{name}'))
+    out_file = show_kjl_gmm_vs_kjl_ocsvm(res, out_file=out_file+ f'{name}')
     print(out_file)
+
+    return out_file
 
 
 def extract_speedup_data(in_files, models=['OC-KJL-QS', 'OC-Nystrom-QS'], name='OC-KJL-QS-vs-OC-Nystrom-QS',
@@ -3180,6 +3184,7 @@ def oc_kjl_qs_vs_oc_nystrom_qs(feat_set='iat_size', is_header=False, is_gs=False
     ################################################################################################################
     # step 1: combine train_out and test_out data
     in_files = {}
+    out_file = ''
     for i, device_name in enumerate(['RSPI', 'NANO', 'NEON']):
         if device_name == 'NEON':
             # train_out: includes training time
@@ -3189,7 +3194,7 @@ def oc_kjl_qs_vs_oc_nystrom_qs(feat_set='iat_size', is_header=False, is_gs=False
             train_out_file = os.path.join(train_out_dir, sub_dir, 'res.csv-ratio.xlsx')
 
             # test_out: includes AUCs, testing time and spaces
-            test_out_dir = f'speedup/paper_data/neon_out/out/models_res'
+            test_out_dir = f'speedup/paper_data/neon_out/out/models_res/'
             test_out_file = os.path.join(test_out_dir, sub_dir, 'res.csv-ratio.xlsx')
 
             # Combine train_out and test_out to a new file:
@@ -3197,6 +3202,7 @@ def oc_kjl_qs_vs_oc_nystrom_qs(feat_set='iat_size', is_header=False, is_gs=False
             in_file = os.path.join(test_out_dir, sub_dir, 'res.csv-ratio-comb.xlsx')
 
             in_file = combine_train_test(train_out_file, test_out_file, out_file=in_file)
+            out_file = test_out_dir + '-'.join(sub_dir.split('/')) +'-'
         else:
             sub_dir = f'src_dst/{feat_set}-header_{is_header}/before_proj_False-gs_{is_gs}' \
                       f'/std_False_center_False-d_5-{covariance_type}'
@@ -3213,12 +3219,15 @@ def oc_kjl_qs_vs_oc_nystrom_qs(feat_set='iat_size', is_header=False, is_gs=False
     ################################################################################################################
     # step 3: plot data
     # out_file = show_oc_kjl_qs_vs_nystrom_qs(res, out_file=os.path.join(os.path.dirname(in_file), f'{name}'))
-    out_file = show_oc_kjl_qs_vs_nystrom_qs2(res, out_file=os.path.join(os.path.dirname(in_file), f'{name}'))
+    out_file = show_oc_kjl_qs_vs_nystrom_qs2(res, out_file=out_file+f'{name}')
     print(out_file)
+
+    return out_file
 
 
 def oc_kjl_qs_full_vs_oc_kjl_qs_diag(feat_set='iat_size', is_header=False, is_gs=False):
     outs = {}
+    out_file = ''
     for covariance_type in ['full', 'diag']:
         ################################################################################################################
         # step 1: combine train_out and test_out data
@@ -3232,7 +3241,7 @@ def oc_kjl_qs_full_vs_oc_kjl_qs_diag(feat_set='iat_size', is_header=False, is_gs
                 train_out_file = os.path.join(train_out_dir, sub_dir, 'res.csv-ratio.xlsx')
 
                 # test_out: includes AUCs, testing time and spaces
-                test_out_dir = f'speedup/paper_data/neon_out/out/models_res'
+                test_out_dir = f'speedup/paper_data/neon_out/out/models_res/'
                 test_out_file = os.path.join(test_out_dir, sub_dir, 'res.csv-ratio.xlsx')
 
                 # Combine train_out and test_out to a new file:
@@ -3240,6 +3249,7 @@ def oc_kjl_qs_full_vs_oc_kjl_qs_diag(feat_set='iat_size', is_header=False, is_gs
                 in_file = os.path.join(test_out_dir, sub_dir, 'res.csv-ratio-comb.xlsx')
 
                 in_file = combine_train_test(train_out_file, test_out_file, out_file=in_file)
+                out_file = test_out_dir + '-'.join(sub_dir.split('/')) +'-'
             else:
                 sub_dir = f'src_dst/{feat_set}-header_{is_header}/before_proj_False-gs_{is_gs}' \
                           f'/std_False_center_False-d_5-{covariance_type}'
@@ -3258,11 +3268,12 @@ def oc_kjl_qs_full_vs_oc_kjl_qs_diag(feat_set='iat_size', is_header=False, is_gs
     ################################################################################################################
     # step 3: plot data
     # out_file = show_oc_kjl_qs_vs_nystrom_qs(res, out_file=os.path.join(os.path.dirname(in_file), f'{name}'))
-    out_file = show_oc_kjl_qs_full_vs_oc_kjl_qs_diag(outs, out_file=os.path.join(os.path.dirname(in_file), f'{name}'))
+    out_file = show_oc_kjl_qs_full_vs_oc_kjl_qs_diag(outs, out_file=out_file+f'{name}')
     print(out_file)
 
+    return out_file
 
-def main(feat_set='iat_size', is_header=False, is_gs=False):
+def main(f):
     for feat_set in ['iat_size', 'stats']:
         for is_header in [False, True]:
             for is_gs in [True, False]:
@@ -3273,31 +3284,83 @@ def main(feat_set='iat_size', is_header=False, is_gs=False):
                     # case 1: OC-KJL vs OCSVM
                     # (feat_set='iat_size', is_header=False, is_gs=True, covariance_type='full')
                     if covariance_type == 'full':
-                        oc_kjl_gmm_vs_oc_kjl_svm(feat_set, is_header, is_gs, covariance_type,
+                        out_file = oc_kjl_gmm_vs_oc_kjl_svm(feat_set, is_header, is_gs, covariance_type,
                                                  name='OC-KJL-GMM-vs-OC-KJL-SVM',
                                                  models=[f'OC-KJL', 'OC-KJL-SVM'])
+                        line = r"""
+\begin{figure*}[!htbp]
+\centering 
+    \includegraphics[width=0.45\textwidth]{"""+ f"{os.path.basename(out_file)}"+ "}\n" +\
+"""\caption{OC-KJL vs. OC-KJL-SVM with best paramters, in which the dimension of the projected  space by KJL is $d$(= 5) and the number of datapoints used for computing the projection is $m$(=100).}
+\label{fig:speedup}
+\end{figure*} 
+                        """
+                        f.write(line)
 
                         #################################################################################################################
                         # case 2: OC-KJL-QS vs OC-Nystrom-QS
-                        oc_kjl_qs_vs_oc_nystrom_qs(feat_set, is_header, is_gs, covariance_type,
+                        out_file =  oc_kjl_qs_vs_oc_nystrom_qs(feat_set, is_header, is_gs, covariance_type,
                                                    name='OC-KJL-QS-vs-OC-Nystrom-QS',
                                                    models=['OC-KJL-QS', 'OC-Nystrom-QS'])
+
+                        line = r"""
+\begin{figure*}[!htbp]
+\centering 
+    \includegraphics[width=0.98\textwidth]{""" + f"{os.path.basename(out_file)}" + "}\n" + \
+"""\caption{The speed-up (S-U) AUCs, train times, test times and saving space of GMMs with \\textit{full} covariance matrix and default parameters, in which the dimension of the projected  space by KJL/Nystr{\"o}m is $d$(= 5) and the number of datapoints used for computing the projection is $m$(=100).}
+\label{fig:speedup} 
+\end{figure*} 
+                            """
+                        f.write(line)
                     else:
-                        oc_kjl_gmm_vs_oc_kjl_svm(feat_set, is_header, is_gs, covariance_type,
+                        out_file =  oc_kjl_gmm_vs_oc_kjl_svm(feat_set, is_header, is_gs, covariance_type,
                                                  name='OC-KJL-GMM-vs-OC-KJL-SVM',
                                                  models=[f'OC-KJL({covariance_type})', 'OC-KJL-SVM'])
+                        line = r"""
+\begin{figure*}[!htbp]
+\centering 
+    \includegraphics[width=0.45\textwidth]{""" + f"{os.path.basename(out_file)}" + "}\n" + \
+"""\caption{OC-KJL vs. OC-KJL-SVM with best paramters, in which the dimension of the projected  space by KJL is $d$(= 5) and the number of datapoints used for computing the projection is $m$(=100).}
+\label{fig:speedup}
+\end{figure*} 
+                            """
+                        f.write(line)
 
                         #################################################################################################################
                         # case 2: OC-KJL-QS vs OC-Nystrom-QS
-                        oc_kjl_qs_vs_oc_nystrom_qs(feat_set, is_header, is_gs, covariance_type,
+                        out_file =  oc_kjl_qs_vs_oc_nystrom_qs(feat_set, is_header, is_gs, covariance_type,
                                                    name='OC-KJL-QS-vs-OC-Nystrom-QS',
                                                    models=[f'OC-KJL-QS({covariance_type})',
                                                            f'OC-Nystrom-QS({covariance_type})'])
 
+                        line = r"""
+\begin{figure*}[!htbp]
+\centering 
+    \includegraphics[width=0.98\textwidth]{""" + f"{os.path.basename(out_file)}" + "}\n" + \
+"""\caption{The speed-up (S-U) AUCs, train times, test times and saving space of GMMs with \\textit{diag} covariance matrix and default parameters, in which the dimension of the projected  space by KJL/Nystr{\\"o}m is $d$(= 5) and the number of datapoints used for computing the projection is $m$(=100).}
+\label{fig:speedup} 
+\end{figure*} 
+                            """
+                        f.write(line)
+
                 #################################################################################################################
                 # case 3: OC-KJL-QS(full) vs OC-KJL-QS(diag)
-                oc_kjl_qs_full_vs_oc_kjl_qs_diag(feat_set, is_header, is_gs)
+                out_file = oc_kjl_qs_full_vs_oc_kjl_qs_diag(feat_set, is_header, is_gs)
+
+                line = r"""
+\begin{figure*}[!htbp]
+\centering 
+    \includegraphics[width=0.98\textwidth]{""" + f"{os.path.basename(out_file)}" + "}\n" + \
+"""\caption{OC-KJL-QS vs. OC-KJL-QS-diag with best paramters, in which the dimension of the projected  space by KJL is $d$(= 5) and the number of datapoints used for computing the projection is $m$(=100).}
+\label{fig:speedup} 
+\end{figure*} 
+                    """
+                f.write(line)
+                f.write('\n-----------------------------\n')
+                f.flush()
 
 
 if __name__ == '__main__':
-    main()
+    out_file = f'speedup/paper_data/neon_out/out/models_res/figures-latex.txt'
+    with open(out_file, 'w', buffering=1) as f:
+        main(f)
