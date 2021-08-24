@@ -325,7 +325,7 @@ def improvement(resulst_xlsx, feat_set='iat', out_file='-improvement.xlsx'):
             # for row, _ in enumerate(v_tmp):
             #     # for each algorithm, it has len(v_tmp) rows
             #     if i == 0:
-            #         # header.append('dataset', 'X_train(size-dime)', 'X_test(size-dime)', values[row][0])
+            #         # header.append('datasets', 'X_train(size-dime)', 'X_test(size-dime)', values[row][0])
             #         header.append(values[row][1, 2, 3])
             #         v_tmp[row].append(values[row][4])
             #     else:

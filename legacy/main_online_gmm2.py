@@ -1,6 +1,6 @@
 """Main entrance of online GMM experiments
 
-Run the below command under "examples/"
+Run the below command under "applications/"
     PYTHONPATH=../:./ python3.7 main_online_gmm.py > out/main_online_gmm.txt 2>&1 &
 """
 
@@ -18,11 +18,11 @@ from sklearn.metrics import pairwise_distances, average_precision_score, roc_cur
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-from kjl.model.gmm import GMM, quickshift_seek_modes, meanshift_seek_modes
-from kjl.model.online_gmm import ONLINE_GMM, quickshift_seek_modes, meanshift_seek_modes
-from kjl.model.kjl import kernelJLInitialize, getGaussianGram
-from kjl.model.nystrom import nystromInitialize
-from kjl.model.ocsvm import OCSVM
+from kjl.models.gmm import GMM, quickshift_seek_modes, meanshift_seek_modes
+from kjl.models.online_gmm import ONLINE_GMM, quickshift_seek_modes, meanshift_seek_modes
+from kjl.models.kjl import kernelJLInitialize, getGaussianGram
+from kjl.models.nystrom import nystromInitialize
+from kjl.models.ocsvm import OCSVM
 from kjl.utils.data import data_info, split_train_test, load_data, extract_data, dump_data, save_each_result, \
     save_result
 from kjl.utils.utils import execute_time
@@ -175,7 +175,7 @@ class BASE:
         return X_train, X_test
 
     def _train(self, model, X_train, y_train=None):
-        """Train model on the (X_train, y_train)
+        """Train models on the (X_train, y_train)
 
         Parameters
         ----------
@@ -196,12 +196,12 @@ class BASE:
             raise ValueError(f'{msg}: {model.get_params()}')
         end = datetime.now()
         train_time = (end - start).total_seconds()
-        print("Fitting model takes {} seconds".format(train_time))
+        print("Fitting models takes {} seconds".format(train_time))
 
         return model, train_time
 
     def _test(self, model, X_test, y_test):
-        """Evaulate the model on the X_test, y_test
+        """Evaulate the models on the X_test, y_test
 
         Parameters
         ----------
@@ -221,14 +221,14 @@ class BASE:
 
         """
         if model_name == "Gaussian" and n_components != 1:
-            preds = model.predict_proba(X_test)
+            preds = models.predict_proba(X_test)
             pred = 1 - np.prod(1-preds, axis=1)
         else:
-            pred = model.score_samples(X_test)
+            pred = models.score_samples(X_test)
         """
         end = datetime.now()
         testing_time = (end - start).total_seconds()
-        print("Test model takes {} seconds".format(testing_time))
+        print("Test models takes {} seconds".format(testing_time))
 
         apc = average_precision_score(y_test, y_score, pos_label=1)
         # For binary  y_true, y_score is supposed to be the score of the class with greater label.
@@ -237,7 +237,7 @@ class BASE:
         fpr, tpr, _ = roc_curve(y_test, y_score, pos_label=1)
         auc = metrics.auc(fpr, tpr)
         # auc1 = roc_auc_score(y_test, y_score)
-        # print(model.get_params())
+        # print(models.get_params())
         # assert auc==auc1
 
         # f1, bestEp = selectThreshHold(test_y_i, pred)
@@ -321,10 +321,10 @@ class GMM_MAIN(BASE):
         model = GMM()
         model_params = {'n_components': self.params['n_components'], 'covariance_type': self.params['covariance_type'],
                         'means_init': None, 'random_state': self.random_state}
-        # set model default parameters
+        # set models default parameters
         model.set_params(**model_params)
         print(model.get_params())
-        # train model
+        # train models
         self.model, self.model_train_time = self._train(model, X_train)
 
         self.train_time += self.model_train_time
@@ -446,10 +446,10 @@ class OFFLINE_GMM_MAIN(BASE):
         model = GMM()
         model_params = {'n_components': self.params['n_components'], 'covariance_type': self.params['covariance_type'],
                         'means_init': None, 'random_state': self.random_state}
-        # set model default parameters
+        # set models default parameters
         model.set_params(**model_params)
         print(model.get_params())
-        # train model
+        # train models
         self.model, self.model_train_time = self._train(model, X_train)
 
         self.train_time += self.model_train_time
@@ -713,10 +713,10 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
         model_params = {'n_components': self.params['n_components'],
                         'covariance_type': self.params['covariance_type'],
                         'means_init': None, 'random_state': self.random_state}
-        # set model default parameters
+        # set models default parameters
         model.set_params(**model_params)
         print(model.get_params())
-        # train model
+        # train models
         self.model, self.model_train_time = self._train(model, X_train)
 
         self.train_time += self.model_train_time
@@ -764,14 +764,14 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
     def _online_train_test_intf(self, X_arrival, y_arrival, X_test, y_test):
         # ##########################################################################################
         # # online train
-        # y_train_score = self.model.decision_function(X_train)
+        # y_train_score = self.models.decision_function(X_train)
         # self.abnormal_thres = np.quantile(y_train_score, q=0.99)  # abnormal threshold
         # self.novelty_thres = np.quantile(y_train_score, q=0.85)  # normal threshold
         # print(f'novelty_thres: {self.novelty_thres}, abnormal_thres: {self.abnormal_thres}')
         #
-        # _, self.model.log_resp = self.model._e_step(X_train)
-        # self.model.n_samples = X_train.shape[0]
-        # self.model.X_train = X_train
+        # _, self.models.log_resp = self.models._e_step(X_train)
+        # self.models.n_samples = X_train.shape[0]
+        # self.models.X_train = X_train
 
         ### online training phase on the arrival set
         self.model.n_samples = self.n_samples
@@ -892,10 +892,10 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
         model_params = {'n_components': self.params['n_components'],
                         'covariance_type': self.params['covariance_type'],
                         'means_init': None, 'random_state': self.random_state}
-        # set model default parameters
+        # set models default parameters
         model.set_params(**model_params)
         print(model.get_params())
-        # train model
+        # train models
         self.model, self.model_train_time = self._train(model, X_train)
 
         self.train_time += self.model_train_time
@@ -1017,10 +1017,10 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
         model = GMM()
         model_params = {'n_components': self.params['n_components'], 'covariance_type': self.params['covariance_type'],
                         'means_init': None, 'random_state': self.random_state}
-        # set model default parameters
+        # set models default parameters
         model.set_params(**model_params)
         print(model.get_params())
-        # train model
+        # train models
         self.model, self.model_train_time = self._train(model, X_train)
 
         self.train_time += self.model_train_time
@@ -1039,12 +1039,12 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
         return self
 
     def _online_train(self, model, X_arrival, y_arrival):
-        """Online analysis: online test each datapoint (x), and using the x to retrain and update the current model.
+        """Online analysis: online test each datapoint (x), and using the x to retrain and update the current models.
 
         Parameters
         ----------
         model: detection instance
-            the fitted detection model
+            the fitted detection models
 
         X_arrival: array with shape (n_samples, n_feats)
         y_arrival: array with shape (n_samples, )
@@ -1055,13 +1055,13 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
            testing_time, auc, apc
         """
 
-        # new_model will retrain on each new datapoint (x) with the previous parameters of the current model (model)
+        # new_model will retrain on each new datapoint (x) with the previous parameters of the current models (models)
         new_model = ONLINE_GMM()
         new_model.n_components = model.n_components
         new_model.weights_ = model.weights_
         new_model.means_ = model.means_
         new_model.covariances_ = model.covariances_
-        # new_model.log_resp = model.log_resp
+        # new_model.log_resp = models.log_resp
         new_model.warm_start = True
         new_model.n_samples = model.n_samples
 
@@ -1162,7 +1162,7 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
             _y_score = model.decision_function(x)  # output the abnormal score of each x
             end = datetime.now()
             testing_time = (end - start).total_seconds()
-            print("i:{}, online model prediction takes {} seconds, y_score: {}".format(i, testing_time, _y_score))
+            print("i:{}, online models prediction takes {} seconds, y_score: {}".format(i, testing_time, _y_score))
             model_test_time = testing_time
 
             model_online_train_time += model_test_time
@@ -1231,7 +1231,7 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
                 new_model.n_components += 1
                 # # assign the x to a new class and expand the previous "log_resp", which is used to obtain
                 # # the "weights" of each component.
-                # new_model.log_resp = np.concatenate([model.log_resp, np.zeros((model.n_samples, 1))], axis=1)
+                # new_model.log_resp = np.concatenate([models.log_resp, np.zeros((models.n_samples, 1))], axis=1)
                 log_resp = np.zeros((1, new_model.n_components))
                 log_resp[-1] = 1
                 # new_model.log_resp = np.concatenate([new_model.log_resp, log_resp], axis=0)
@@ -1253,7 +1253,7 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
                 if no_need_to_convergent:
                     pass
                 else:
-                    # train the new model on x, update params, and use the new model to update the previous model
+                    # train the new models on x, update params, and use the new models to update the previous models
                     for n_iter in range(1, new_model.max_iter + 1):
                         # for n_iter in range(1, self.max_iter ):
                         # convergence conditions: check if self.max_iter or self.tol exceeds the preset value.
@@ -1276,7 +1276,7 @@ class ONLINE_GMM_MAIN(BASE, ONLINE_GMM):
                             print(f'n_iter: {n_iter}')
                             break
 
-            # update the current model with the new_model
+            # update the current models with the new_model
             model = new_model
         else:
             # if _y_score >= self.abnormal_thres, the x is predicted as a abnormal flow, so we should drop it.
@@ -1403,14 +1403,14 @@ class OCSVM_MAIN(BASE):
         else:
             self.model_gamma = 1 / (np.quantile(pairwise_distances(X_train), self.params['model_q']) ** 2)
             model_params = {'kernel': self.params['kernel'], 'gamma': self.model_gamma, 'nu': self.params['model_nu']}
-        # set model default parameters
+        # set models default parameters
         model.set_params(**model_params)
-        # print(model.get_params())
-        # train model
+        # print(models.get_params())
+        # train models
         self.model, self.model_train_time = self._train(model, X_train)
 
         self.train_time += self.model_train_time
-        # print(f'{self.model.get_params()}, {self.params}')
+        # print(f'{self.models.get_params()}, {self.params}')
 
         print(f'Total train time: {self.train_time} <= std_train_time: {self.std_train_time}, seek_train_time: '
               f'{self.seek_train_time}, kjl_train_time: {self.kjl_train_time}, '
@@ -1435,7 +1435,7 @@ def _model_train_test(normal_data, abnormal_data, params, **kargs):
     abnormal_data:  array with shape (n_samples, n_feats)
 
     params: dict
-        the configuation of parameters for this experiment, such as, case, model parameters, and parallel.
+        the configuation of parameters for this experiment, such as, case, models parameters, and parallel.
 
     kargs: dict
         not used yet.

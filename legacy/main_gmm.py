@@ -1,6 +1,6 @@
 """Main entrance of batch GMM and online GMM experiments
 
-Run the below command under "examples/"
+Run the below command under "applications/"
     PYTHONPATH=../:./ python3.7 main_gmm.py > out/batch_online_gmm.txt 2>&1 &
 """
 
@@ -22,11 +22,11 @@ from sklearn.mixture._gaussian_mixture import _estimate_gaussian_parameters
 
 from online.config import *
 from online.generate_data import generate_data, split_train_arrival_test
-from kjl.model.gmm import GMM
-from kjl.model.kjl import KJL
-from kjl.model.nystrom import NYSTROM
-from kjl.model.online_gmm import ONLINE_GMM
-from kjl.model.seek_mode import MODESEEKING
+from kjl.models.gmm import GMM
+from kjl.models.kjl import KJL
+from kjl.models.nystrom import NYSTROM
+from kjl.models.online_gmm import ONLINE_GMM
+from kjl.models.seek_mode import MODESEEKING
 from kjl.preprocessing.standardization import STD
 from kjl.utils.data import load_data, batch, data_info
 from kjl.utils.parameters import PARAM
@@ -65,7 +65,7 @@ class SINGLE_CASE:
             for i in range(params.n_repeats):
                 if params.is_online:
                     model = ONLINE_GMM_MAIN(params)
-                    # model = BATCH_GMM_MAIN(params)
+                    # models = BATCH_GMM_MAIN(params)
                 else:
                     model = BATCH_GMM_MAIN(params)
                 params.random_state = (i + 1) * self.random_state
@@ -288,19 +288,19 @@ class BASE_MODEL:
             self.model = GMM(n_components=n_components, covariance_type=self.params.covariance_type,
                              random_state=self.params.random_state)
 
-            # Fit a model on the init train set with self.params
+            # Fit a models on the init train set with self.params
             self._init_train(X_init_train, y_init_train)
-            # Evaluate the model on the test set and get AUC
+            # Evaluate the models on the test set and get AUC
             self._init_test(X_init_test, y_init_test)
             mprint(f'AUC: {self.auc} with {self.model.get_params()}, and self.q_kjl: {q_kjl}', self.verbose, DEBUG)
             # find the best one
             if best_auc < self.auc:  # here should be <, not <=
                 best_auc = self.auc
                 best_model_params = copy.deepcopy(self.model.get_params())  # only GMM parameters
-                best_params = copy.deepcopy(self.params)  # inculdes all params, but part of model paramters.
+                best_params = copy.deepcopy(self.params)  # inculdes all params, but part of models paramters.
 
         ##########################################################################################
-        # Step 3. To get the best model with best_params, best_auc, best train_time and test_time
+        # Step 3. To get the best models with best_params, best_auc, best train_time and test_time
         mprint(f'\n***The best params: model_params: {best_model_params}, params: {best_params}')
         self.params = best_params
         self.model = GMM()
@@ -309,9 +309,9 @@ class BASE_MODEL:
                         'means_init': None, 'random_state': best_model_params['random_state']}
         self.model.set_params(**model_params)
 
-        # Fit self.model on the init set
+        # Fit self.models on the init set
         self._init_train(X_init_train, y_init_train)
-        # Evaluate the model on the test set
+        # Evaluate the models on the test set
         self._init_test(X_init_test, y_init_test)
         mprint(f'***init result: train_time: {self.train_time}, abnormal_thres: {self.abnormal_thres}, '
                f'test_time: {self.test_time}, AUC: {self.auc},', self.verbose, DEBUG)
@@ -325,11 +325,11 @@ class BASE_MODEL:
         return self.model
 
     def _init_train(self, X_init_train, y_init_train=None):
-        """Train model on the initial set (init_set)
+        """Train models on the initial set (init_set)
 
         Parameters
         ----------
-        model: model instance
+        models: models instance
 
         X_train: array
             n_samples, n_feats = size(X_train)
@@ -405,13 +405,13 @@ class BASE_MODEL:
         if self.verbose > DEBUG: data_info(X_init_train, name='X_proj before updating KJL')
 
         ##########################################################################################
-        # Step 2. Setting self.model'params (e.g., means_init, and n_components when use meanshift or quickshift)
+        # Step 2. Setting self.models'params (e.g., means_init, and n_components when use meanshift or quickshift)
         model_params = {'n_components': self.params.n_components,
                         'covariance_type': self.params.covariance_type,
                         'means_init': None, 'random_state': self.random_state}
         self.model.set_params(**model_params)
-        # mprint(self.model.get_params(), self.verbose, DEBUG)
-        # Fit self.model on the X_train
+        # mprint(self.models.get_params(), self.verbose, DEBUG)
+        # Fit self.models on the X_train
         _, model_fitting_time = time_func(self.model.fit, X_init_train)
         train_time += model_fitting_time
 
@@ -434,12 +434,12 @@ class BASE_MODEL:
         return self
 
     def _init_test(self, X_init_test, y_init_test):
-        """Evaluate the model on the set set
+        """Evaluate the models on the set set
 
         Parameters
         ----------
-        model:
-            a fitted model on the train set
+        models:
+            a fitted models on the train set
 
         X_test: array
             n_samples, n_feats = size(X_test)
@@ -523,7 +523,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
 
     def batch_train_test(self, X_arrival, y_arrival, X_test,
                          y_test):
-        """ Train and test model
+        """ Train and test models
 
         Parameters
         ----------
@@ -546,12 +546,12 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
 
         """
         ##########################################################################################
-        # # # Step 1. Get best initial model (init_model) on initial set (init_set) and evaluate it on init test set
+        # # # Step 1. Get best initial models (init_model) on initial set (init_set) and evaluate it on init test set
         # self.init_model = self.init_train_test(X_init_train, y_init_train, X_init_test, y_init_test)
         self.init_model = self.model
 
         ##########################################################################################
-        # Step 2. Online train and evaluate model
+        # Step 2. Online train and evaluate models
         self.info['train_times'] = [self.init_info['train_time']]
         self.info['abnormal_threses'] = [self.init_info['abnormal_thres']]
         self.info['model_params'] = [self.init_info['model_params']]
@@ -566,13 +566,13 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
                 self.X_acculumated_train = self.X_init_train
                 self.y_acculumated_train = self.y_init_train
 
-            # online train model (update GMM model values, such as, means, covariances, kjl_U, and n_components)
-            self.online_train(X_batch, Y_batch)  # update self.model
+            # online train models (update GMM models values, such as, means, covariances, kjl_U, and n_components)
+            self.online_train(X_batch, Y_batch)  # update self.models
             self.info['train_times'].append(self.train_time)
             self.info['model_params'].append(self.model.get_params())
             self.info['abnormal_threses'].append(self.abnormal_thres)
 
-            # online test model
+            # online test models
             self.online_test(X_test, y_test)
             self.info['test_times'].append(self.test_time)
             self.info['aucs'].append(self.auc)
@@ -585,7 +585,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         return self
 
     def online_train(self, X_batch, y_batch=None):
-        """Online train the model: using the X_batch to retrain and update the current model incrementally.
+        """Online train the models: using the X_batch to retrain and update the current models incrementally.
 
         Parameters
         ----------
@@ -610,8 +610,8 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         ##########################################################################################
         start = datetime.now()
         # Step 1: Predict on the arrival data  first.
-        # Use the fitted model to predict X_batch first, and according to the result,
-        # only the normal data will be used to train a new model, which will be used to replace the current model.
+        # Use the fitted models to predict X_batch first, and according to the result,
+        # only the normal data will be used to train a new models, which will be used to replace the current models.
         # Step 1.1: Preprocessing: std and projection
         _X_batch, preprocessing_time = time_func(self._preprocessing, X_batch)
         train_time += preprocessing_time
@@ -733,9 +733,9 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
                                    random_state=self.params.random_state,
                                    warm_start=True)
         else:
-            # print(f'before online, self.model.weights_: {self.model.weights_}')
-            # print(f'before online, self.model.means_: {self.model.means_}')
-            # print(f'before online, self.model.covariances_: {self.model.covariances_}')
+            # print(f'before online, self.models.weights_: {self.models.weights_}')
+            # print(f'before online, self.models.means_: {self.models.means_}')
+            # print(f'before online, self.models.covariances_: {self.models.covariances_}')
             new_model = ONLINE_GMM(n_components=self.model.n_components,
                                    covariance_type=self.model.covariance_type,
                                    weights_init=self.model.weights_,
@@ -745,11 +745,11 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
                                    random_state=self.params.random_state,
                                    warm_start=True)
 
-        # Step 2.4: online train a new model on the batch data
+        # Step 2.4: online train a new models on the batch data
         # 1) train on the normal data first (without needing to create any new component)
         # 2) train on the abnormal data (create new components)
         # set the default params of ONLINE_GMM
-        # new_model.sum_resp = self.model.sum_resp  # shape (1, d): sum of exp(log_resp)
+        # new_model.sum_resp = self.models.sum_resp  # shape (1, d): sum of exp(log_resp)
         # new_model._initialize()  # set up cholesky
 
         update_flg = False
@@ -811,7 +811,7 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
                                random_state=self.params.random_state,
                                warm_start=True)
         new_model._initialize_parameters(X_acculumated_train_proj, self.random_state)
-        # Train the new model until it converges
+        # Train the new models until it converges
         i = 0
         new_model.converged_ = False
         if not new_model.converged_:  new_model.max_iter = 100
@@ -828,15 +828,15 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
 
             # get the difference
             lower_bound = new_model._compute_lower_bound(log_resp, np.mean(log_prob_norm))
-            # print(f'i: {i}, 1. / np.sqrt(self.model.covariances_): ', 1 / np.sqrt(new_model.covariances_), log_resp,
+            # print(f'i: {i}, 1. / np.sqrt(self.models.covariances_): ', 1 / np.sqrt(new_model.covariances_), log_resp,
             #       new_model.means_, new_model.weights_)
             change = lower_bound - prev_lower_bound
             if abs(change) < new_model.tol:
                 # if np.all(new_model.means_[0] == 0.0):
                 #     new_model.converged_ = False
-                #     # new_model.weights_ = self.model.weights_
-                #     # new_model.means_ = self.model.means_
-                #     # new_model.covariances_ = self.model.covariances_
+                #     # new_model.weights_ = self.models.weights_
+                #     # new_model.means_ = self.models.means_
+                #     # new_model.covariances_ = self.models.covariances_
                 #     # new_model._initialize()  # set up cholesky
                 # else:
                 #     new_model.converged_ = True
@@ -857,19 +857,19 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
         end = datetime.now()
         iteration_time = (end - start).total_seconds()
         train_time += first_train_time + iteration_time
-        # print(f'1. / np.sqrt(self.model.covariances_): ', 1 / np.sqrt(new_model.covariances_), log_resp,
+        # print(f'1. / np.sqrt(self.models.covariances_): ', 1 / np.sqrt(new_model.covariances_), log_resp,
         #       new_model.means_, new_model.weights_)
 
-        # self.model = GMM(n_components=self.model.n_components, covariance_type=self.params.covariance_type,
-        #                  random_state=self.params.random_state,  weights_init=self.model.weights_,
-        #                            means_init=self.model.means_, precisions_init= 1. / np.sqrt(self.model.covariances_),
+        # self.models = GMM(n_components=self.models.n_components, covariance_type=self.params.covariance_type,
+        #                  random_state=self.params.random_state,  weights_init=self.models.weights_,
+        #                            means_init=self.models.means_, precisions_init= 1. / np.sqrt(self.models.covariances_),
         #                  )
-        # print(f'1. / np.sqrt(self.model.covariances_): ', self.model.precisions_init)
-        # _, model_fitting_time = time_func(self.model.fit, X_acculumated_train_proj)
+        # print(f'1. / np.sqrt(self.models.covariances_): ', self.models.precisions_init)
+        # _, model_fitting_time = time_func(self.models.fit, X_acculumated_train_proj)
         # log_prob_norm=0
         # first_train_time=0
         # iteration_time = model_fitting_time
-        # self.model.sum_resp=0  # shape (1, d): sum of exp(log_resp)
+        # self.models.sum_resp=0  # shape (1, d): sum of exp(log_resp)
 
         ##########################################################################################
         # Step 3:  update the abnormal threshold with all accumulated data
@@ -915,18 +915,18 @@ class ONLINE_GMM_MAIN(BASE_MODEL, ONLINE_GMM):
 
         y_score, model_predict_time = time_func(model.decision_function, X_normal_proj)
         abnormal_thres = np.quantile(y_score, q=self.params.q_abnormal_thres)  # abnormal threshold
-        # model.y_score = y_score
+        # models.y_score = y_score
 
         return abnormal_thres
 
     def online_test(self, X_test, y_test):
-        """Evaluate model on the test set
+        """Evaluate models on the test set
 
         Parameters
         ----------
         ----------
-        model: model instance
-            a fitted model on the init_set
+        models: models instance
+            a fitted models on the init_set
 
         X_test: array
             n_samples, n_feats = size(X_test)
@@ -962,7 +962,7 @@ class BATCH_GMM_MAIN(BASE_MODEL):
 
     def batch_train_test(self, X_arrival, y_arrival, X_test,
                          y_test):
-        """ Train and test model
+        """ Train and test models
 
         Parameters
         ----------
@@ -985,12 +985,12 @@ class BATCH_GMM_MAIN(BASE_MODEL):
 
         """
         # ##########################################################################################
-        # # # Step 1. Get initial model (init_model) on initial set (init_set) and evaluate it on test set
+        # # # Step 1. Get initial models (init_model) on initial set (init_set) and evaluate it on test set
         # self.init_model = self.init_train_test(X_init_train, y_init_train, X_init_test, y_init_test)
         self.init_model = self.model
 
         ##########################################################################################
-        # Step 2. train the model on the batch data (previous+batch) and evaluate it.
+        # Step 2. train the models on the batch data (previous+batch) and evaluate it.
         self.info['train_times'] = [self.init_info['train_time']]
         self.info['abnormal_threses'] = [self.init_info['abnormal_thres']]
         self.info['model_params'] = [self.init_info['model_params']]
@@ -1007,7 +1007,7 @@ class BATCH_GMM_MAIN(BASE_MODEL):
             self.info['model_params'].append(self.model.get_params())
             self.info['abnormal_threses'].append(self.abnormal_thres)
 
-            # batch test model
+            # batch test models
             self.batch_test(X_test, y_test)
             self.info['test_times'].append(self.test_time)
             self.info['aucs'].append(self.auc)
@@ -1021,13 +1021,13 @@ class BATCH_GMM_MAIN(BASE_MODEL):
 
     def batch_train(self, X_batch, y_batch=None):
 
-        """batch train the model: using the (X_batch + previous data) to retrain a new model
-        and use it to update the current model.
+        """batch train the models: using the (X_batch + previous data) to retrain a new models
+        and use it to update the current models.
 
         Parameters
         ----------
-        model: model instance
-            a fitted model on the init_set, which is used to predict a new datatpoint is normal or not.
+        models: models instance
+            a fitted models on the init_set, which is used to predict a new datatpoint is normal or not.
 
         X_batch: array
             n_samples, n_feats = size(X_batch)
@@ -1075,19 +1075,19 @@ class BATCH_GMM_MAIN(BASE_MODEL):
         # the datapoint is predicted as a abnormal flow, so we should drop it.
         mprint(f'{abnormal_cnt} flows are predicted as abnormal, so we drop them.', self.verbose, DEBUG)
 
-        # Step 3.2: train a new model and use it to instead of the current one.
-        # we use model.n_compoents to initialize n_components or the value found by quickhsift++ or meanshift
-        # self.model_copy = copy.deepcopy(self.model)
+        # Step 3.2: train a new models and use it to instead of the current one.
+        # we use models.n_compoents to initialize n_components or the value found by quickhsift++ or meanshift
+        # self.model_copy = copy.deepcopy(self.models)
         self.model = GMM(n_components=self.model.n_components, covariance_type=self.params.covariance_type,
                          random_state=self.params.random_state)
-        # update self.model: replace the current model with new_model
+        # update self.models: replace the current models with new_model
         if self.params.fixed_kjl:  # (fixed KJL, U, and STD)
             # use the init self.kjl to transform X_batch
             # Step 1: Preprocessing
             X_batch, prepro_time = time_func(self._preprocessing, self.X_acculumated_train)
             preprocessing_time += prepro_time
             ##########################################################################################
-            # # Step 2: fit a model
+            # # Step 2: fit a models
             _, model_fitting_time = time_func(self.model.fit, X_batch)
             train_time += model_fitting_time
             ##########################################################################################
@@ -1192,7 +1192,7 @@ def main():
     # Step 0. All datasets
     n_init_train = 1000
     in_dir = f'data/feats/n_init_train_{n_init_train}'
-    out_dir = '../examples/online/out'
+    out_dir = '../applications/online/out'
     data_path_mappings = {
         # 'DEMO_IDS': 'DEMO_IDS/DS-srcIP_192.168.10.5',
         'mimic_GMM': f'{in_dir}/mimic_GMM_dataset/Xy-normal-abnormal.dat',

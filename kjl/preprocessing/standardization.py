@@ -1,4 +1,4 @@
-# from examples.main_online_gmm import online_update_mean_variance
+# from applications.main_online_gmm import online_update_mean_variance
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 

@@ -17,11 +17,11 @@ if os.path.exists(build_dir):
     shutil.rmtree(build_dir)
 
 APP_NAME = 'kjl'
-examples_dir = os.path.join(APP_NAME, 'examples')
-tests_dir = os.path.join(APP_NAME, 'tests')
+examples_dir = os.path.join(APP_NAME, 'applications')
+tests_dir = os.path.join(APP_NAME, APP_NAME, 'tests')
 install_examples = True
 if install_examples:
-    if not os.path.exists(examples_dir): shutil.copytree('examples', examples_dir)
+    if not os.path.exists(examples_dir): shutil.copytree('applications', examples_dir)
     if not os.path.exists(tests_dir): shutil.copytree('tests', tests_dir)
 
 
@@ -80,7 +80,7 @@ setup(name=APP_NAME,
           'Topic :: Software Development :: Libraries :: Python Modules'
       ],
       # automatically find the packages with __init__.py file and start from the setup.py's directory
-      packages=find_packages(where='.', exclude=('tests*', 'examples*')),  # include all packages under src
+      packages=find_packages(where='.', exclude=('tests*', 'applications*')),  # include all packages under src
       # package_data={"odet": ['*.pcap', '*.csv']},
       #         include_package_data=True,
       # setup_requires=['flake8'],

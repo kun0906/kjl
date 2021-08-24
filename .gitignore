@@ -10,11 +10,11 @@ utils/_pycache__/
 *.sh
 
 
-/examples/online/data/*
-/examples/online/out/*
+/applications/online/data/*
+/applications/online/out/*
 legacy
 
-/examples/speedup/data/*
-/examples/speedup/out/*
+/applications/offline/data/*
+/applications/offline/out/*
 
 

@@ -10,39 +10,26 @@ import inspect
 import os
 import pickle
 import subprocess
-import time
+from time import time
 from datetime import datetime
 from functools import wraps
 
 import pandas as pd
 
 
-def dump_data(data, out_file='', verbose=True):
-    """Save data to file
+def timer(func):
+    # This function shows the execution time of
+    # the function object passed
+    def wrap_func(*args, **kwargs):
+        t1 = time()
+        result = func(*args, **kwargs)
+        t2 = time()
+        print(f'Function {func.__name__!r} executed in {(t2 - t1):.4f}s')
+        return result
 
-    Parameters
-    ----------
-    data: any data
+    return wrap_func
 
-    out_file: str
-        out file path
-    verbose: int (default is 1)
-        a print level is to control what information should be printed according to the given value.
-        The higher the value is, the more info is printed.
-
-    Returns
-    -------
-
-    """
-
-    check_path(out_file, overwrite=verbose)
-
-    # save results
-    with open(out_file, 'wb') as out_hdl:
-        pickle.dump(data, out_hdl)
-
-
-def load_data(in_file):
+def load(in_file):
     """load data from file
 
     Parameters
@@ -59,6 +46,25 @@ def load_data(in_file):
         data = pickle.load(f)
 
     return data
+
+def dump(data, out_file=''):
+    """Save data to file
+
+    Parameters
+    ----------
+    data: any data
+
+    out_file: str
+        out file path
+    Returns
+    -------
+
+    """
+
+    with open(out_file, 'wb') as f:
+        pickle.dump(data, f)
+
+    return out_file
 
 
 def data_info(data=None, name='data'):
@@ -88,7 +94,7 @@ def data_info(data=None, name='data'):
     print(dataset.info(verbose=True))
 
 
-def check_path(file_path, overwrite=True):
+def check_path(dir_path):
     """Check if a path is existed or not.
      If the path doesn't exist, then create it.
 
@@ -103,15 +109,11 @@ def check_path(file_path, overwrite=True):
     -------
 
     """
-    path_dir = os.path.dirname(file_path)
-    if not os.path.exists(path_dir) and len(path_dir) > 0:
-        os.makedirs(path_dir)
-
-    if os.path.exists(file_path):
-        if overwrite:
-            os.remove(file_path)
-
-    return file_path
+    if os.path.exists(dir_path):
+        return True
+    else:
+        os.makedirs(dir_path)
+        return False
 
 
 def timing(func):
