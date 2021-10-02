@@ -175,9 +175,10 @@ def speedup_table(neon_file, rspi_file, nano_file, out_file, header=False, featu
 				        f'header_{header}, OC-KJL, OC-KJL-QS vs OC-Nystrom, OC-Nystrom-QS\n')
 
 				f.write('\\toprule\n')
-				f.write(r'\diagbox[width=7em,height=2.5em]{\vspace{0.cm}\hspace{-0.15cm}Method}{\vspace{8.cm}\hspace{8.cm}Dataset}  '
-				        r'  & UNB   & CTU  '
-				        r'& MAWI & MACCDC & SFRIG  & AECHO   &DWSHR   \\' + '\n')
+				f.write(
+					r'\diagbox[width=7em,height=2.5em]{\vspace{0.cm}\hspace{-0.15cm}Method}{\vspace{8.cm}\hspace{8.cm}Dataset}  '
+					r'  & UNB   & CTU  '
+					r'& MAWI & MACCDC & SFRIG  & AECHO   &DWSHR   \\' + '\n')
 				f.write(f'\midrule\n')
 				# OC-KJL
 				# Retrained AUC (Neon)
@@ -219,53 +220,53 @@ def speedup_table(neon_file, rspi_file, nano_file, out_file, header=False, featu
 				                                             == vs[3]]).replace('+/-', '$\pm$') + '\\\\ \n')
 				f.write('\\bottomrule\n')
 
-			# # Test time speedup (Neon)
-			# f.write('Neon Test time & ' + ' & '.join([vs[7] for vs, _, _ in tmp if f'KJL-GMM({covariance_type})'
-			#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
-			# f.write('RSPI Test time & ' + ' & '.join([vs[7] for _, vs, _ in tmp if f'KJL-GMM({covariance_type})'
-			#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
-			# f.write('Nano Test time & ' + ' & '.join([vs[7] for _, _, vs in tmp if f'KJL-GMM({covariance_type})'
-			#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
-			# # Space reduction
-			# f.write(
-			# 	'Neon space & ' + ' & '.join([vs[9] for vs, _, _ in tmp if f'KJL-GMM({covariance_type})' == vs[3]]).
-			# 	replace('+/-', '$\pm$') + '\n')
-			#
-			# f.write('Neon Test time & ' + ' & '.join([vs[7] for vs, _, _ in tmp if f'KJL-QS-GMM({covariance_type})'
-			#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
-			# f.write('RSPI Test time & ' + ' & '.join([vs[7] for _, vs, _ in tmp if f'KJL-QS-GMM({covariance_type})'
-			#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
-			# f.write('Nano Test time & ' + ' & '.join([vs[7] for _, _, vs in tmp if f'KJL-QS-GMM({covariance_type})'
-			#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
-			# # Space reduction
-			# f.write('Neon space & ' + ' & '.join(
-			# 	[vs[9] for vs, _, _ in tmp if f'KJL-QS-GMM({covariance_type})' == vs[3]]).
-			#         replace('+/-', '$\pm$') + '\n')
-			#
-			# f.write('Neon Time time & ' + ' & '.join([vs[7] for vs, _, _ in tmp if f'Nystrom-GMM({covariance_type})'
-			#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
-			# f.write('RSPI Time time & ' + ' & '.join([vs[7] for _, vs, _ in tmp if f'Nystrom-GMM({covariance_type})'
-			#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
-			# f.write('Nano Time time & ' + ' & '.join([vs[7] for _, _, vs in tmp if f'Nystrom-GMM({covariance_type})'
-			#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
-			# # Space reduction
-			# f.write('Neon space & ' + ' & '.join(
-			# 	[vs[9] for vs, _, _ in tmp if f'Nystrom-GMM({covariance_type})' == vs[3]]).
-			#         replace('+/-', '$\pm$') + '\n')
-			#
-			# f.write('Neon Test time & ' + ' & '.join([vs[7] for vs, _, _ in tmp if
-			#                                           f'Nystrom-QS-GMM({covariance_type})'
-			#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
-			# f.write('RSPI Test time & ' + ' & '.join([vs[7] for _, vs, _ in tmp if
-			#                                           f'Nystrom-QS-GMM({covariance_type})'
-			#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
-			# f.write('Nano Test time & ' + ' & '.join([vs[7] for _, _, vs in tmp if
-			#                                           f'Nystrom-QS-GMM({covariance_type})'
-			#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
-			#
-			# # Space reduction
-			# f.write('Neon space & ' + ' & '.join([vs[9] for vs, _, _ in tmp if f'Nystrom-QS-GMM({covariance_type})'
-			#                                       == vs[3]]).replace('+/-', '$\pm$') + '\n')
+		# # Test time speedup (Neon)
+		# f.write('Neon Test time & ' + ' & '.join([vs[7] for vs, _, _ in tmp if f'KJL-GMM({covariance_type})'
+		#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
+		# f.write('RSPI Test time & ' + ' & '.join([vs[7] for _, vs, _ in tmp if f'KJL-GMM({covariance_type})'
+		#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
+		# f.write('Nano Test time & ' + ' & '.join([vs[7] for _, _, vs in tmp if f'KJL-GMM({covariance_type})'
+		#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
+		# # Space reduction
+		# f.write(
+		# 	'Neon space & ' + ' & '.join([vs[9] for vs, _, _ in tmp if f'KJL-GMM({covariance_type})' == vs[3]]).
+		# 	replace('+/-', '$\pm$') + '\n')
+		#
+		# f.write('Neon Test time & ' + ' & '.join([vs[7] for vs, _, _ in tmp if f'KJL-QS-GMM({covariance_type})'
+		#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
+		# f.write('RSPI Test time & ' + ' & '.join([vs[7] for _, vs, _ in tmp if f'KJL-QS-GMM({covariance_type})'
+		#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
+		# f.write('Nano Test time & ' + ' & '.join([vs[7] for _, _, vs in tmp if f'KJL-QS-GMM({covariance_type})'
+		#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
+		# # Space reduction
+		# f.write('Neon space & ' + ' & '.join(
+		# 	[vs[9] for vs, _, _ in tmp if f'KJL-QS-GMM({covariance_type})' == vs[3]]).
+		#         replace('+/-', '$\pm$') + '\n')
+		#
+		# f.write('Neon Time time & ' + ' & '.join([vs[7] for vs, _, _ in tmp if f'Nystrom-GMM({covariance_type})'
+		#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
+		# f.write('RSPI Time time & ' + ' & '.join([vs[7] for _, vs, _ in tmp if f'Nystrom-GMM({covariance_type})'
+		#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
+		# f.write('Nano Time time & ' + ' & '.join([vs[7] for _, _, vs in tmp if f'Nystrom-GMM({covariance_type})'
+		#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
+		# # Space reduction
+		# f.write('Neon space & ' + ' & '.join(
+		# 	[vs[9] for vs, _, _ in tmp if f'Nystrom-GMM({covariance_type})' == vs[3]]).
+		#         replace('+/-', '$\pm$') + '\n')
+		#
+		# f.write('Neon Test time & ' + ' & '.join([vs[7] for vs, _, _ in tmp if
+		#                                           f'Nystrom-QS-GMM({covariance_type})'
+		#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
+		# f.write('RSPI Test time & ' + ' & '.join([vs[7] for _, vs, _ in tmp if
+		#                                           f'Nystrom-QS-GMM({covariance_type})'
+		#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
+		# f.write('Nano Test time & ' + ' & '.join([vs[7] for _, _, vs in tmp if
+		#                                           f'Nystrom-QS-GMM({covariance_type})'
+		#                                           == vs[3]]).replace('+/-', '$\pm$') + '\n')
+		#
+		# # Space reduction
+		# f.write('Neon space & ' + ' & '.join([vs[9] for vs, _, _ in tmp if f'Nystrom-QS-GMM({covariance_type})'
+		#                                       == vs[3]]).replace('+/-', '$\pm$') + '\n')
 
 
 def main(root_dir, feature='IAT+SIZE', header=False):

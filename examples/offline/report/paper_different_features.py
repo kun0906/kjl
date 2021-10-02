@@ -6,7 +6,7 @@
 # License: xxx
 
 import itertools
-import os
+
 import pandas as pd
 
 from examples.offline._constants import *

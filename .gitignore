@@ -18,3 +18,5 @@ legacy
 /examples/offline/out/*
 
 
+/examples/offline/out/
+/legacy/

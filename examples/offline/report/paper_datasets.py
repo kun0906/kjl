@@ -1,21 +1,22 @@
 """
 
 """
+import pandas as pd
+
 # Email: kun.bj@outlook.com
 # Author: kun
 # License: xxx
 from examples.offline._constants import *  # should in the top.
-import itertools
-
-import pandas as pd
 from kjl.utils.tool import timer, check_path
 
 # DATASETS = ['DUMMY']
 FEATURES = ['IAT+SIZE']
 HEADER = [False]
 TUNING = [False, True]
+
+
 @timer
-def get_dataset_details(gather_file='.txt', out_dir='', delimeter= '&'):
+def get_dataset_details(gather_file='.txt', out_dir='', delimeter='&'):
 	""" collect all individual results together
 
 	Parameters
@@ -46,7 +47,7 @@ def get_dataset_details(gather_file='.txt', out_dir='', delimeter= '&'):
 	with open(out_file, 'w') as f:
 		f.write('\\toprule\n')
 		# dataset
-		f.write('Dataset & ' + f' {delimeter} '.join([vs[0] for vs in res ]) + '\\\\ \n')
+		f.write('Dataset & ' + f' {delimeter} '.join([vs[0] for vs in res]) + '\\\\ \n')
 		f.write('\\midrule\n')
 		# shape
 		f.write('Train Set & ' + f' {delimeter} '.join([vs[1].split('|')[0] for vs in res]) + '\\\\ \n')
@@ -60,7 +61,6 @@ def get_dataset_details(gather_file='.txt', out_dir='', delimeter= '&'):
 		f.write('\\bottomrule\n')
 
 	return out_file
-
 
 
 if __name__ == '__main__':

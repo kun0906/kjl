@@ -15,7 +15,7 @@ from sklearn.model_selection import train_test_split
 
 from examples.offline._constants import *
 from examples.offline._offline import Data
-from examples.offline.offline2 import offline_default_best_main, parser, save_dict2txt, gather
+from examples.offline.offline import offline_default_best_main, parser, save_dict2txt, gather
 from kjl.utils.tool import dump, timer, check_path, get_train_val, get_test_rest
 
 OUT_DIR = 'examples/offline/out/different_train_sizes'

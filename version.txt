@@ -1,4 +1,11 @@
+# 0.1.4
+1. reformat all the offline files
+2. remove unnecessary comments
 
+# 0.1.3
+1. rewrote all the offline codes
+2. changed the architecture
+3. modified the readme.md
 
 # 0.1.0
 

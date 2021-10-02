@@ -1,4 +1,4 @@
-""" Deploy the built models to difficult servers and then evaluate their performance.
+""" Deploy the built models to different servers and then evaluate their performance.
 
 	Main steps:
 		1. Deployment: only upload the needed parameters of each model to the servers
@@ -10,6 +10,9 @@
 	current directory is project_root_dir (i.e., kjl/.)
 	PYTHONPATH=. PYTHONUNBUFFERED=1 python3.7 examples/offline/deployment/deploy_evaluate_model.py > deploy.txt 2>&1 &
 """
+# Email: kun.bj@outlook.com
+# Author: kun
+# License: xxx
 import cProfile
 import copy
 import itertools
@@ -43,7 +46,7 @@ def _get_parameters(model_all_data):
 	model = model_all_data['model']['model']
 	data = model_all_data['model']['data']  # X_train, y_train, x_val, y_val
 	args = model_all_data['model']['args']
-	extra_params =  {'train':{'train_time': model.train_time}}    # for paper to compute the training speedup
+	extra_params = {'train': {'train_time': model.train_time}}  # for paper to compute the training speedup
 
 	model_name = args.model
 
@@ -130,7 +133,8 @@ def get_space(model_params, unit='KB'):
 
 
 def extract_needed_parameters(in_dir='out/src_dst', out_dir='deployment/models', n_repeats=5):
-	for dataset, feature, header, model, tuning in list(itertools.product(DATASETS,FEATURES, HEADERS, MODELS, TUNINGS)):
+	for dataset, feature, header, model, tuning in list(
+			itertools.product(DATASETS, FEATURES, HEADERS, MODELS, TUNINGS)):
 		try:
 			lg.info(f'*** {dataset}-{feature}-header_{header}, {model}-tuning_{tuning}')
 			for i in range(n_repeats):
@@ -139,7 +143,8 @@ def extract_needed_parameters(in_dir='out/src_dst', out_dir='deployment/models',
 				params = load(f)
 				needed_params = _get_parameters(params)
 				needed_params['space'] = get_space(needed_params)
-				model_params_file = os.path.join(out_dir, dataset, feature, f'header_{header}', model, f'tuning_{tuning}',
+				model_params_file = os.path.join(out_dir, dataset, feature, f'header_{header}', model,
+				                                 f'tuning_{tuning}',
 				                                 f'model_params_{i}th.dat')
 				check_path(model_params_file)
 				dump(needed_params, model_params_file)
@@ -157,133 +162,6 @@ def extract_needed_parameters(in_dir='out/src_dst', out_dir='deployment/models',
 		except Exception as e:
 			lg.error(f'Error: {e}. [{dataset}, {feature}, {header}, {model}, {tuning}]')
 			traceback.print_exc()
-
-
-#
-# # @Scalene.profile(' --cpu-only    ')
-# # @profile(precision=8)
-# def minimal_model_cost(model_name, model_params_file, test_file, params, project_params_file, is_parallel=False):
-#     #######################################################################################################
-#     # 1. create a new models from saved parameters
-#     params = {'is_kjl': False, 'is_nystrom': False}
-#     if 'OCSVM' in model_name:
-#         #######################################################################################################
-#         # load params
-#         model_params = load_data(model_params_file)
-#
-#         #######################################################################################################
-#         # create a new models
-#         # 'OCSVM(rbf)':
-#         oc = OCSVM()
-#         oc.kernel = model_params['kernel']
-#         oc._gamma = model_params['_gamma']  # only used for 'rbf', 'linear' doeesn't need '_gamma'
-#         oc.gamma = oc._gamma
-#
-#         oc.support_vectors_ = model_params['support_vectors_']
-#         oc._dual_coef_ = model_params['_dual_coef_']  # Coefficients of the support vectors in the decision function.
-#         oc.dual_coef_ = oc._dual_coef_
-#         oc._intercept_ = model_params['_intercept_']
-#         oc.intercept_ = oc._intercept_
-#
-#         oc.support_ = np.zeros(oc.support_vectors_.shape[0],
-#                                dtype=np.int32)  # np.empty((1,), dtype=np.int32) #  # model_params['support_']  # Indices of support vectors.
-#         oc._n_support = model_params['_n_support']  # Number of support vectors for each class.
-#         oc._sparse = model_params['_sparse']  # spare_kernel_compute or dense_kernel_compute
-#         oc.shape_fit_ = model_params['shape_fit_']  # to check if the dimension of train set and test set is the same.
-#         oc.probA_ = np.zeros(
-#             0)  # model_params['probA_']  # /* pairwise probability information */, not used. its values = [].
-#         oc.probB_ = np.zeros(
-#             0)  # model_params['probB_']  # /* pairwise probability information */, not used its values = [].
-#         oc.offset_ = -1 * model_params['_intercept_']  # model_params['offset_']
-#
-#         project = None
-#         if 'KJL' in model_name:  # KJL-OCSVM
-#             # load params
-#             project_params = load_data(project_params_file)
-#
-#             project = KJL(None)
-#             project.sigma = project_params['sigma']
-#             project.Xrow = project_params['Xrow']
-#             project.U = project_params['U']
-#             params['is_kjl'] = True
-#         elif 'Nystrom' in model_name:  # Nystrom-OCSVM
-#             # load params
-#             project_params = load_data(project_params_file)
-#             project = NYSTROM(None)
-#             project.sigma = project_params['sigma']
-#             project.Xrow = project_params['Xrow']
-#             project.eigvec_lambda = project_params['eigvec_lambda']
-#             params['is_nystrom'] = True
-#
-#     elif 'GMM' in model_name:
-#         #######################################################################################################
-#         # load params
-#         model_params = load_data(model_params_file)
-#
-#         # GMM params
-#         oc = GMM()
-#         oc.covariance_type = model_params['covariance_type']
-#         oc.weights_ = model_params['weights_']
-#         oc.means_ = model_params['means_']
-#         # oc.precisions_ = model_params['precisions_']
-#         oc.precisions_cholesky_ = model_params['precisions_cholesky_']
-#
-#         project = None
-#         if 'KJL' in model_name:  # KJL-GMM
-#             # load params
-#             project_params = load_data(project_params_file)
-#
-#             project = KJL(None)
-#             project.sigma = project_params['sigma']
-#             project.Xrow = project_params['Xrow']
-#             project.U = project_params['U']
-#             params['is_kjl'] = True
-#         elif 'Nystrom' in model_name:  # Nystrom-GMM
-#             # load params
-#             project_params = load_data(project_params_file)
-#             project = NYSTROM(None)
-#             project.sigma = project_params['sigma']
-#             project.Xrow = project_params['Xrow']
-#             project.eigvec_lambda = project_params['eigvec_lambda']
-#             params['is_nystrom'] = True
-#     else:
-#         raise NotImplementedError()
-#
-#     #######################################################################################################
-#     # 2. load test set and evaluate the models
-#     X_test, y_test = load_data(test_file)
-#
-#     # Evaluation
-#     # average time
-#     # minimal models cost
-#     num = 20
-#     if is_parallel:
-#         with Parallel(n_jobs=10, verbose=0, backend='loky', pre_dispatch=1, batch_size=1) as parallel:
-#             # outs = parallel(delayed(_test)(oc, X_test, y_test, params=params, project=project) for _ in range(num))
-#             outs = parallel(delayed(_test)(copy.deepcopy(oc), copy.deepcopy(X_test), copy.deepcopy(y_test),
-#                                            params=copy.deepcopy(params), project=copy.deepcopy(project)) for _ in
-#                             range(num))
-#         auc, test_time = list(zip(*outs))
-#         auc = np.mean(auc)
-#         test_time = np.mean(test_time)
-#     else:
-#         is_average = True
-#         if is_average:  # time more stable
-#             auc = []
-#             test_time = []
-#             for _ in range(num):
-#                 # auc_, test_time_ = _test(oc, X_test, y_test, params, project)
-#                 auc_, test_time_ = _test(copy.deepcopy(oc), copy.deepcopy(X_test), copy.deepcopy(y_test),
-#                                          params=copy.deepcopy(params), project=copy.deepcopy(project))
-#                 auc.append(auc_)
-#                 test_time.append(test_time_)
-#             auc = np.mean(auc)
-#             test_time = np.mean(test_time)
-#         else:
-#             auc, test_time = _test(copy.deepcopy(oc), copy.deepcopy(X_test), copy.deepcopy(y_test),
-#                                    params=copy.deepcopy(params), project=copy.deepcopy(project))
-#
-#     return auc, X_test, test_time
 
 
 def reconstruct_model(params):
@@ -497,16 +375,18 @@ class Args():
 			setattr(self, k, v)
 
 
-def evaluate(in_dir, out_dir, n_repeats=5, n_test_repeats=10, FEATURES = [], HEADERS= []):
+def evaluate(in_dir, out_dir, n_repeats=5, n_test_repeats=10, FEATURES=[], HEADERS=[]):
 	# 1. reconstruct new models
-	for dataset, feature, header, model, tuning in list(itertools.product(DATASETS, FEATURES, HEADERS, MODELS, TUNINGS)):
+	for dataset, feature, header, model, tuning in list(
+			itertools.product(DATASETS, FEATURES, HEADERS, MODELS, TUNINGS)):
 		try:
 			test_file = os.path.join(in_dir, dataset, feature, f'header_{header}', model, f'tuning_{tuning}',
 			                         f'test_set.dat')
 			test_set = load(test_file)
 			history = {}
 			for i in range(n_repeats):
-				model_params_file = os.path.join(in_dir, dataset, feature, f'header_{header}', model, f'tuning_{tuning}',
+				model_params_file = os.path.join(in_dir, dataset, feature, f'header_{header}', model,
+				                                 f'tuning_{tuning}',
 				                                 f'model_params_{i}th.dat')
 				params = load(model_params_file)
 				reconstructed_model = reconstruct_model(params)
@@ -529,6 +409,7 @@ def evaluate(in_dir, out_dir, n_repeats=5, n_test_repeats=10, FEATURES = [], HEA
 			lg.error(e)
 			traceback.print_exc()
 
+
 @timer
 def main():
 	n_repeats = 5
@@ -543,7 +424,7 @@ def main():
 	# lg.debug(f'\n***Upload models')
 
 	# 3. evaluate models
-	for (feature, header) in [('IAT+SIZE', False), ('STATS', True)]: #
+	for (feature, header) in [('IAT+SIZE', False), ('STATS', True)]:  #
 		lg.debug(f'\n***Evaluate models, feature: {feature}, header: {header}')
 		in_dir = model_in_dir
 		out_dir = 'examples/offline/deployment/out/src_dst'
@@ -560,4 +441,3 @@ def main():
 
 if __name__ == '__main__':
 	main()
-

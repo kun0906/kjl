@@ -2,6 +2,9 @@
 
 
 """
+# Email: kun.bj@outlook.com
+# Author: kun
+# License: xxx
 
 import numpy as np
 from sklearn.metrics import pairwise_distances

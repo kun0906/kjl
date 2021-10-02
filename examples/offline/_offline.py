@@ -7,12 +7,11 @@ Main steps:
 
 Command:
 	current directory is project_root_dir (i.e., kjl/.)
-	PYTHONPATH=. PYTHONUNBUFFERED=1 python3.7 applications/offline/_offline.py
+	PYTHONPATH=. PYTHONUNBUFFERED=1 python3.7 examples/offline/_offline.py
 """
 # Email: kun.bj@outlook.com
 # Author: kun
 # License: xxx
-import copy
 # # must set these before loading numpy:
 # os.environ["OMP_NUM_THREADS"] = '1'  # export OMP_NUM_THREADS=4
 # os.environ["OPENBLAS_NUM_THREADS"] = '1'  # export OPENBLAS_NUM_THREADS=4
@@ -20,11 +19,8 @@ import copy
 # os.environ["VECLIB_MAXIMUM_THREADS"] = '1' # export VECLIB_MAXIMUM_THREADS=4
 # os.environ["NUMEXPR_NUM_THREADS"] = '1' # export NUMEXPR_NUM_THREADS=6
 import traceback
-from collections import Counter
 
 import configargparse
-from func_timeout import func_set_timeout
-from sklearn.model_selection import train_test_split
 
 from examples.offline._constants import *
 from examples.offline.datasets.ctu import CTU
@@ -37,8 +33,7 @@ from kjl.models.gmm import GMM
 from kjl.models.ocsvm import OCSVM
 from kjl.projections.kjl import KJL
 from kjl.projections.nystrom import Nystrom
-from kjl.utils.tool import timer, check_path, dump, remove_file, save2txt, get_test_rest, \
-	get_train_val
+from kjl.utils.tool import timer
 
 
 @timer
@@ -73,7 +68,7 @@ class Data:
 			self.data = MACCDC(dataset_name=name, out_dir=OUT_DIR,
 			                   feature_name=feature_name, flow_direction=self.flow_direction, header=self.header,
 			                   random_state=self.random_state, verbose=self.verbose, overwrite=self.overwrite)
-		elif name in ['SFRIG1_2020','SFRIG1_2021', 'AECHO1_2020', 'DWSHR_2020','WSHR_2020',
+		elif name in ['SFRIG1_2020', 'SFRIG1_2021', 'AECHO1_2020', 'DWSHR_2020', 'WSHR_2020',
 		              'DWSHR_WSHR_2020', 'DWSHR_AECHO_2020', 'DWSHR_WSHR_AECHO_2020']:
 			self.data = UCHI(dataset_name=name, out_dir=OUT_DIR,
 			                 feature_name=feature_name, flow_direction=self.flow_direction, header=self.header,
@@ -129,7 +124,6 @@ class Model:
 		self.overwrite = overwrite
 		self.random_state = random_state
 
-
 	def fit(self, X, y=None):
 		self.model.fit(X)
 
@@ -162,7 +156,8 @@ def parser():
 	lg.debug(p.format_values())  # useful for logging where different settings came from
 	return args
 
-def _single_main(args,train_set, test_set):
+
+def _single_main(args, train_set, test_set):
 	""" Get the result on given parameters
 
 	Parameters
@@ -182,7 +177,7 @@ def _single_main(args,train_set, test_set):
 	X_test, y_test = test_set
 
 	if 'OCSVM' in args.model:
-		model = OCSVM(params= args.params)
+		model = OCSVM(params=args.params)
 	elif 'GMM' in args.model:
 		model = GMM(params=args.params)
 	else:
@@ -194,7 +189,7 @@ def _single_main(args,train_set, test_set):
 	res = model.test(X_test, y_test)
 
 	data = (X_train, y_train, X_test, y_test)
-	history = {'model': model,'data': data, 'args': args, 'res': res}
+	history = {'model': model, 'data': data, 'args': args, 'res': res}
 	return history
 
 
@@ -227,6 +222,7 @@ def main(args=None, train_set=None, test_set=None):
 		history = {'score': 0, 'model': {'model': None}}
 
 	return history
+
 
 if __name__ == '__main__':
 	main(test=True)

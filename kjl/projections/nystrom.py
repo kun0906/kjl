@@ -1,6 +1,9 @@
 """
 
 """
+# Email: kun.bj@outlook.com
+# Author: kun
+# License: xxx
 import numpy as np
 import scipy
 from scipy.sparse.linalg import eigs
@@ -12,119 +15,119 @@ from kjl.projections._base import getGaussianGram
 
 
 class Nystrom:
-    def __init__(self, nystrom_params, debug=False, verbose = 1):
-        self.nystrom_params = nystrom_params
-        self.random_state = 42  # nystrom_params['random_state']
-        self.debug = debug
-        self.verbose = verbose
+	def __init__(self, nystrom_params, debug=False, verbose=1):
+		self.nystrom_params = nystrom_params
+		self.random_state = 42  # nystrom_params['random_state']
+		self.debug = debug
+		self.verbose = verbose
 
-    def fit(self, X_train, y_train=None) -> object:
-        """Get Nystrom related data, such as
+	def fit(self, X_train, y_train=None) -> object:
+		"""Get Nystrom related data, such as
 
-        Parameters
-        ----------
-        X_train
+		Parameters
+		----------
+		X_train
 
-        Returns
-        -------
+		Returns
+		-------
 
-        """
+		"""
 
-        #####################################################################################################
-        # 1. Get sigma
-        d = self.nystrom_params['nystrom_d']
-        n = self.nystrom_params['nystrom_n']
-        q = self.nystrom_params['nystrom_q']
-        N, D = X_train.shape
+		#####################################################################################################
+		# 1. Get sigma
+		d = self.nystrom_params['nystrom_d']
+		n = self.nystrom_params['nystrom_n']
+		q = self.nystrom_params['nystrom_q']
+		N, D = X_train.shape
 
-        if hasattr(self, 'sigma') and self.sigma:
-            self.sigma = self.sigma
-        else:
-            # compute sigma
-            dists = pairwise_distances(X_train)
-            # if self.debug:
-            #     # for debug
-            #     _qs = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
-            #     _sigmas = np.quantile(dists, _qs)  # it will cost time
-            #     print(f'train set\' sigmas with qs: {list(zip(_sigmas, _qs))}')
-            self.sigma = np.quantile(dists, q)
-            if self.sigma == 0:
-                # print(f'sigma:{self.sigma}, and use 1e-7 for the latter experiment.')
-                self.sigma = 1e-7
-        # print("sigma: {}".format(self.sigma))
+		if hasattr(self, 'sigma') and self.sigma:
+			self.sigma = self.sigma
+		else:
+			# compute sigma
+			dists = pairwise_distances(X_train)
+			# if self.debug:
+			#     # for debug
+			#     _qs = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
+			#     _sigmas = np.quantile(dists, _qs)  # it will cost time
+			#     print(f'train set\' sigmas with qs: {list(zip(_sigmas, _qs))}')
+			self.sigma = np.quantile(dists, q)
+			if self.sigma == 0:
+				# print(f'sigma:{self.sigma}, and use 1e-7 for the latter experiment.')
+				self.sigma = 1e-7
+		# print("sigma: {}".format(self.sigma))
 
-        #####################################################################################################
-        # 2. Get Xrow according to n
-        # n = 100  # n or max([200, int(round(X_train.shape[0] / 100, 0))])  # n_v: rows; m_v: cols. 200, 100?
-        m = n
-        # To get the fixed random_matrix (R)
-        np.random.seed(self.random_state)
-        independent_row_col = 0
-        if independent_row_col:
-            # # indRow and indCol are independent each other
-            # indRow = np.random.randint(N, size=n)
-            # indCol = np.random.randint(N, size=m)
-            indRow = resample(range(N), n_samples=n, random_state=self.random_state, stratify=y_train,
-                              replace=False)
-            indCol = resample(range(N), n_samples=m, random_state=self.random_state, stratify=y_train,
-                              replace=False)
-        else:
-            # Random select max(n,m) rows
-            # indices = np.random.randint(N, size=max(n, m))
-            indices = resample(range(N), n_samples=max(n, m), random_state=self.random_state, stratify=y_train,
-                               replace=False)
-            # In indRow and indCol, one includes another
-            indRow = indices[0:n]
-            indCol = indices[0:m]
-        # mprint(f"y_train: {Counter(y_train)}, y_row: {Counter(y_train[indRow])}",
-        #        self.verbose, DEBUG)
-        Xrow = X_train[indRow, :]  # nxD
-        Xcol = X_train[indCol, :]  # mXDndom_state)  # use resample under the hood
+		#####################################################################################################
+		# 2. Get Xrow according to n
+		# n = 100  # n or max([200, int(round(X_train.shape[0] / 100, 0))])  # n_v: rows; m_v: cols. 200, 100?
+		m = n
+		# To get the fixed random_matrix (R)
+		np.random.seed(self.random_state)
+		independent_row_col = 0
+		if independent_row_col:
+			# # indRow and indCol are independent each other
+			# indRow = np.random.randint(N, size=n)
+			# indCol = np.random.randint(N, size=m)
+			indRow = resample(range(N), n_samples=n, random_state=self.random_state, stratify=y_train,
+			                  replace=False)
+			indCol = resample(range(N), n_samples=m, random_state=self.random_state, stratify=y_train,
+			                  replace=False)
+		else:
+			# Random select max(n,m) rows
+			# indices = np.random.randint(N, size=max(n, m))
+			indices = resample(range(N), n_samples=max(n, m), random_state=self.random_state, stratify=y_train,
+			                   replace=False)
+			# In indRow and indCol, one includes another
+			indRow = indices[0:n]
+			indCol = indices[0:m]
+		# mprint(f"y_train: {Counter(y_train)}, y_row: {Counter(y_train[indRow])}",
+		#        self.verbose, DEBUG)
+		Xrow = X_train[indRow, :]  # nxD
+		Xcol = X_train[indCol, :]  # mXDndom_state)  # use resample under the hood
 
-        #####################################################################################################
-        # 3. Get U according to Xrow
-        # compute Gaussian kernel gram matrix A (i.e., K generated from a subset of X)
-        Ksub = getGaussianGram(Xrow, Xcol, self.sigma)  # nXm
-        # %eigdecomposition of the kernel matrix of subsampled data
-        # Eigvec, Lambda = eigs(Ksub, d)
-        # use v0 = np.ones(Ksub.shape[0]) to fix the result
-        try:
-            Lambda, Eigvec = scipy.sparse.linalg.eigs(Ksub, k=d, which='LM', v0=np.ones(Ksub.shape[0]))
-        except Exception as e:
-            print(f'scipy.sparse.linalg.eigs error, {e}, try to add 1e-3 to redo again or lower accuracy')
-            # new_matrix = np.zeros(Ksub.shape)
-            # np.fill_diagonal(new_matrix, 1e-3)
-            Lambda, Eigvec = scipy.sparse.linalg.eigs(Ksub, k=d, which='LM', v0=np.ones(Ksub.shape[0]), tol=1e-10)
-        self.Lambda = np.real(np.diag(Lambda))  # np.diag(Lambda) to make it has the same format with matlab output
-        self.Eigvec = np.real(Eigvec)
+		#####################################################################################################
+		# 3. Get U according to Xrow
+		# compute Gaussian kernel gram matrix A (i.e., K generated from a subset of X)
+		Ksub = getGaussianGram(Xrow, Xcol, self.sigma)  # nXm
+		# %eigdecomposition of the kernel matrix of subsampled data
+		# Eigvec, Lambda = eigs(Ksub, d)
+		# use v0 = np.ones(Ksub.shape[0]) to fix the result
+		try:
+			Lambda, Eigvec = scipy.sparse.linalg.eigs(Ksub, k=d, which='LM', v0=np.ones(Ksub.shape[0]))
+		except Exception as e:
+			print(f'scipy.sparse.linalg.eigs error, {e}, try to add 1e-3 to redo again or lower accuracy')
+			# new_matrix = np.zeros(Ksub.shape)
+			# np.fill_diagonal(new_matrix, 1e-3)
+			Lambda, Eigvec = scipy.sparse.linalg.eigs(Ksub, k=d, which='LM', v0=np.ones(Ksub.shape[0]), tol=1e-10)
+		self.Lambda = np.real(np.diag(Lambda))  # np.diag(Lambda) to make it has the same format with matlab output
+		self.Eigvec = np.real(Eigvec)
 
-        self.Xrow = Xrow
-        self.eigvec_lambda = np.matmul(self.Eigvec, np.diag(1. / np.sqrt(np.diag(self.Lambda))))  # nxd
+		self.Xrow = Xrow
+		self.eigvec_lambda = np.matmul(self.Eigvec, np.diag(1. / np.sqrt(np.diag(self.Lambda))))  # nxd
 
-        return self
+		return self
 
-    def transform(self, X):
-        """Project X onto a lower space using Nystrom
+	def transform(self, X):
+		"""Project X onto a lower space using Nystrom
 
-        Parameters
-        ----------
-        X: array with shape (n_samples, n_feats)
+		Parameters
+		----------
+		X: array with shape (n_samples, n_feats)
 
-        Returns
-        -------
-        X: array with shape (n_samples, d)
-            "d" is the lower space dimension
+		Returns
+		-------
+		X: array with shape (n_samples, d)
+			"d" is the lower space dimension
 
-        """
+		"""
 
-        K = getGaussianGram(X, self.Xrow, self.sigma)  # get kernel matrix
-        # X = np.matmul(np.matmul(K, self.Eigvec), np.diag(1. / np.sqrt(np.diag(self.Lambda))))
-        X = np.matmul(K, self.eigvec_lambda)
+		K = getGaussianGram(X, self.Xrow, self.sigma)  # get kernel matrix
+		# X = np.matmul(np.matmul(K, self.Eigvec), np.diag(1. / np.sqrt(np.diag(self.Lambda))))
+		X = np.matmul(K, self.eigvec_lambda)
 
-        return X
+		return X
 
-    def update(self):
-        raise NotImplementedError('error')
+	def update(self):
+		raise NotImplementedError('error')
 
 #
 # def nystromInitialize(Xtrain, sigma, n, d, random_state=42):
