@@ -94,12 +94,13 @@ class _OCSVM(OneClassSVM):
 
 class OCSVM(BASE):
 
-    def __init__(self, params, kernel = 'rbf', random_state=42):
+    def __init__(self, params):
         super(OCSVM, self).__init__()
 
         self.params = params
-        self.kernel = kernel
-        self.random_state = random_state
+        self.kernel = params['kernel']
+        self.random_state = params['random_state']
+        self.params['OCSVM_nu'] = 0.5
 
     def fit(self, X_train, y_train=None):
         """
@@ -237,6 +238,6 @@ class OCSVM(BASE):
 
         return self
 
-    def eval(self, X_test, y_test, idx=None):
+    def test(self, X_test, y_test, idx=None):
         return self._test(self.model, X_test, y_test, idx=idx)
 

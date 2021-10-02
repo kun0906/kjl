@@ -7,7 +7,7 @@ Main steps:
 
 Command:
 	current directory is project_root_dir (i.e., kjl/.)
-	PYTHONPATH=. PYTHONUNBUFFERED=1 python3.7 applications/offline/kjl_demo.py
+	PYTHONPATH=. PYTHONUNBUFFERED=1 python3.7 examples/offline/kjl_demo.py
 """
 # Email: kun.bj@outlook.com
 # Author: kun
@@ -20,13 +20,13 @@ import numpy as np
 from loguru import logger as lg
 from sklearn.model_selection import train_test_split
 
-from applications.offline._constants import *
-from applications.offline._offline import Projection, Model
-from applications.offline.data.ctu import CTU
-from applications.offline.data.maccdc import MACCDC
-from applications.offline.data.mawi import MAWI
-from applications.offline.data.uchi import UCHI
-from applications.offline.data.unb import UNB
+from examples.offline._constants import *
+from examples.offline._offline import Projection, Model
+from examples.offline.datasets.ctu import CTU
+from examples.offline.datasets.maccdc import MACCDC
+from examples.offline.datasets.mawi import MAWI
+from examples.offline.datasets.uchi import UCHI
+from examples.offline.datasets.unb import UNB
 from kjl.utils.tool import timer, check_path, dump, load
 
 lg.remove()
@@ -35,22 +35,22 @@ lg.add(sys.stdout, format="{message}", level='INFO')
 
 @timer
 class Data:
-	def __init__(self, name, verbose=10, overwrite=False, feature_name='IAT+SIZE'):
+	def __init__(self, name, verbose=10, overwrite=False, feature_name='IAT+SIZE', flow_direction='src_dst'):
 		self.name = name
 		self.verbose = verbose
 		self.overwrite = overwrite
 		self.feature_name = feature_name
 
 		if name == 'UNB345_3':
-			self.data = UNB(out_dir='applications/offline/out', feature_name=feature_name)
+			self.data = UNB(out_dir=OUT_DIR, feature_name=feature_name, flow_direction=flow_direction)
 		elif name == 'CTU1':
-			self.data = CTU(out_dir='applications/offline/out', feature_name=feature_name)
+			self.data = CTU(out_dir=OUT_DIR, feature_name=feature_name, flow_direction=flow_direction)
 		elif name == 'MAWI1_2020':
-			self.data = MAWI(out_dir='applications/offline/out', feature_name=feature_name)
+			self.data = MAWI(out_dir=OUT_DIR, feature_name=feature_name, flow_direction=flow_direction)
 		elif name == 'MACCDC':
-			self.data = MACCDC(out_dir='applications/offline/out', feature_name=feature_name)
+			self.data = MACCDC(out_dir=OUT_DIR, feature_name=feature_name, flow_direction=flow_direction)
 		elif name in ['SFRIG1_2020', 'AECHO1_2020', 'DWSHR_WSHR_2020']:
-			self.data = UCHI(out_dir='applications/offline/out', feature_name=feature_name)
+			self.data = UCHI(out_dir=OUT_DIR, feature_name=feature_name, flow_direction=flow_direction)
 		else:
 			msg = name
 			raise NotImplementedError(msg)

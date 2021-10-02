@@ -7,7 +7,7 @@ Main steps:
 
 Command:
 	current directory is project_root_dir (i.e., kjl/.)
-	PYTHONPATH=. PYTHONUNBUFFERED=1 python3.7 applications/offline/feature_demo.py
+	PYTHONPATH=. PYTHONUNBUFFERED=1 python3.7 examples/offline/feature_demo.py
 """
 # Email: kun.bj@outlook.com
 # Author: kun
@@ -20,50 +20,15 @@ from loguru import logger as lg
 from odet.ndm.model import MODEL
 from odet.ndm.ocsvm import OCSVM
 from odet.pparser.parser import PCAP
-from odet.utils.tool import dump_data, load_data
 from sklearn.model_selection import train_test_split
 
-from applications.offline._constants import *
+from examples.offline._constants import *
+from kjl.utils.tool import timer, check_path, load, dump
 
 lg.remove()
 lg.add(sys.stdout, format="{message}", level='INFO')
 
-
-def timer(func):
-	# This function shows the execution time of
-	# the function object passed
-	def wrap_func(*args, **kwargs):
-		t1 = time()
-		result = func(*args, **kwargs)
-		t2 = time()
-		print(f'Function {func.__name__!r} executed in {(t2 - t1):.4f}s')
-		return result
-
-	return wrap_func
-
-
-def check_path(dir_path):
-	"""Check if a path is existed or not.
-	 If the path doesn't exist, then create it.
-
-	Parameters
-	----------
-	file_path: str
-
-	overwrite: boolean (default is True)
-		if the path exists, delete all data in it and create a new one
-
-	Returns
-	-------
-
-	"""
-	if os.path.exists(dir_path):
-		return True
-	else:
-		os.makedirs(dir_path)
-		return False
-
-
+IN_DIR = 'examples/offline/datasets'
 @timer
 def pcap2feature():
 
@@ -94,7 +59,7 @@ def pcap2feature():
 	y = [v for fid, v in y]
 	check_path(OUT_DIR)
 	out_file = f'{OUT_DIR}/DEMO_{feat_type}.dat'
-	dump_data((X, y), out_file)
+	dump((X, y), out_file)
 
 	# lg.info(f"feature_shape: {pp.features.shape}, {pp.pcap2flows.tot_time},"
 	#         f"{pp.flows2subflows.tot_time}, {pp.flow2features.tot_time}")
@@ -106,7 +71,7 @@ def pcap2feature():
 def model(data_file):
 	# load data
 	lg.info(f'\n---1.1 Load data')
-	X, y = load_data(data_file)
+	X, y = load(data_file)
 
 	# split train and test test
 	lg.info(f'\n---1.2 Split train and test data')
@@ -127,7 +92,7 @@ def model(data_file):
 	# dump data to disk
 	lg.info(f'\n---3. Save the results')
 	out_dir = os.path.dirname(data_file)
-	dump_data((model, ndm.history), out_file=f'{out_dir}/{ndm.model_name}-results.dat')
+	dump((model, ndm.history), out_file=f'{out_dir}/{ndm.model_name}-results.dat')
 
 	lg.info(f"train_time: {ndm.train.tot_time}, test_time: {ndm.test.tot_time}, auc: {ndm.score:.4f}")
 

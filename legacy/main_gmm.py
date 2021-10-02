@@ -1192,7 +1192,7 @@ def main():
     # Step 0. All datasets
     n_init_train = 1000
     in_dir = f'data/feats/n_init_train_{n_init_train}'
-    out_dir = '../applications/online/out'
+    out_dir = '../examples/online/out'
     data_path_mappings = {
         # 'DEMO_IDS': 'DEMO_IDS/DS-srcIP_192.168.10.5',
         'mimic_GMM': f'{in_dir}/mimic_GMM_dataset/Xy-normal-abnormal.dat',

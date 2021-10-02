@@ -1,14 +1,13 @@
 """
 
 """
-from kjl.utils.tool import execute_time
+from kjl.utils.tool import execute_time, dump
 
 RANDOM_STATE = 42
 
 import os
 import numpy as np
 from odet.pparser.parser import PCAP, _get_split_interval, _get_flow_duration, _flows2subflows
-from odet.utils.tool import dump_data, load_data
 
 
 class FEATURES(PCAP):
@@ -42,18 +41,18 @@ class FEATURES(PCAP):
         self.label_flows(label_file=self.label_file, label=self.label)
         out_file = f'{self.out_dir}/flows.dat'
         print('raw_flows+labels: ', out_file)
-        dump_data((self.flows, self.labels), out_file)
+        dump((self.flows, self.labels), out_file)
 
         self.flows2subflows(interval=self.interval, q_interval=self.q_interval)
         out_file = f'{self.out_dir}/subflows-q_interval:{self.q_interval}.dat'
         print('subflows+labels: ', out_file)
-        dump_data((self.flows, self.labels), out_file)
+        dump((self.flows, self.labels), out_file)
 
         # extract features from each flow given feat_type
         self.flow2features(self.feat_type, fft=self.fft, header=self.header)
         out_file = f'{self.out_dir}/features-q_interval:{self.q_interval}.dat'
         print('features+labels: ', out_file)
-        dump_data((self.features, self.labels), out_file)
+        dump((self.features, self.labels), out_file)
 
         print(self.features.shape, self.pcap2flows.tot_time, self.flows2subflows.tot_time, self.flow2features.tot_time)
 

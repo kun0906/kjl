@@ -44,15 +44,15 @@ end
 
 
 class KJL:
-    def __init__(self, d=None, n=100, m = None, q = None, verbose = 1, sigma = None, random_state=42):
-        # self.params = params
-        self.d = d
-        self.n = n
-        self.m = n if m is None else m
-        self.q = q
-        self.random_state = random_state
-        self.verbose = verbose
-        self.sigma = sigma
+    def __init__(self, params):
+        self.params = params
+        self.d = self.params['kjl_d']
+        self.n = self.params['kjl_n']
+        self.m = self.n
+        self.q = self.params['kjl_q']
+        self.random_state = self.params['random_state']
+        self.verbose = 0
+        self.sigma = None
 
     def fit(self, X_train, y_train=None, X_train_raw=None, y_train_raw=None):
         """Get KJL related data, such as, U, X_row, random matrix, and A
@@ -68,10 +68,6 @@ class KJL:
 
         #####################################################################################################
         # 1. Get sigma according to q_kjl
-        # d = self.params['kjl_d']
-        # n = self.params['kjl_n']
-        # q = self.params['kjl_q']
-
         N, D = X_train.shape
 
         if self.sigma is not None:

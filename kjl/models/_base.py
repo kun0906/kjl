@@ -11,13 +11,14 @@ import cProfile
 import numpy as np
 import sklearn
 # from func_timeout import func_set_timeout, FunctionTimedOut
+from func_timeout import func_set_timeout
 from joblib import delayed, Parallel
 from sklearn import metrics
 from sklearn.metrics import pairwise_distances, roc_curve
 from loguru import logger as lg
 from kjl.utils import pstats
 
-FUNC_TIMEOUT = 3 * 60  # (if function takes more than 3 mins, then it will be killed)
+FUNC_TIMEOUT = 5 * 60  # (if function takes more than 10 mins, then it will be killed)
 np.set_printoptions(precision=2, suppress=True)
 
 from sklearn import metrics
@@ -37,7 +38,7 @@ class BASE:
     # @timeout_decorator.timeout(seconds=30 * 60, use_signals=False, timeout_exception=StopIteration)
     # @profile
     # func_timeout will run the specified function in a thread with the specified arguments until it returns.
-    # @func_set_timeout(FUNC_TIMEOUT)  # seconds
+    @func_set_timeout(FUNC_TIMEOUT)  # seconds
     def _train(self, model, X_train, y_train=None):
         """Train models on the (X_train, y_train)
 
@@ -129,7 +130,7 @@ class BASE:
         # ps.print_stats()
         self.model_test_time = ps.total_tt
         self.test_time += self.model_test_time
-        lg.debug(f'y_score: {y_score}, y_test: {y_test}')
+        # lg.debug(f'y_score: {y_score}, y_test: {y_test}')
 
         # For binary  y_true, y_score is supposed to be the score of the class with greater label.
         # auc = roc_auc_score(y_test, y_score)  # NORMAL(inliers): 0, ABNORMAL(outliers: positive): 1
@@ -143,7 +144,7 @@ class BASE:
                 f'model_test_time: {self.model_test_time}, idx={idx}')
 
         # return self.auc, self.test_time
-        res = {'auc': self.auc, 'test_time': self.test_time}
+        res = {'score': self.auc, 'auc': self.auc, 'test_time': self.test_time}
         return res
 
     def save(self, data, out_file='.dat'):
