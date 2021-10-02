@@ -9,6 +9,7 @@ from glob import glob
 from odet.pparser.parser import _get_frame_time, PcapReader
 
 from kjl.datasets._base import Base
+from kjl.utils.tool import dump
 
 
 class UChicago(Base):
@@ -55,7 +56,7 @@ def get_flows(in_dir, subdatasets, out_dir='applications/data/feats', verbose=15
             labels = [f'normal' for v in range(len(pcap_files))]
             uc.get_flows(pcap_files, labels)
 
-            dump_data((uc.flows, uc.labels), out_file)
+            dump((uc.flows, uc.labels), out_file)
         normal_files.append(out_file)
 
         #########################################################################################################
@@ -70,7 +71,7 @@ def get_flows(in_dir, subdatasets, out_dir='applications/data/feats', verbose=15
                 pcap_files = uc.get_path(os.path.join(in_dir, abnormal_dir))
                 labels = [f'abnormal' for v in range(len(pcap_files))]
                 uc.get_flows(pcap_files, labels)
-                dump_data((uc.flows, uc.labels), out_file)
+                dump((uc.flows, uc.labels), out_file)
             abnormal_files.append(out_file)
 
     if verbose > 10:

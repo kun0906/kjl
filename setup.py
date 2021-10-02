@@ -17,11 +17,11 @@ if os.path.exists(build_dir):
     shutil.rmtree(build_dir)
 
 APP_NAME = 'kjl'
-examples_dir = os.path.join(APP_NAME, 'applications')
+examples_dir = os.path.join(APP_NAME, 'examples')
 tests_dir = os.path.join(APP_NAME, APP_NAME, 'tests')
 install_examples = True
 if install_examples:
-    if not os.path.exists(examples_dir): shutil.copytree('applications', examples_dir)
+    if not os.path.exists(examples_dir): shutil.copytree('examples', examples_dir)
     if not os.path.exists(tests_dir): shutil.copytree('tests', tests_dir)
 
 
@@ -52,7 +52,7 @@ setup(name=APP_NAME,
       url='https://github.com/Learn-Live/odet',
       download_url='https://github.com/Learn-Live/odet',
       license='xxx',
-      python_requires='>=3.7.3',
+      python_requires='~=3.7.9',
       install_requires=['numpy>=1.18.3',
                         'scipy>=1.4.1',
                         'pandas>=0.25.1',

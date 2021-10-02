@@ -1,20 +1,29 @@
+"""
+
+"""
+# Email: kun.bj@outlook.com
+# Author: kun
+# License: xxx
+
+from collections import Counter
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import cm
-
-from examples.speedup._speedup_kjl import BASE
 #
 # # sns.set_style("darkgrid")
 # sns.set_style("whitegrid")
 # # colorblind for diff
+from kjl.projections.kjl import KJL
+from kjl.projections.nystrom import Nystrom
 from kjl.utils.tool import check_path
 #
 # sns.set_palette("bright")  # for feature+header
 # sns.palplot(sns.color_palette())
 
-
+np.random.seed(42)
 def make_circles(N=5000, r1=1, r2=5, w1=0.8, w2=1 / 3, arms=64):
     """ clusterincluster.m
     function data = clusterincluster(N, r1, r2, w1, w2, arms)
@@ -89,14 +98,6 @@ def make_circles(N=5000, r1=1, r2=5, w1=0.8, w2=1 / 3, arms=64):
     data = np.concatenate([d1, d2], axis=0)
     # % scatter(data(:, 1), data(:, 2), 20, data(:, 3)); axis square;
     X, y = data[:, :2], data[:, -1]
-    return X, y
-
-
-def get_cluster_data(n_samples=5000, random_state=42):
-    # X, y = datasets.make_circles(n_samples=n_samples, factor=.5, random_state=random_state,
-    #                                       noise=.00)
-
-    X, y = make_circles()
     return X, y
 
 
@@ -304,7 +305,7 @@ def plot_compare_kjl_nystrom(raw_data, kjl_data, nystrom_data, out_file='.pdf'):
     # plt.legend(show_repres, loc='lower right')
     # # plt.savefig("DT_CNN_F1"+".jpg", dpi = 400)
     print(f'{out_file}')
-    plt.savefig(out_file + '.pdf')  # should use before plt.show()
+    plt.savefig(out_file)  # should use before plt.show()
     plt.show()
     plt.close(fig)
 
@@ -317,21 +318,26 @@ def plot_compare_kjl_nystrom(raw_data, kjl_data, nystrom_data, out_file='.pdf'):
 
 def main():
     random_state = 42
-    X, y = get_cluster_data(n_samples=5000, random_state=random_state)
+    X, y = make_circles(N=10000)
     plot_data(X, y)
-
+    print(X.shape, y.shape, Counter(y))
     # KJL projection
-    kjl_params = {'is_kjl': True, 'kjl_d': 2, 'kjl_n': 100, 'kjl_q': 0.3}
+    kjl_params = {'is_kjl': True, 'kjl_d': 2, 'kjl_n': 100, 'kjl_q': 0.3, 'random_state': random_state}
     # X_train, X_test = self.project_kjl(X_train, X_test, kjl_params=self.params)
-    X_kjl, _ = BASE(random_state).project_kjl(X, X, kjl_params=kjl_params)
+    kjl = KJL(kjl_params)
+    kjl.fit(X)
+    X_kjl = kjl.transform(X)
     plot_data(X_kjl, y)
 
     # Nystrom projection
-    nystrom_params = {'is_nystrom': True, 'nystrom_d': 2, 'nystrom_n': 100, 'nystrom_q': 0.3}
-    X_nystrom, _ = BASE(random_state).project_nystrom(X, X, nystrom_params=nystrom_params)
+    nystrom_params = {'is_nystrom': True, 'nystrom_d': 2, 'nystrom_n': 100, 'nystrom_q': 0.3,
+                      'random_state': random_state}
+    nystrom = Nystrom(nystrom_params)
+    nystrom.fit(X)
+    X_nystrom = nystrom.transform(X)
     plot_data(X_nystrom, y)
 
-    out_file = 'offline/out_cluster_in_cluster/raw_kjl_nystrom_comparison.pdf'
+    out_file = 'examples/offline/report/out/cluster_in_cluster/raw_kjl_nystrom_comparison.pdf'
     plot_compare_kjl_nystrom((X, y), (X_kjl, y), (X_nystrom, y), out_file=out_file)
 
 

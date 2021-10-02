@@ -54,7 +54,7 @@ from sklearn.metrics import average_precision_score, roc_curve
 from kjl.utils.tool import dump
 
 
-class GMM(GaussianMixture):
+class _GMM(GaussianMixture):
 
     def __init__(self, n_components=1, covariance_type='full', tol=1e-3,
                  reg_covar=1e-6, max_iter=100, n_init=1, init_params='kmeans',
@@ -158,15 +158,17 @@ def compute_gmm_init(n_components=2, X=None, n_thres=1000, tot_clusters={}, tot_
 
 
 
-class GMM_MAIN(BASE):
+class GMM(BASE):
 
     def __init__(self, params):
-        super(GMM_MAIN, self).__init__()
+        super(GMM, self).__init__()
 
         self.params = params
         self.random_state = params['random_state']
+        self.params['GMM_is_init_all'] = False
+        self.params['after_proj'] = True
 
-    def train(self, X_train, y_train=None):
+    def fit(self, X_train, y_train=None):
         """
 
         Parameters
@@ -283,7 +285,7 @@ class GMM_MAIN(BASE):
         # 2.1 Initialize the models
         pr = cProfile.Profile(time.perf_counter)
         pr.enable()
-        model = GMM()
+        model = _GMM()
         if self.params['GMM_is_init_all'] and (self.params['is_quickshift'] or self.params['is_meanshift']):
             # get the init params of GMM
             self.weights_init, self.means_init, self.precisions_init, _ = compute_gmm_init(

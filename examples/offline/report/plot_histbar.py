@@ -12,12 +12,8 @@ from collections import OrderedDict
 import numpy as np
 import pandas as pd
 
-from kjl.utils.tool import load_data
-from offline._constants import *
-
-lib_path = os.path.abspath('.')
-sys.path.append(lib_path)
-print(f"add \'{lib_path}\' into sys.path: {sys.path}")
+from kjl.utils.tool import load
+from examples.offline._constants import *
 #
 # import matplotlib
 # matplotlib.use('TkAgg')     # pycharm can't use subplots_adjust() to show the legend and modified subplots correctly.
@@ -192,80 +188,6 @@ def seaborn_palette(feat_type='', fig_type='raw'):
             raise ValueError(msg)
 
     return colors
-
-
-MODELS = [  # algorithm name
-    "OCSVM(rbf)",
-    "KJL-OCSVM(linear)",
-
-    "GMM(full)", "GMM(diag)",
-
-    "KJL-GMM(full)", "KJL-GMM(diag)",
-
-    "Nystrom-GMM(full)", "Nystrom-GMM(diag)",
-
-    # quickshift(QS)/meanshift(MS) are used before KJL/Nystrom projection
-    "QS-KJL-GMM(full)", "QS-KJL-GMM(diag)",
-    "MS-KJL-GMM(full)", "MS-KJL-GMM(diag)",
-
-    "QS-Nystrom-GMM(full)", "QS-Nystrom-GMM(diag)",
-    "MS-Nystrom-GMM(full)", "MS-Nystrom-GMM(diag)",
-
-    # quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection
-    "KJL-QS-GMM(full)", "KJL-QS-GMM(diag)",
-    "KJL-MS-GMM(full)", "KJL-MS-GMM(diag)"
-
-                        "Nystrom-QS-GMM(full)", "Nystrom-QS-GMM(diag)",
-    "Nystrom-MS-GMM(full)", "Nystrom-MS-GMM(diag)"
-
-]
-
-DATASETS = [
-    # 'UNB3',
-    # 'UNB_5_8_Mon',  # auc: 0.5
-    # 'UNB12_comb',  # combine UNB1 and UNB2 normal and attacks
-    # 'UNB13_comb',  # combine UNB1 and UNB2 normal and attacks
-    # 'UNB14_comb',
-    # 'UNB23_comb',  # combine UNB1 and UNB2 normal and attacks
-    # 'UNB24_comb',
-    # 'UNB34_comb',
-    # 'UNB35_comb',
-
-    # 'UNB12_1',  # combine UNB1 and UNB2 attacks, only use UNB1 normal
-    # 'UNB13_1',
-    # 'UNB14_1',
-    # 'UNB23_2', # combine UNB1 and UNB2 attacks, only use UNB2 normal
-    # 'UNB24_2',
-    # 'UNB34_3',
-    # 'UNB35_3',
-    # 'UNB34_3',
-    # # 'UNB45_4',
-    #
-    # 'UNB123_1',  # combine UNB1, UNB2, UNB3 attacks, only use UNB1 normal
-    # 'UNB134_1',
-    # 'UNB145_1',
-
-    # 'UNB245_2',
-
-    # # 'UNB234_2',  # combine UNB2, UNB3, UNB4 attacks, only use UNB2 normal
-    'UNB35_3',  # combine  UNB3, UNB5 attacks, only use UNB3 normal
-    'UNB345_3',  # combine UNB3, UNB3, UNB5 attacks, only use UNB3 normal
-    # #
-    # # 'UNB24',
-    'CTU1',
-    # # # # # 'CTU21', # normal + abnormal (botnet) # normal 10.0.0.15 (too few normal flows)
-    # # # # # # 'CTU22',  # normal + abnormal (coinminer)
-    # # # 'CTU31',  # normal + abnormal (botnet)   # 192.168.1.191
-    'CTU32',  # normal + abnormal (coinminer)
-    'MAWI1_2020',
-    # # # # # # 'MAWI32_2020',  # 'MAWI/WIDE_2020/pc_203.78.4.32',
-    # # # # # 'MAWI32-2_2020',  # 'MAWI/WIDE_2020/pc_203.78.4.32-2',
-    # # # 'MAWI165-2_2020',  # 'MAWI/WIDE_2020/pc_203.78.7.165-2',  # ~25000 (flows src_dst)
-    'ISTS1',
-    'MACCDC1',
-    'SFRIG1_2020',
-    'AECHO1_2020',
-]
 
 
 def parse_xlsx(input_file='xxx.dat-ratio.xlsx', tab_type=f'iat_size-header_False-gs_False-KJL-QS+Nystrom-QS'):
@@ -1148,49 +1070,7 @@ def show_full_diag(full_file, diag_file, out_file='output_data', model_name='KJL
         handles, labels = g.get_legend_handles_labels()
         axes[t, j % c].legend(handles, labels, loc="upper right", fontsize=font_size - 4)  # bbox_to_anchor=(0.5, 0.5)
 
-    # # # get the legend only from the last 'ax' (here is 'g')
-    # handles, labels = g.get_legend_handles_labels()
-    # labels = ["\n".join(textwrap.wrap(v, width=45)) for v in labels]
-    # # pos1 = axes[-1, -1].get_position()  # get the original position
-    # # # pos2 = [pos1.x0 + 0.3, pos1.y0 + 0.3,  pos1.width / 2.0, pos1.height / 2.0]
-    # # # ax.set_position(pos2) # set a new position
-    # # loc = (pos1.x0 + (pos1.x1 - pos1.x0) / 2, pos1.y0 + 0.05)
-    # # print(f'loc: {loc}, pos1: {pos1.bounds}')
-    # # # axes[-1, -1].legend(handles, labels, loc=2, # upper right
-    # # #             ncol=1, prop={'size': font_size-13})  # loc='lower right',  loc = (0.74, 0.13)
-    # # axes[-1, -1].legend(handles, labels, loc='lower center', bbox_to_anchor=(0.0, 0.95, 1, 0.5),borderaxespad=0, fancybox=True, # upper right
-    # #                     ncol=1, prop={'size': font_size - 4})  # loc='lower right',  loc = (0.74, 0.13)
-    #
-    # # share one legend
-    # fig.legend(handles, labels, loc='lower center',  # upper left
-    #            ncol=3, prop={'size': font_size - 4})  # l
 
-    # figs.legend(handles, labels, title='Representation', bbox_to_anchor=(2, 1), loc='upper right', ncol=1)
-    # remove subplot
-    # fig.delaxes(axes[1][2])
-    # axes[-1, -1].set_axis_off()
-
-    # j += 1
-    # while t < r:
-    #     if j % c == 0:
-    #         t += 1
-    #         if t >= r:
-    #             break
-    #         j = 0
-    #     # remove subplot
-    #     # fig.delaxes(axes[1][2])
-    #     axes[t, j % c].set_axis_off()
-    #     j += 1
-
-    # # plt.xlabel('Catagory')
-    # plt.ylabel('AUC')
-    # plt.ylim(0,1.07)
-    # # # plt.title('F1 Scores by category')
-    # n_groups = len(show_datasets)
-    # index = np.arange(n_groups)
-    # # print(index)
-    # # plt.xlim(xlim[0], n_groups)
-    # plt.xticks(index + len(show_repres) // 2 * bar_width, labels=[v for v in show_datasets])
     plt.tight_layout()
     #
 
@@ -1441,7 +1321,7 @@ def plot_bar_difference_seaborn_vs_stats(data=[], show_detectors=['OCSVM', 'AE']
     plt.savefig(out_file)  # should use before plt.show()
     plt.show()
 
-    del fig  # must have this.
+    del figs  # must have this.
 
     # sns.reset_orig()
     sns.reset_defaults()
@@ -1997,157 +1877,6 @@ def combine_train_test(train_file, test_file, out_file='merged.xlsx'):
     return out_file
 
 
-#
-# def main():
-#     case = 'find_difference'
-#     case = 'csv2figs'
-#     out_dir = 'offline/out/report/src_dst/'
-#     if case == 'csv2latex2':
-#         out_file = out_dir + 'results_latex.txt'
-#         header = False
-#         num_feat = 3
-#         # if num_feat == 3:
-#         #     tab_latex = tab_latex_3
-#         # else:
-#         #     tab_latex = tab_latex_7
-#         # with open(out_file, 'w') as f:
-#         #     for i, (detector, input_file) in enumerate(input_files.items()):
-#         #         tab_false, tab_true = csv2latex_previous(input_file=input_file,
-#         #                                                  tab_latex=tab_latex, caption=detector, do_header=header,
-#         #                                                  previous_result=True,
-#         #                                                  num_feat=num_feat,
-#         #                                                  verbose=0)
-#         #
-#         #         # tab_false, tab_true = csv2latex(input_file=input_file,
-#         #         #                                 tab_latex=tab_latex, caption=detector, do_header=header,
-#         #         #                                 num_feat=num_feat,
-#         #         #                                 verbose=0)
-#         #
-#         #         f.write(detector + ':' + input_file + '\n')
-#         #         for line in tab_false:
-#         #             f.write(line + '\n')
-#         #         print()
-#         #
-#         #         for line in tab_true:
-#         #             f.write(line + '\n')
-#         #         print()
-#         #         f.write('\n')
-#     elif case == 'csv2figs':
-#         # # # case 1
-#         # gs = True
-#         # name = 'show_KJL_GMM_KJL_OCSVM'
-#         # #
-#         # case 2
-#         gs = False
-#         name = 'show_KJL_QS_Nystrom_QS'
-#
-#         # case 3
-#         gs = True
-#         name = 'show_full_diag'
-#
-#
-#         covariance = 'diag'
-#         fig_flg = 'main'
-#         feat_header = 'iat_size-header_False'
-#         # feat_header = 'stats-header_True'
-#         # file_name = f'offline/calumet_out-20210204/src_dst/{feat_header}/before_proj_False-gs_{gs}/std_False_center_False-d_5-{covariance}/res.csv-ratio.xlsx'
-#
-#         # train_out
-#         train_out_file = f'offline/paper_data/neon_train_out/out/src_dst/{feat_header}/before_proj_False-gs_{gs}/std_False_center_False-d_5-{covariance}/res.csv-ratio.xlsx'
-#         # test_out
-#         test_file_name = f'offline/paper_data/neon_out/out/models_res/src_dst/{feat_header}/before_proj_False-gs_{gs}/std_False_center_False-d_5-{covariance}/res.csv-ratio.xlsx'
-#         # merge train_out and test_out
-#         file_name = f'offline/paper_data/neon_out/out/models_res/src_dst/{feat_header}/before_proj_False-gs_{gs}/std_False_center_False-d_5-{covariance}/res.csv-ratio-merged.xlsx'
-#         file_name=merge_train_test(train_out_file, test_file_name, out_file=file_name)
-#         print(file_name)
-#
-#         if gs ==True and name == 'show_KJL_GMM_KJL_OCSVM':
-#             # KJL-GMM vs. KJL-OCSVM(linear)
-#             for i, name in enumerate(['KJL', 'Nystrom']):
-#                 tab_type = f'{feat_header}-gs_{gs}-{name}-GMM-{name}-OCSVM(linear)-{covariance}'
-#                 out_dir = os.path.dirname(file_name)
-#                 out_file = f'{out_dir}/All_latex_tables_figs.txt'  # for main paper results
-#                 check_path(out_file)
-#                 with open(out_file, 'w') as f:
-#                     print('\n\n******************')
-#                     print(i, tab_type, gs)
-#                     try:
-#
-#                         # # only for best params
-#                         # if tab_type == 'iat_size-header_False-gs_True-KJL-GMM-KJL-OCSVM(linear)-full'  or \
-#                         #         tab_type == 'iat_size-header_False-gs_True-KJL-GMM-KJL-OCSVM(linear)-diag':
-#                         show_KJL_GMM_KJL_OCSVM(input_file=file_name,
-#                                                out_file=os.path.dirname(
-#                                                    out_file) + "/" + tab_type + '-' + fig_flg,
-#                                                tab_type=tab_type, fig_flg=fig_flg, gs=gs,
-#                                            n_repeats=5)
-#                     except Exception as e:
-#                         print('Error: ', i, e)
-#                         traceback.print_exc()
-#                         continue
-#
-#                 # release the matplotlib memory
-#                 # Clear the current figure.
-#                 plt.clf()
-#                 # Closes all the figure windows.
-#                 plt.close('all')
-#
-#                 import gc
-#                 gc.collect()
-#
-#         elif gs == False and name == 'show_KJL_QS_Nystrom_QS':
-#             # KJL-QS-GMM, Nystrom-QS-GMM
-#             # tab_type = f'{feat_header}-gs_{gs}-{name}-GMM-{name}-OCSVM(linear)-{covariance}'
-#             tab_type = 'iat_size-header_False-gs_False-KJL-QS-Nystrom-QS-full'
-#             out_dir = os.path.dirname(file_name)
-#             out_file = f'{out_dir}/All_latex_tables_figs.txt'  # for main paper results
-#             check_path(out_file)
-#             i = 0
-#             with open(out_file, 'w') as f:
-#                 print('\n\n******************')
-#                 print(i, tab_type, gs)
-#                 try:
-#
-#                     # # only for best params
-#                     # if tab_type == 'iat_size-header_False-gs_True-KJL-GMM-KJL-OCSVM(linear)-full'  or \
-#                     #         tab_type == 'iat_size-header_False-gs_True-KJL-GMM-KJL-OCSVM(linear)-diag':
-#                     show_KJL_QS_Nystrom_QS(input_file=file_name,
-#                                            out_file=os.path.dirname(
-#                                                out_file) + "/" + tab_type + '-' + fig_flg,
-#                                            tab_type=tab_type, fig_flg=fig_flg, gs=gs,
-#                                            n_repeats=5)
-#                 except Exception as e:
-#                     print('Error: ', i, e)
-#                     traceback.print_exc()
-#
-#
-#             # release the matplotlib memory
-#             # Clear the current figure.
-#             plt.clf()
-#             # Closes all the figure windows.
-#             plt.close('all')
-#
-#             import gc
-#             gc.collect()
-#         else:
-#             # tab_type = f'{feat_header}-gs_{gs}-KJL-QS-full+KJL-QS-diag'
-#             for model_name, tab_type in  [('KJL-QS-GMM', 'iat_size-header_False-gs_True-KJL-QS-full+KJL-QS-diag'),
-#                               ('Nystrom-QS-GMM', 'iat_size-header_False-gs_True-Nystrom-QS-full+Nystrom-QS-diag')]:
-#
-#                 full_file =   f'offline/calumet_out-20210204/src_dst/{feat_header}/before_proj_False-gs_True/std_False_center_False-d_5-{covariance}/res.csv-ratio.xlsx'
-#                 diag_file  = f'offline/calumet_out-20210204/src_dst/{feat_header}/before_proj_False-gs_False/std_False_center_False-d_5-{covariance}/res.csv-ratio.xlsx'
-#
-#
-#                 out_dir = os.path.dirname(full_file)
-#                 out_file = f'{out_dir}/All_latex_tables_figs.txt'  # for main paper results
-#                 check_path(out_file)
-#
-#                 show_full_diag(full_file, diag_file,
-#                                out_file=os.path.dirname(
-#                                    out_file) + "/" + tab_type + '-' + fig_flg,
-#                                tab_type=tab_type, model_name=model_name, gs=gs,
-#                            n_repeats=5)
-
 
 def show_kjl_gmm_vs_kjl_ocsvm(res, out_file='output_data',
                               datasets=['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DWSHR'],
@@ -2340,232 +2069,6 @@ def show_kjl_gmm_vs_kjl_ocsvm(res, out_file='output_data',
     plt.close('all')
 
     return out_file
-
-#
-# def show_oc_kjl_qs_vs_nystrom_qs(res, out_file='output_data',
-#                                  datasets=['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DWSHR'],
-#                                  tab_type='', fig_flg='main_paper',
-#                                  n_repeats=5, gs=False,
-#                                  verbose=1):
-#     """
-#
-#     Parameters
-#     ----------
-#     input_file
-#     tab_latex
-#     caption
-#     do_header
-#     num_feat
-#     verbose
-#
-#     Returns
-#     -------
-#
-#     """
-#
-#     sns.set_style("darkgrid")
-#     r = 2
-#     c = 2
-#     if r == 1 and c == 1:
-#         fig, axes = plt.subplots(r, c, figsize=(8, 5))  # (width, height)
-#     elif r == 2 and c == 2:
-#         fig, axes = plt.subplots(r, c, figsize=(18, 10))  # (width, height)
-#     elif r == 2 and c == 3:
-#         fig, axes = plt.subplots(r, c, figsize=(18, 10))  # (width, height)
-#         gs = axes[1, 0].get_gridspec()
-#         # remove the underlying axes
-#         for ax in axes[1, :]:
-#             ax.remove()
-#         axes[1, 0] = fig.add_subplot(gs[1, :])
-#     if r == 1:
-#         axes = np.asarray(axes).reshape(1, -1)
-#
-#     t = 0
-#     metrics = ['AUC Speedup', 'Train Time Speedup', 'Space Saving', 'Test Time Speedup']
-#     for j, diff_name in enumerate(metrics):
-#         sub_dataset = []
-#         yerrs = []  # std/sqrt(n_repeats)
-#         for data_name, ds in res.items():
-#             for device_name in ['NEON']:
-#                 for model_name, vs in ds.items():
-#                     if type(vs) == dict:
-#                         if 'AUC' in diff_name:
-#                             vs = vs['aucs']
-#                         elif 'train' in diff_name:
-#                             vs = vs['train_times']
-#                         elif 'test' in diff_name:
-#                             vs = vs['test_times']
-#                         elif 'Space' in diff_name:
-#                             vs = vs['spaces']
-#                         vs = vs.split('+/-')
-#                         mean_, std_ = float(vs[0]), float(vs[1])
-#                         if diff_name == 'Speedup AUC' and device_name == 'NEON':
-#                             sub_dataset.append([data_name, f"{model_name} / OCSVM", mean_])
-#                             yerrs.append(std_)
-#                         elif diff_name in ['Train Time Speedup', 'Space Saving'] and device_name == 'NEON':
-#                             sub_dataset.append([data_name, f"OCSVM / {model_name}", mean_])
-#                             yerrs.append(std_)
-#                         elif diff_name in ['Speedup test']:
-#                             sub_dataset.append([data_name, f"OCSVM / {model_name}({device_name})", mean_])
-#                             yerrs.append(std_)
-#
-#         new_colors = []
-#         if j % c == 0:
-#             if j == 0:
-#                 t = 0
-#             else:
-#                 t += 1
-#
-#         print(f'{diff_name}: {sub_dataset}')
-#         df = pd.DataFrame(sub_dataset, columns=['datasets', 'model_name', 'diff'])
-#         print('yerrs:', yerrs)
-#         # colors = [ 'green', 'orange', 'c', 'm',  'b', 'r','tab:brown', 'tab:green'][:2]
-#         g = sns.barplot(y="diff", x='datasets', hue='model_name', data=df, ci=None,
-#                         capsize=.2, ax=axes[t, j % c])
-#         ys = []
-#         xs = []
-#         width = 0
-#         sub_fig_width = 0
-#         for i_p, p in enumerate(g.patches):
-#             height = p.get_height()
-#             # g.text(p.get_x() + p.get_width() / 2.,
-#             #        height,
-#             #        '{:0.3f}'.format(new_yerrs[i_p]),
-#             #        ha="center")
-#             width = p.get_width()
-#             ys.append(height)
-#             xs.append(p.get_x())
-#             # yerr.append(i_p + p.get_height())
-#
-#             num_bars = df['model_name'].nunique()
-#             # print(f'num_bars:',num_bars)
-#             if i_p == 0:
-#                 pre = p.get_x() + p.get_width() * num_bars
-#                 sub_fig_width = p.get_bbox().width
-#             if i_p < df['datasets'].nunique() and i_p > 0:
-#                 cur = p.get_x()
-#                 # g.axvline(color='black', linestyle='--', x=pre + (cur - pre) / 2, alpha=0.3)
-#                 g.axvline(color='black', linestyle='--', x=pre + (cur - pre) / 2, ymin=0, ymax=1, alpha=0.3)
-#                 pre = cur + p.get_width() * num_bars
-#
-#         axes[t, j % c].errorbar(x=xs + width / 2, y=ys,
-#                                 yerr=yerrs, fmt='none', c='b', capsize=3)
-#
-#         # g.set(xlabel=detector_name)       # set name at the bottom
-#         g.set(xlabel=None)
-#         g.set(ylabel=None)
-#         # g.set_ylim(-1, 1)
-#         font_size = 20
-#         # g.set_ylabel(diff_name, fontsize=font_size + 4)
-#         g.set_ylabel(diff_name, fontsize=font_size + 4)
-#         appendix = False
-#         if appendix:
-#             show_detectors = []
-#             if j < len(show_detectors) - 1:
-#                 g.set_xticklabels([])
-#             else:
-#                 g.set_xticklabels(g.get_xticklabels(), fontsize=font_size + 4, rotation=30, ha="center")
-#         else:
-#             g.set_xticklabels(g.get_xticklabels(), fontsize=font_size + 4, rotation=30, ha="center")
-#         # yticks(np.arange(0, 1, step=0.2))
-#         # g.set_yticklabels([f'{x:.2f}' for x in g.get_yticks() if x%0.5==0], fontsize=font_size + 4)
-#
-#         # y_v = [float(f'{x:.1f}') for x in g.get_yticks() if x%0.5==0]
-#         # y_v = [float(f'{x:.2f}') for x in g.get_yticks()]
-#         if 'AUC' in diff_name:
-#             y_v = [0.0, 0.5, 1.0, 1.5, 2.0]
-#         elif 'train' in diff_name:
-#             y_v = [0.0, 0.5, 1.0, 1.5, 2.0]
-#         elif 'test' in diff_name:
-#             y_v = [0, 15, 25, 35]
-#         elif 'Space' in diff_name:
-#             y_v = [0, 10, 20, 30]
-#         g.set_yticks(y_v)  # set value locations in y axis
-#         # g.set_yticklabels([v_tmp if v_tmp in [0, 0.5, -0.5, 1, -1] else '' for v_tmp in y_v],
-#         #                   fontsize=font_size + 6)  # set the number of each value in y axis
-#         g.set_yticklabels(y_v, fontsize=font_size + 4)  # set the number of each value in y axis
-#         print(g.get_yticks(), y_v)
-#         # if j % c != 0:
-#         #     # g.get_yaxis().set_visible(False)
-#         #     g.set_yticklabels(['' for v_tmp in y_v])
-#         #     g.set_ylabel('')
-#
-#         # g.set_title(diff_name, fontsize=font_size + 8)
-#         # print(f'ind...{ind}')
-#         # if j == 1:
-#         #     # g.get_legend().set_visible()
-#         #     handles, labels = g.get_legend_handles_labels()
-#         #     axes[0, 1].legend(handles, labels, loc=8,fontsize=font_size-4) #bbox_to_anchor=(0.5, 0.5)
-#         # else:
-#         #     g.get_legend().set_visible()
-#         # g.get_legend().set_visible(False)
-#         # handles, labels = g.get_legend_handles_labels()
-#         # axes[t, j % c].legend(handles, labels, loc="upper right",fontsize=font_size-4) #bbox_to_anchor=(0.5, 0.5)
-#
-#         g.get_legend().set_visible(True)
-#         handles, labels = g.get_legend_handles_labels()
-#         axes[t, j % c].legend(handles, labels, loc="upper right", fontsize=font_size - 6)  # bbox_to_anchor=(0.5, 0.5)
-#
-#     # # get the legend only from the last 'ax' (here is 'g')
-#     # handles, labels = g.get_legend_handles_labels()
-#     # labels = ["\n".join(textwrap.wrap(v, width=45)) for v in labels]
-#     # pos1 = axes[-1, -1].get_position()  # get the original position
-#     # # pos2 = [pos1.x0 + 0.3, pos1.y0 + 0.3,  pos1.width / 2.0, pos1.height / 2.0]
-#     # # ax.set_position(pos2) # set a new position
-#     # loc = (pos1.x0 + (pos1.x1 - pos1.x0) / 2, pos1.y0 + 0.05)
-#     # print(f'loc: {loc}, pos1: {pos1.bounds}')
-#     # # axes[-1, -1].legend(handles, labels, loc=2, # upper right
-#     # #             ncol=1, prop={'size': font_size-13})  # loc='lower right',  loc = (0.74, 0.13)
-#     # axes[-1, -1].legend(handles, labels, loc='lower center', bbox_to_anchor=(0.0, 0.95, 1, 0.5),borderaxespad=0, fancybox=True, # upper right
-#     #                     ncol=1, prop={'size': font_size - 4})  # loc='lower right',  loc = (0.74, 0.13)
-#
-#     # # share one legend
-#     # fig.legend(handles, labels, loc='lower center',  # upper left
-#     #            ncol=3, prop={'size': font_size - 2})  # l
-#
-#     # # plt.xlabel('Catagory')
-#     # plt.ylabel('AUC')
-#     # plt.ylim(0,1.07)
-#     # # # plt.title('F1 Scores by category')
-#     # n_groups = len(show_datasets)
-#     # index = np.arange(n_groups)
-#     # # print(index)
-#     # # plt.xlim(xlim[0], n_groups)
-#     # plt.xticks(index + len(show_repres) // 2 * bar_width, labels=[v for v in show_datasets])
-#     plt.tight_layout()
-#     #
-#     try:
-#         if r == 1:
-#             plt.subplots_adjust(bottom=0.35)
-#         else:
-#             if appendix:
-#                 if "GMM" in ",".join(show_detectors):
-#                     plt.subplots_adjust(bottom=0.2)
-#                 else:
-#                     plt.subplots_adjust(bottom=0.10)
-#             else:
-#                 plt.subplots_adjust(bottom=0.13, top=0.95)
-#     except Warning as e:
-#         raise ValueError(e)
-#
-#     # plt.legend(show_repres, loc='lower right')
-#     # # plt.savefig("DT_CNN_F1"+".jpg", dpi = 400)
-#     out_file += '.pdf'
-#     plt.savefig(out_file)  # should use before plt.show()
-#     plt.show()
-#     plt.close(fig)
-#
-#     # sns.reset_orig()
-#     # sns.reset_defaults()
-#     # rcParams.update({'figure.autolayout': True})
-#     # release the matplotlib memory
-#     # Clear the current figure.
-#     plt.clf()
-#     # Closes all the figure windows.
-#     plt.close('all')
-#
-#     return out_file
-
 
 def show_oc_kjl_qs_vs_nystrom_qs2(res, out_file='output_data',
                                   datasets=['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DWSHR'],
@@ -3083,7 +2586,7 @@ def extract_original_data(in_file, models=['OC-KJL', 'OC-KJL-SVM'], name='OC-KJL
                           datasets=['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DWSHR']):
     res = {}
 
-    data = load_data(in_file)
+    data = load(in_file)
     for data_name in datasets:
         for model_name in models:
             #######################################################################################################
@@ -3112,25 +2615,54 @@ def extract_original_data(in_file, models=['OC-KJL', 'OC-KJL-SVM'], name='OC-KJL
 def oc_kjl_gmm_vs_oc_kjl_svm(feat_set='iat_size', is_header=False, is_gs=False, covariance_type='full',
                              name='OC-KJL-GMM-vs-OC-KJL-SVM',
                              models=['OC-KJL', 'OC-KJL-SVM']):
-    # covariance = 'diag'
-    # fig_flg = 'main'
-    # feat_header = 'iat_size-header_False'
-    # feat_header = 'stats-header_True'
-    # file_name = f'offline/calumet_out-20210204/src_dst/{feat_header}/before_proj_False-gs_{gs}/std_False_center_False-d_5-{covariance}/res.csv-ratio.xlsx'
-    in_dir = f'offline/paper_data/neon_out/out/models_res/'
-    sub_dir = f'src_dst/{feat_set}-header_{is_header}/before_proj_False-gs_{is_gs}' \
-              f'/std_False_center_False-d_5-{covariance_type}'
+    in_file = f'examples/offline/report/out/src_dst/results-20210928/Neon/{feat_set}-header_{is_header}/gather.csv'
 
     ################################################################################################################
     # step 2: get original OC-KJL-GMM and OC-KJL-SVM AUCs from 'res.csv.dat'
-    in_file = os.path.join(in_dir, sub_dir, 'res.csv.dat')
-    res = extract_original_data(in_file, models=models, name=name,
-                                datasets=['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DWSHR'])
+    # res = extract_original_data(in_file, models=models, name=name,
+    #                             datasets=['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DWSHR'])
+    res = {}
+    # datasets = ['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DWSHR']
+    DATASETS = [
+        # 'DUMMY',
+        # Final datasets for the paper
+        'UNB3_345',  # Combine UNB3, UNB3 and UNB5 attack data as attack data and only use UNB3's normal as normal data
+        'CTU1',  # Two different abnormal data
+        'MAWI1_2020',  # Two different normal data
+        'MACCDC1',  # Two different normal data
+        # 'SFRIG1_2020', #  Two different normal data
+        'SFRIG1_2021',  # Two different normal data
+        'AECHO1_2020',  # Two different normal data
+        'DWSHR_AECHO_2020',  # only use Dwshr normal as normal data, and combine Dwshr and wshr novelties as novelty
+        # 'DWSHR_WSHR_2020',  # only use Dwshr normal as normal data, and combine Dwshr and wshr novelties as novelty
+        # 'DWSHR_WSHR_AECHO_2020'
+    ]
+    MODELS = ['KJL-GMM(full)', 'KJL-OCSVM(linear)']
+    df = pd.read_csv(in_file, sep=',', header=None)
+    for data_name in DATASETS:
+        new_data_name = data_orig2name[data_name]
+        res[new_data_name] = {}
+        for model_name in MODELS:
+            #######################################################################################################
+            # get AUCs
+            if name == 'OC-KJL-GMM-vs-OC-KJL-SVM':
+                for line in df.values:
+                    if line[4] == 'tuning_True':
+                        if data_name == line[0] and model_name == line[3]:
+                            vs = [float(v) for v in line[12].split('-')]
+                            vs = f'{np.mean(vs):.2f} +/- {np.std(vs):.2f}'
+                            if model_name == 'KJL-GMM(full)':
+                                model_name = 'OC-KJL'
+                            elif model_name == 'KJL-OCSVM(linear)':
+                                model_name = 'OC-KJL-SVM'
+                            else:
+                                raise NotImplementedError(model_name)
+                            res[new_data_name][model_name] = vs
     ################################################################################################################
     # step 3: plot data
-    out_file = in_dir + '-'.join(sub_dir.split('/')) + '-'
+    out_file = os.path.dirname(in_file)
     # out_file = show_kjl_gmm_vs_kjl_ocsvm(res, out_file=os.path.join(os.path.dirname(in_file), f'{name}'))
-    out_file = show_kjl_gmm_vs_kjl_ocsvm(res, out_file=out_file+ f'{name}')
+    out_file = show_kjl_gmm_vs_kjl_ocsvm(res, out_file=out_file+ f'-{name}')
     print(out_file)
 
     return out_file
@@ -3282,14 +2814,14 @@ def oc_kjl_qs_full_vs_oc_kjl_qs_diag(feat_set='iat_size', is_header=False, is_gs
     return out_file
 
 def main(f):
-    for feat_set in ['iat_size', 'stats']:
-        for is_header in [False, True]:
-            for is_gs in [True, False]:
-                if feat_set == 'iat_size' and is_header == True: continue
-                if feat_set == 'stats' and is_header == False: continue
-                for covariance_type in ['full', 'diag']:
+    for feat_set in ['IAT+SIZE']:
+        for is_header in [False]:
+            for is_gs in [True]:
+                if feat_set == 'IAT+SIZE' and is_header == True: continue
+                if feat_set == 'STATS' and is_header == False: continue
+                for covariance_type in ['full']:
                     #################################################################################################################
-                    # case 1: OC-KJL vs OCSVM
+                    # case 1: OC-KJL-GMM vs OC-KJL-SVM(linear)
                     # (feat_set='iat_size', is_header=False, is_gs=True, covariance_type='full')
                     if covariance_type == 'full':
                         out_file = oc_kjl_gmm_vs_oc_kjl_svm(feat_set, is_header, is_gs, covariance_type,
@@ -3305,70 +2837,71 @@ def main(f):
                         """
                         f.write(line)
 
-                        #################################################################################################################
-                        # case 2: OC-KJL-QS vs OC-Nystrom-QS
-                        out_file =  oc_kjl_qs_vs_oc_nystrom_qs(feat_set, is_header, is_gs, covariance_type,
-                                                   name='OC-KJL-QS-vs-OC-Nystrom-QS',
-                                                   models=['OC-KJL-QS', 'OC-Nystrom-QS'])
-
-                        line = r"""
-\begin{figure*}[!htbp]
-\centering 
-    \includegraphics[width=0.98\textwidth]{""" + f"{os.path.basename(out_file)}" + "}\n" + \
-"""\caption{The speed-up (S-U) AUCs, train times, test times and saving space of GMMs with \\textit{full} covariance matrix and default parameters, in which the dimension of the projected  space by KJL/Nystr{\"o}m is $d$(= 5) and the number of datapoints used for computing the projection is $m$(=100).}
-\label{fig:offline} 
-\end{figure*} 
-                            """
-                        f.write(line)
-                    else:
-                        out_file =  oc_kjl_gmm_vs_oc_kjl_svm(feat_set, is_header, is_gs, covariance_type,
-                                                 name='OC-KJL-GMM-vs-OC-KJL-SVM',
-                                                 models=[f'OC-KJL({covariance_type})', 'OC-KJL-SVM'])
-                        line = r"""
-\begin{figure*}[!htbp]
-\centering 
-    \includegraphics[width=0.45\textwidth]{""" + f"{os.path.basename(out_file)}" + "}\n" + \
-"""\caption{OC-KJL vs. OC-KJL-SVM with best paramters, in which the dimension of the projected  space by KJL is $d$(= 5) and the number of datapoints used for computing the projection is $m$(=100).}
-\label{fig:offline}
-\end{figure*} 
-                            """
-                        f.write(line)
-
-                        #################################################################################################################
-                        # case 2: OC-KJL-QS vs OC-Nystrom-QS
-                        out_file =  oc_kjl_qs_vs_oc_nystrom_qs(feat_set, is_header, is_gs, covariance_type,
-                                                   name='OC-KJL-QS-vs-OC-Nystrom-QS',
-                                                   models=[f'OC-KJL-QS({covariance_type})',
-                                                           f'OC-Nystrom-QS({covariance_type})'])
-
-                        line = r"""
-\begin{figure*}[!htbp]
-\centering 
-    \includegraphics[width=0.98\textwidth]{""" + f"{os.path.basename(out_file)}" + "}\n" + \
-"""\caption{The speed-up (S-U) AUCs, train times, test times and saving space of GMMs with \\textit{diag} covariance matrix and default parameters, in which the dimension of the projected  space by KJL/Nystr{\\"o}m is $d$(= 5) and the number of datapoints used for computing the projection is $m$(=100).}
-\label{fig:offline} 
-\end{figure*} 
-                            """
-                        f.write(line)
-
-                #################################################################################################################
-                # case 3: OC-KJL-QS(full) vs OC-KJL-QS(diag)
-                out_file = oc_kjl_qs_full_vs_oc_kjl_qs_diag(feat_set, is_header, is_gs)
-
-                line = r"""
-\begin{figure*}[!htbp]
-\centering 
-    \includegraphics[width=0.98\textwidth]{""" + f"{os.path.basename(out_file)}" + "}\n" + \
-"""\caption{OC-KJL-QS vs. OC-KJL-QS-diag with best paramters, in which the dimension of the projected  space by KJL is $d$(= 5) and the number of datapoints used for computing the projection is $m$(=100).}
-\label{fig:offline} 
-\end{figure*} 
-                    """
-                f.write(line)
+#                         #################################################################################################################
+#                         # case 2: OC-KJL-QS vs OC-Nystrom-QS
+#                         out_file =  oc_kjl_qs_vs_oc_nystrom_qs(feat_set, is_header, is_gs, covariance_type,
+#                                                    name='OC-KJL-QS-vs-OC-Nystrom-QS',
+#                                                    models=['OC-KJL-QS', 'OC-Nystrom-QS'])
+#
+#                         line = r"""
+# \begin{figure*}[!htbp]
+# \centering
+#     \includegraphics[width=0.98\textwidth]{""" + f"{os.path.basename(out_file)}" + "}\n" + \
+# """\caption{The speed-up (S-U) AUCs, train times, test times and saving space of GMMs with \\textit{full} covariance matrix and default parameters, in which the dimension of the projected  space by KJL/Nystr{\"o}m is $d$(= 5) and the number of datapoints used for computing the projection is $m$(=100).}
+# \label{fig:offline}
+# \end{figure*}
+#                             """
+#                         f.write(line)
+#                     else:
+#                         out_file =  oc_kjl_gmm_vs_oc_kjl_svm(feat_set, is_header, is_gs, covariance_type,
+#                                                  name='OC-KJL-GMM-vs-OC-KJL-SVM',
+#                                                  models=[f'OC-KJL({covariance_type})', 'OC-KJL-SVM'])
+#                         line = r"""
+# \begin{figure*}[!htbp]
+# \centering
+#     \includegraphics[width=0.45\textwidth]{""" + f"{os.path.basename(out_file)}" + "}\n" + \
+# """\caption{OC-KJL vs. OC-KJL-SVM with best paramters, in which the dimension of the projected  space by KJL is $d$(= 5) and the number of datapoints used for computing the projection is $m$(=100).}
+# \label{fig:offline}
+# \end{figure*}
+#                             """
+#                         f.write(line)
+#
+#                         #################################################################################################################
+#                         # case 2: OC-KJL-QS vs OC-Nystrom-QS
+#                         out_file =  oc_kjl_qs_vs_oc_nystrom_qs(feat_set, is_header, is_gs, covariance_type,
+#                                                    name='OC-KJL-QS-vs-OC-Nystrom-QS',
+#                                                    models=[f'OC-KJL-QS({covariance_type})',
+#                                                            f'OC-Nystrom-QS({covariance_type})'])
+#
+#                         line = r"""
+# \begin{figure*}[!htbp]
+# \centering
+#     \includegraphics[width=0.98\textwidth]{""" + f"{os.path.basename(out_file)}" + "}\n" + \
+# """\caption{The speed-up (S-U) AUCs, train times, test times and saving space of GMMs with \\textit{diag} covariance matrix and default parameters, in which the dimension of the projected  space by KJL/Nystr{\\"o}m is $d$(= 5) and the number of datapoints used for computing the projection is $m$(=100).}
+# \label{fig:offline}
+# \end{figure*}
+#                             """
+#                         f.write(line)
+#
+#                 #################################################################################################################
+#                 # case 3: OC-KJL-QS(full) vs OC-KJL-QS(diag)
+#                 out_file = oc_kjl_qs_full_vs_oc_kjl_qs_diag(feat_set, is_header, is_gs)
+#
+#                 line = r"""
+# \begin{figure*}[!htbp]
+# \centering
+#     \includegraphics[width=0.98\textwidth]{""" + f"{os.path.basename(out_file)}" + "}\n" + \
+# """\caption{OC-KJL-QS vs. OC-KJL-QS-diag with best paramters, in which the dimension of the projected  space by KJL is $d$(= 5) and the number of datapoints used for computing the projection is $m$(=100).}
+# \label{fig:offline}
+# \end{figure*}
+#                     """
+#                 f.write(line)
                 f.write('\n-----------------------------\n')
                 f.flush()
 
 
 if __name__ == '__main__':
-    out_file = f'offline/paper_data/neon_out/out/models_res/figures-latex.txt'
+    # out_file = f'examples/offline/report/out/src_dst/neon_out/out/models_res/figures-latex.txt'
+    out_file = f'examples/offline/report/out/src_dst/figures-latex.txt'
     with open(out_file, 'w', buffering=1) as f:
         main(f)

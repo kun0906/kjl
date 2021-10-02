@@ -1,7 +1,7 @@
 """GMM
 
     Required: quickshift++ (https://github.com/google/quickshift)
-    "python3 setup build; python3 setup install" to install "quickshift++"
+    "python3 setup.py build; python3 setup.py install" to install "quickshift++"
 
     # memory_profiler: for debugging memory leak
     python -m memory_profiler example.py

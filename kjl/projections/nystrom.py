@@ -8,6 +8,7 @@ from sklearn.metrics import pairwise_distances
 from sklearn.utils import resample
 
 # from kjl.models.kjl import getGaussianGram
+from kjl.projections._base import getGaussianGram
 
 
 class Nystrom:
