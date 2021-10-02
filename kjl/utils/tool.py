@@ -1,9 +1,9 @@
 """Useful tools includes 'data_info', 'dump_data', etc.
 
 """
-# Authors: kun.bj@outlook.com
-#
-# License: XXX
+# Email: kun.bj@outlook.com
+# Author: kun
+# License: xxx
 
 import inspect
 import os
@@ -334,7 +334,6 @@ def save2txt(data, out_file, delimiter=','):
 			f.write(line + '\n')
 
 
-
 def get_test_rest(X_normal, y_normal, X_abnormal, y_abnormal,
                   shuffle=True, random_state=42):
 	"""
@@ -383,10 +382,12 @@ def get_test_rest(X_normal, y_normal, X_abnormal, y_abnormal,
 	if len(y_abnormal) > n_abormal_max_test:
 		X_abnormal, X_abnormal_rest, y_abnormal, y_abnormal_rest = train_test_split(X_abnormal, y_abnormal,
 		                                                                            train_size=n_abormal_max_test,
-		                                                stratify=y_abnormal, random_state=random_state)
+		                                                                            stratify=y_abnormal,
+		                                                                            random_state=random_state)
 
 	else:
-		n_abormal_max_test = int((len(y_abnormal)*0.7)) # the left abnormal data (0.3) used for choosing random validation sets
+		n_abormal_max_test = int(
+			(len(y_abnormal) * 0.7))  # the left abnormal data (0.3) used for choosing random validation sets
 		X_abnormal, X_abnormal_rest, y_abnormal, y_abnormal_rest = train_test_split(X_abnormal, y_abnormal,
 		                                                                            train_size=n_abormal_max_test,
 		                                                                            stratify=y_abnormal,
@@ -401,8 +402,7 @@ def get_test_rest(X_normal, y_normal, X_abnormal, y_abnormal,
 	return X_test, y_test, X_abnormal_rest, y_abnormal_rest, X_normal, y_normal
 
 
-
-def get_train_val(X_normal, y_normal, X_abnormal, y_abnormal, val_size = 100, shuffle=True, random_state=42):
+def get_train_val(X_normal, y_normal, X_abnormal, y_abnormal, val_size=100, shuffle=True, random_state=42):
 	"""
 
 	Parameters
@@ -418,13 +418,13 @@ def get_train_val(X_normal, y_normal, X_abnormal, y_abnormal, val_size = 100, sh
 	"""
 	n_abnormal = val_size // 2
 	X_abnormal, X_ab_val, y_abnormal, y_ab_val = train_test_split(X_abnormal, y_abnormal,
-	                                                                            test_size=n_abnormal,
-	                                                                            stratify=y_abnormal,
-	                                                                            random_state=random_state)
+	                                                              test_size=n_abnormal,
+	                                                              stratify=y_abnormal,
+	                                                              random_state=random_state)
 
 	# get test set first
-	X_normal, X_val, y_normal, y_val = train_test_split(X_normal, y_normal, test_size= n_abnormal,
-	                                                      shuffle=shuffle, random_state=random_state)
+	X_normal, X_val, y_normal, y_val = train_test_split(X_normal, y_normal, test_size=n_abnormal,
+	                                                    shuffle=shuffle, random_state=random_state)
 	X_val = np.concatenate([X_ab_val, X_val], axis=0)
 	y_val = np.concatenate([y_ab_val, y_val], axis=0)
 
@@ -473,6 +473,7 @@ def split_train_val_test(X, y, shuffle=True, random_state=42):
 	y_train = y_normal[:10000]
 	return X_train, y_train, X_val, y_val, X_test, y_test
 
+
 def normalize(X_train, y_train, X_val, y_val, X_test, y_test):
 	""" Normalize data
 
@@ -499,5 +500,4 @@ def normalize(X_train, y_train, X_val, y_val, X_test, y_test):
 
 
 def short_parmas(params):
-
 	return str(params)[:10]

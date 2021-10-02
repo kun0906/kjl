@@ -1,3 +1,10 @@
+"""
+
+"""
+# Email: kun.bj@outlook.com
+# Author: kun
+# License: xxx
+
 class MyLog:
     def __init__(self, level='info'):
         """ Need to be modified

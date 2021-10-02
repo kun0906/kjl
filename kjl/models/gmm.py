@@ -2,6 +2,9 @@
     Required: quickshift++ (https://github.com/google/quickshift)
     "python3 setup build; python3 setup install" to install "quickshift++"
 """
+# Email: kun.bj@outlook.com
+# Author: kun
+# License: xxx
 import cProfile
 
 import numpy as np

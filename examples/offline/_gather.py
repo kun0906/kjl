@@ -8,11 +8,13 @@
 # Email: kun.bj@outlook.com
 # Author: kun
 # License: xxx
-from examples.offline._constants import *  # should in the top.
 import itertools
 
 import pandas as pd
+
+from examples.offline._constants import *  # should in the top.
 from kjl.utils.tool import timer, check_path
+
 
 @timer
 def gather(in_dir='src', out_dir='', FEATURES=[], HEADERS=[]):

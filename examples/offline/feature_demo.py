@@ -12,11 +12,7 @@ Command:
 # Email: kun.bj@outlook.com
 # Author: kun
 # License: xxx
-import os
-import sys
-from time import time
 
-from loguru import logger as lg
 from odet.ndm.model import MODEL
 from odet.ndm.ocsvm import OCSVM
 from odet.pparser.parser import PCAP
@@ -29,9 +25,10 @@ lg.remove()
 lg.add(sys.stdout, format="{message}", level='INFO')
 
 IN_DIR = 'examples/offline/datasets'
+
+
 @timer
 def pcap2feature():
-
 	pcap_file = f'{IN_DIR}/demo.pcap'
 	pp = PCAP(pcap_file, flow_pkts_thres=2, verbose=1, random_state=RANDOM_STATE)
 
