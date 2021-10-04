@@ -73,3 +73,9 @@ scp -p ky2440@tigerteam.io:/home/ky2440/kjl_deploy.zip ~/Downloads/
 arp -n 
 nmap 
 ```
+
+# get all configuration and work for python3.7.3
+import numpy.distutils
+np_config_vars = numpy.distutils.unixccompiler.sysconfig.get_config_vars()
+import pprint
+pprint.pprint(np_config_vars)

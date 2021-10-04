@@ -1,3 +1,6 @@
+# 0.1.5
+1. Add devices information for Neon, RSPI and NANO (examples/offline/deployment/).
+
 # 0.1.4
 1. reformat all the offline files
 2. remove unnecessary comments

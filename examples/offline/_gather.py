@@ -47,7 +47,7 @@ def gather(in_dir='src', out_dir='', FEATURES=[], HEADERS=[]):
 		res.append(line)
 
 	# Save all results to gather.csv
-	out_file = os.path.join(out_dir, f'gather.csv')
+	out_file = os.path.join(out_dir, f'gather-all.csv')
 	check_path(out_file)
 	with open(out_file, 'w') as f:
 		for vs in res:
