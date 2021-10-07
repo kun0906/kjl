@@ -2,3 +2,35 @@
 
 tuning_False, IAT+SIZE, header_False
 \toprule
+\multicolumn{2}{|c|}{Dataset}    & UNB & CTU  & MAWI & MACCDC & SFRIG  & AECHO   &DWSHR  \\ 
+\midrule
+\multicolumn{2}{|c|}{AUC} & 0.60 $\pm$ 0.01 & 0.57 $\pm$ 0.01 & 0.98 $\pm$ 0.00 & 0.78 $\pm$ 0.00 & 0.85 $\pm$ 0.00 & 0.78 $\pm$ 0.00 & 0.87 $\pm$ 0.01\\ 
+\midrule
+\multicolumn{2}{|c|}{\C{Server Train \\Time (ms)}} & 94.23 $\pm$ 1.66 & 81.47 $\pm$ 2.39 & 78.48 $\pm$ 0.93 & 84.72 $\pm$ 1.01 & 85.15 $\pm$ 2.99 & 117.65 $\pm$ 6.46 & 117.29 $\pm$ 8.81\\ 
+\midrule
+\multirow{3}{*}{\C{\hspace{-0.15cm}Test Time\\ (ms)}} & \C{RSPI} & 124.54 $\pm$ 0.12 & 124.12 $\pm$ 0.35 & 74.48 $\pm$ 0.64 & 124.17 $\pm$ 0.59 & 123.70 $\pm$ 0.36 & 126.31 $\pm$ 0.95 & 125.46 $\pm$ 0.72\\ 
+\cmidrule{2-9}
+&\C{NANO} & 89.30 $\pm$ 0.11 & 86.32 $\pm$ 0.17 & 50.71 $\pm$ 0.05 & 86.70 $\pm$ 0.21 & 83.50 $\pm$ 0.17 & 88.85 $\pm$ 0.02 & 88.00 $\pm$ 0.09\\ 
+\cmidrule{2-9}
+&\C{Server}  & 19.20 $\pm$ 0.13 & 19.42 $\pm$ 0.22 & 9.76 $\pm$ 0.13 & 19.10 $\pm$ 0.27 & 18.62 $\pm$ 0.15 & 19.95 $\pm$ 0.02 & 19.72 $\pm$ 0.09\\ 
+\midrule
+\multicolumn{2}{|c|}{\C{Space (kB)}} & 1761.21 $\pm$ 0.17 & 961.40 $\pm$ 0.23 & 2798.32 $\pm$ 0.78 & 1041.34 $\pm$ 0.13 & 641.07 $\pm$ 0.05 & 1441.75 $\pm$ 0.14 & 1201.38 $\pm$ 0.32\\ 
+\bottomrule
+
+
+tuning_True, IAT+SIZE, header_False
+\toprule
+\multicolumn{2}{|c|}{Dataset}    & UNB & CTU  & MAWI & MACCDC & SFRIG  & AECHO   &DWSHR  \\ 
+\midrule
+\multicolumn{2}{|c|}{AUC} & 0.67 $\pm$ 0.01 & 0.66 $\pm$ 0.02 & 0.99 $\pm$ 0.00 & 0.85 $\pm$ 0.00 & 0.93 $\pm$ 0.00 & 0.90 $\pm$ 0.00 & 0.93 $\pm$ 0.00\\ 
+\midrule
+\multicolumn{2}{|c|}{\C{Server Train \\Time (ms)}} & 93.93 $\pm$ 4.75 & 77.87 $\pm$ 1.72 & 82.59 $\pm$ 1.53 & 84.19 $\pm$ 1.93 & 80.83 $\pm$ 7.72 & 111.26 $\pm$ 6.59 & 110.53 $\pm$ 5.77\\ 
+\midrule
+\multirow{3}{*}{\C{\hspace{-0.15cm}Test Time\\ (ms)}} & \C{RSPI} & 125.86 $\pm$ 0.08 & 118.19 $\pm$ 4.54 & 74.53 $\pm$ 0.05 & 124.58 $\pm$ 0.22 & 120.12 $\pm$ 0.22 & 125.43 $\pm$ 0.22 & 124.54 $\pm$ 0.28\\ 
+\cmidrule{2-9}
+&\C{NANO} & 83.87 $\pm$ 0.18 & 86.71 $\pm$ 0.82 & 58.57 $\pm$ 0.05 & 86.89 $\pm$ 0.80 & 69.62 $\pm$ 0.09 & 88.80 $\pm$ 0.08 & 84.07 $\pm$ 0.04\\ 
+\cmidrule{2-9}
+&\C{Server}  & 19.84 $\pm$ 0.16 & 19.97 $\pm$ 1.36 & 11.22 $\pm$ 0.14 & 19.99 $\pm$ 0.23 & 16.15 $\pm$ 0.20 & 19.98 $\pm$ 0.03 & 19.81 $\pm$ 0.01\\ 
+\midrule
+\multicolumn{2}{|c|}{\C{Space (kB)}} & 1763.53 $\pm$ 0.45 & 961.52 $\pm$ 0.75 & 2792.46 $\pm$ 0.48 & 1042.92 $\pm$ 0.45 & 641.58 $\pm$ 0.10 & 1441.75 $\pm$ 0.14 & 1202.39 $\pm$ 0.30\\ 
+\bottomrule
