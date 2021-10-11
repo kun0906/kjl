@@ -19,6 +19,11 @@
 
 
 "mprof run examples / offline / report / paper_speedup.py"
+import cProfile
+import time
+
+from kjl.utils import pstats
+
 "mprof list"
 "mprof plot mprofile_20211007163839.dat"
 
@@ -33,4 +38,17 @@ def func():
 	print(res)
 
 func()
+
+
+def func2():
+	res = 0
+	for i in range(100000):
+		res +=1
+	print(res)
+pr = cProfile.Profile(time.perf_counter)
+pr.enable()
+func2()
+pr.disable()
+ps = pstats.Stats(pr).sort_stats('line')  # cumulative
+ps.print_stats()
 

@@ -8,7 +8,7 @@
 
 	Command:
 	current directory is project_root_dir (i.e., kjl/.)
-	PYTHONPATH=. PYTHONUNBUFFERED=1 python3.7 examples/offline/deployment/deploy_evaluate_model.py > deploy.txt 2>&1 &
+	PYTHONPATH=. PYTHONUNBUFFERED=1 python3.7 examples/offline/deployment/deploy_evaluate_model_memory_profile.py
 """
 # Email: kun.bj@outlook.com
 # Author: kun
@@ -36,7 +36,7 @@ from kjl.utils import pstats
 from kjl.utils.tool import load, dump, check_path, timer
 
 RESULT_DIR = f'results/{START_TIME}'
-# DATASETS = ['UNB3_345']  # Two different normal data
+DATASETS = ['MAWI1_2020']  # Two different normal data
 # MODELS = ["KJL-OCSVM(linear)"]
 FEATURES = ['IAT+SIZE', 'STATS']
 HEADERS = [False, True]
@@ -416,7 +416,7 @@ def evaluate(in_dir, out_dir, n_repeats=5, n_test_repeats=10, FEATURES=[], HEADE
 @timer
 @profile
 def main():
-	n_repeats = 5
+	n_repeats = 1
 	flg = False
 	model_in_dir = 'examples/offline/deployment/data/src_dst/models'
 	if flg:
