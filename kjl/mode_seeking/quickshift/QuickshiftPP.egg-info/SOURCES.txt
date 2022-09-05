@@ -1,0 +1,8 @@
+LICENSE
+README.rst
+quickshift_pp.cpp
+setup.py
+QuickshiftPP.egg-info/PKG-INFO
+QuickshiftPP.egg-info/SOURCES.txt
+QuickshiftPP.egg-info/dependency_links.txt
+QuickshiftPP.egg-info/top_level.txt

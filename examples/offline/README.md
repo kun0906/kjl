@@ -2,6 +2,10 @@ Recreate new models from saved paramters stored on the disk and evalute them on 
 
 #################################################################################################################
 1. Instructions to run experiments and obtain results
+    # python3.7.9
+    PYTHONPATH=. PYTHONUNBUFFERED=1 python3.7 examples/offline.py
+    PYTHONPATH=. PYTHONUNBUFFERED=1 python3.7 examples/offline-parallel.py
+    or 
     main_reload.sh: a shell script to run all experiments.
 
     $cd kjl/examples/

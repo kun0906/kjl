@@ -102,9 +102,13 @@ class Projection:
 		self.random_state = random_state
 
 		if name == 'KJL':
-			self.proj = KJL(d=d, n=n, m=n, q=q, random_state=random_state)
+			# self.proj = KJL(d=d, n=n, m=n, q=q, random_state=random_state)
+			params = {'kjl_d': self.d, 'kjl_n': self.n, 'm': self.m, 'kjl_q': self.q, 'random_state': self.random_state}
+			self.proj = KJL(params)
 		elif name == 'NYSTROM':
-			self.proj = Nystrom(d=d, n=n, m=n, q=q, random_state=random_state)
+			# self.proj = Nystrom(d=d, n=n, m=n, q=q, random_state=random_state)
+			params = {'nystrom_d': self.d, 'nystrom_n': self.n, 'm': self.m, 'nystrom_q': self.q, 'random_state': self.random_state}
+			self.proj = Nystrom(params)
 		else:
 			msg = name
 			raise NotImplementedError(msg)
@@ -123,13 +127,23 @@ class Model:
 		self.name = name
 		self.overwrite = overwrite
 		self.random_state = random_state
+		if 'OCSVM' in name:
+			self.model = OCSVM(params = {'kernel': 'rbf', 'OCSVM_q': 0.3, 'random_state': random_state})
+		elif 'GMM' in name:
+			self.model = GMM(params = {'random_state': random_state})
+		else:
+			msg = name
+			raise NotImplementedError(msg)
 
 	def fit(self, X, y=None):
 		self.model.fit(X)
 
 	def eval(self, X, y):
 		# y_score = self.model.predict_proba(X)
-		res = self.model.eval(X, y)
+		try:
+			res = self.model.eval(X, y)
+		except Exception as e:
+			res = self.model.test(X, y)
 
 		return res
 

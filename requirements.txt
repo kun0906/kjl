@@ -1,9 +1,19 @@
-
 # All the required dependencies should come with tf-nightly package.
-# numpy ~= 1.19.2  # Sync with the numpy version used in TF
+
+### Python3.7.9 version: 3.7.9
+# conda create -n py379 python=3.7.9
+
+### install odet
+# cd kjl/datasets/odet; pip install .
 # odet>=0.0.1
-# python == 3.7.9
+
+### install quickshift++
+# cd kjl/mode_seeking/quickshift
+# pip install .
 # quickshift++  # requriement an old sikit-learn (scikit-learn~=0.23.2 works, which needs old python3.7)
+
+
+# numpy ~= 1.19.2  # Sync with the numpy version used in TF
 # The rest of the packages are mostly used for testing purpose.
 #ConfigArgParse~=1.5.2
 #dill

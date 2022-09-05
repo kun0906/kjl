@@ -29,11 +29,11 @@ from examples.offline._offline import Data
 from kjl.utils.tool import dump, timer, check_path, remove_file, get_train_val, get_test_rest, load
 
 RESULT_DIR = f'results/{START_TIME}'
-DATASETS = [ 'DUMMY']  # Two different normal data
+DATASETS = [ 'DWSHR_AECHO_2020']  # Two different normal data
 FEATURES = ['IAT+SIZE']
 HEADERS = [False]
-MODELS = [ "OCSVM(rbf)"]
-TUNINGS = [False]
+# MODELS = [ "OCSVM(rbf)"]
+TUNINGS = [True]
 
 lg.debug(f'DATASETS: {DATASETS}, FEATURES: {FEATURES}, HEADERS: {HEADERS}, MODELS: {MODELS}, TUNINGS: {TUNINGS}')
 
@@ -82,7 +82,7 @@ def offline_default_best_main(args, train_set, val_set, test_set, i_repeat=0):
 				args.params['OCSVM_q'] = q_
 				res_ = _offline.main(args, train_set, val_set)
 				if res_['score'] > res['score']:
-					res = res_
+					res = copy.deepcopy(res_)
 
 	elif args.model == "KJL-OCSVM(linear)":
 		args.params['kernel'] = 'linear'
@@ -101,7 +101,7 @@ def offline_default_best_main(args, train_set, val_set, test_set, i_repeat=0):
 				args.params['kjl_q'] = q_
 				res_ = _offline.main(args, train_set, val_set)
 				if res_['score'] > res['score']:
-					res = res_
+					res = copy.deepcopy(res_)
 
 	elif args.model == "Nystrom-OCSVM(linear)":
 		args.params['kernel'] = 'linear'
@@ -120,7 +120,28 @@ def offline_default_best_main(args, train_set, val_set, test_set, i_repeat=0):
 				args.params['nystrom_q'] = q_
 				res_ = _offline.main(args, train_set, val_set)
 				if res_['score'] > res['score']:
-					res = res_
+					res = copy.deepcopy(res_)
+
+	elif args.model in ["GMM(full)", "GMM(diag)"]:
+		if 'full' in args.model:
+			args.params['GMM_covariance_type'] = 'full'
+		elif 'diag' in args.model:
+			args.params['GMM_covariance_type'] = 'diag'
+		else:
+			msg = args.model
+			raise NotImplementedError(msg)
+
+		if not args.tuning:
+			args.params['GMM_n_components'] = 1
+			res = _offline.main(args, train_set, val_set)
+		else:
+			# find the best components
+			res = {'score': 0}
+			for n_comps_ in GMM_n_components:
+				args.params['GMM_n_components'] = n_comps_
+				res_ = _offline.main(args, train_set, val_set)
+				if res_['score'] > res['score']:
+					res = copy.deepcopy(res_)
 
 	elif args.model in ["KJL-GMM(full)", "KJL-GMM(diag)"]:
 		args.params['is_kjl'] = True
@@ -147,7 +168,7 @@ def offline_default_best_main(args, train_set, val_set, test_set, i_repeat=0):
 					args.params['GMM_n_components'] = n_comps_
 					res_ = _offline.main(args, train_set, val_set)
 					if res_['score'] > res['score']:
-						res = res_
+						res = copy.deepcopy(res_)
 
 	elif args.model in ["Nystrom-GMM(full)", "Nystrom-GMM(diag)"]:
 		args.params['is_nystrom'] = True
@@ -174,7 +195,7 @@ def offline_default_best_main(args, train_set, val_set, test_set, i_repeat=0):
 					args.params['GMM_n_components'] = n_comps_
 					res_ = _offline.main(args, train_set, val_set)
 					if res_['score'] > res['score']:
-						res = res_
+						res = copy.deepcopy(res_)
 
 	elif args.model in ["KJL-QS-GMM(full)", "KJL-QS-GMM(diag)"]:
 
@@ -203,7 +224,7 @@ def offline_default_best_main(args, train_set, val_set, test_set, i_repeat=0):
 				args.params['kjl_q'] = q_
 				res_ = _offline.main(args, train_set, val_set)
 				if res_['score'] > res['score']:
-					res = res_
+					res = copy.deepcopy(res_)
 
 	elif args.model in ["Nystrom-QS-GMM(full)", "Nystrom-QS-GMM(diag)"]:
 
@@ -233,7 +254,7 @@ def offline_default_best_main(args, train_set, val_set, test_set, i_repeat=0):
 				args.params['nystrom_q'] = q_
 				res_ = _offline.main(args, train_set, val_set)
 				if res_['score'] > res['score']:
-					res = res_
+					res = copy.deepcopy(res_)
 
 	elif args.model in ["KJL-QS-init_GMM(full)", "KJL-QS-init_GMM(diag)"]:
 		args.params['is_kjl'] = True
@@ -263,7 +284,7 @@ def offline_default_best_main(args, train_set, val_set, test_set, i_repeat=0):
 				args.params['kjl_q'] = q_
 				res_ = _offline.main(args, train_set, val_set)
 				if res_['score'] > res['score']:
-					res = res_
+					res = copy.deepcopy(res_)
 
 	elif args.model in ["Nystrom-QS-init_GMM(full)", "Nystrom-QS-init_GMM(diag)"]:
 
@@ -294,7 +315,7 @@ def offline_default_best_main(args, train_set, val_set, test_set, i_repeat=0):
 				args.params['nystrom_q'] = q_
 				res_ = _offline.main(args, train_set, val_set)
 				if res_['score'] > res['score']:
-					res = res_
+					res = copy.deepcopy(res_)
 
 	else:
 		msg = f"{args.model}"

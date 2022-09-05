@@ -1,4 +1,4 @@
-.idea/
+.idea/**
 __pycache__/
 utils/_pycache__/
 *.pcap
@@ -7,16 +7,6 @@ utils/_pycache__/
 *.png
 *.log
 *.dat
-*.sh
 
-
-/examples/online/data/*
-/examples/online/out/*
-legacy
-
-/examples/offline/datasets/*
-/examples/offline/out/*
-
-
-/examples/offline/out/
 /legacy/
+!/~trash/
