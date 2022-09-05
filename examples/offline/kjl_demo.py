@@ -66,8 +66,12 @@ def main(args=None):
 
 	"""
 	lg.info(f'\n--- 1.1 Load data')
-	feat_file = f'{OUT_DIR}/DEMO_IAT+SIZE.dat'
-	X, y = load(feat_file)
+	# feat_file = f'{OUT_DIR}/DEMO_IAT+SIZE.dat'
+	feat_file = f'{OUT_DIR}/src_dst/DUMMY/IAT+SIZE/Xy.dat'
+	# X, y = load(feat_file)
+	data = load(feat_file)
+	X, y = data['X'], data['y']
+	y = [0 if 'normal_0' == v else 1 for v in y]  # normal is 0 and abnormal is 1
 
 	""" 1.2 Split train and test set
 

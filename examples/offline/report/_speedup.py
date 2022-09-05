@@ -121,6 +121,18 @@ def get_one_result(df, dataset, feature, header, model, tuning):
 
 
 def get_speedup(baseline, model, scale=100):
+	"""
+
+	Parameters
+	----------
+	baseline
+	model
+	scale: how many data points we are counting for training time and testing time.
+
+	Returns
+	-------
+
+	"""
 	def _get(data):
 		delimiter = '-'
 		return [float(v) for v in data.split(delimiter)]
@@ -212,8 +224,19 @@ def speedup_table(in_file, out_file, header=False, feature='IAT+SIZE'):
 		for tuning, tmp in res.items():
 			for covariance_type in ['full', 'diag']:
 				f.write(f'\n\n\n***{tuning}, {covariance_type}, {feature}, header_{header}\n')
+
+				# GMM Table (i.e., GMM('full', diag))
+				f.write(f'{tuning}, {covariance_type}, {feature}, header_{header},  GMM Table\n')
+				# Test time speedup (Neon)
+				f.write(' & '.join([vs[7] for vs in tmp if f'GMM({covariance_type})' == vs[3]]).
+				        replace('+/-', '$\pm$') + '\n')
+				# Space reduction
+				f.write(' & '.join([vs[9] for vs in tmp if f'GMM({covariance_type})' == vs[3]]).
+				        replace('+/-', '$\pm$') + '\n')
+
+
 				# OC-KJL Table (i.e., KJL-GMM(''))
-				f.write(f'{tuning}, {covariance_type}, {feature}, header_{header},  OC-KJL Table\n')
+				f.write(f'\n\n{tuning}, {covariance_type}, {feature}, header_{header},  OC-KJL Table\n')
 				# Test time speedup (Neon)
 				f.write(' & '.join([vs[7] for vs in tmp if f'KJL-GMM({covariance_type})' == vs[3]]).
 				        replace('+/-', '$\pm$') + '\n')
@@ -264,7 +287,19 @@ def main(in_file, FEATURES=['IAT+SIZE'], HEADERS=[False]):
 	# 1. Get speedup for train, test and space
 	# # in_file = 'examples/offline/deployment/out/src_dst/results/2021-09-22/gather.csv'
 	# in_file = 'examples/offline/deployment/out/src_dst/results-20210928/RSPI/IAT+SIZE-header_False/gather.csv'
-	df = pd.read_csv(in_file, header=None)
+
+	try:
+		df = pd.read_csv(in_file, header=None) # doesn't work warn_bad_lines=True, error_bad_lines=False
+	except Exception as e:
+		data = []
+		with open(in_file, 'r') as f:
+			line = f.readline()
+			while line:
+				if (not line.startswith(',0_0|0_0|0_0,')):
+					data.append(line.split(','))
+				line = f.readline()
+		df = pd.DataFrame(data)
+
 	res = []
 	for dataset, feature, header, model, tuning in list(
 			itertools.product(DATASETS, FEATURES, HEADERS, MODELS, TUNINGS)):
@@ -298,6 +333,8 @@ def main(in_file, FEATURES=['IAT+SIZE'], HEADERS=[False]):
 	speedup_file = os.path.splitext(in_file)[0] + '-speedup.txt'
 	speedup_table(in_file, speedup_file, header, feature)
 	lg.debug(f'speedup: {speedup_file}')
+
+	return
 
 
 if __name__ == '__main__':

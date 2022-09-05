@@ -413,7 +413,7 @@ def evaluate(in_dir, out_dir, n_repeats=5, n_test_repeats=10, FEATURES=[], HEADE
 @timer
 def main():
 	n_repeats = 5
-	flg = False
+	flg = True
 	model_in_dir = 'examples/offline/deployment/data/src_dst/models'
 	if flg:
 		# 1. only extract needed parameters from each built model. It should be done before deploying.

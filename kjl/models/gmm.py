@@ -80,6 +80,7 @@ class _GMM(GaussianMixture):
         # it must be abnormal score because it will be used in grid search
         # we use y=1 as abnormal score, in grid search it will use y=1 as positive label,
         # so y_score also should be abnormal score
+        # the larger, the more abnormal
         return -1 * self.score_samples(X)
 
     def predict_proba(self, X):

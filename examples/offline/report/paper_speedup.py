@@ -286,16 +286,56 @@ def main(root_dir, feature='IAT+SIZE', header=False):
 
 
 if __name__ == '__main__':
-	root_dir = 'examples/offline/report/out/src_dst/results-20210928'
+	is_iot_device = False
+	if is_iot_device:
+		root_dir = 'examples/offline/report/out/src_dst/results-20210928'
+		root_dir = 'examples/offline/report/out/src_dst/results-20220905'
+		for device in ['Neon', 'RSPI', 'Nano']:
+			lg.info(f'\n\n***{device}, {root_dir}')
+			in_file = os.path.join(root_dir, f'{device}/IAT+SIZE-header_False/gather.csv')
+			lg.debug(in_file)
+			_speedup.main(in_file, FEATURES=['IAT+SIZE'], HEADERS=[False])
+			in_file = os.path.join(root_dir, f'{device}/STATS-header_True/gather.csv')
+			lg.debug(in_file)
+			_speedup.main(in_file, FEATURES=['STATS'], HEADERS=[True])
 
-	for device in ['Neon', 'RSPI', 'Nano']:
-		lg.info(f'\n\n***{device}, {root_dir}')
-		in_file = os.path.join(root_dir, f'{device}/IAT+SIZE-header_False/gather.csv')
-		lg.debug(in_file)
-		_speedup.main(in_file, FEATURES=['IAT+SIZE'], HEADERS=[False])
-		in_file = os.path.join(root_dir, f'{device}/STATS-header_True/gather.csv')
-		lg.debug(in_file)
-		_speedup.main(in_file, FEATURES=['STATS'], HEADERS=[True])
+		main(root_dir, feature='IAT+SIZE', header=False)
+		main(root_dir, feature='STATS', header=True)
+	else:
+		root_dir = 'examples/offline/report/out/src_dst/results-20220905'
+		# After deployment and copy the result ('examples/offline/deployment/out/src_dst/results') to 'examples/offline/report/out/src_dst/'
+		for device in ['MacOS']:
+			lg.info(f'\n\n***{device}, {root_dir}')
+			# in_file = os.path.join(root_dir, f'{device}/deployed_results/IAT+SIZE-header_False/gather-all.csv')
+			in_file = os.path.join(root_dir, f'{device}/deployed_results2/IAT+SIZE-header_False/gather-all.csv')
+			lg.debug(in_file)
+			_speedup.main(in_file, FEATURES=['IAT+SIZE'], HEADERS=[False])
+			# in_file = os.path.join(root_dir, f'{device}/deployed_results/STATS-header_True/gather.csv')
+			# lg.debug(in_file)
+			# _speedup.main(in_file, FEATURES=['STATS'], HEADERS=[True])
 
-	main(root_dir, feature='IAT+SIZE', header=False)
-	main(root_dir, feature='STATS', header=True)
+			in_file = os.path.splitext(in_file)[0] + '-speedup.csv'
+			df = pd.read_csv(in_file)
+			# only contains the full covariance
+			df_full = df[(df.iloc[:, 4] == 'tuning_True') & (~df.iloc[:, 3].str.contains('diag'))].iloc[:,
+			          [0, 3, 5, 7, 8, 9]].T
+			df_full.columns = sum([[v] * 8 for v in ['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DSHWR']],
+			                      [])  # flatten a nested list
+			df_full.iloc[1, :] = sum([[v2 for v, v2 in [('OCSVM(rbf)', 'OCSVM'),
+			                                            ('KJL-OCSVM(linear)', 'OC-KJL-SVM(linear)'),
+			                                            ('Nystrom-OCSVM(linear)', 'OC-Nystrom-SVM(linear)'),
+			                                            ('GMM(full)', 'GMM(full)'),
+			                                            ('KJL-GMM(full)', 'OC-KJL'), ('Nystrom-GMM(full)', 'OC-Nystrom'),
+			                                            ('KJL-QS-GMM(full)', 'OC-KJL-QS'),
+			                                            ('Nystrom-QS-GMM(full)', 'OC-Nystrom-QS')]] * 7], [])
+			df_diag = df[(df.iloc[:, 4] == 'tuning_True') & (~df.iloc[:, 3].str.contains('full'))].iloc[:,
+			          [0, 3, 5, 7, 8, 9]].T
+			df_diag.columns = sum([[v] * 8 for v in ['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DSHWR']],
+			                      [])  # flatten a nested list
+			df = pd.concat([df_full, df_diag], axis=0)
+			gmm_file = os.path.splitext(in_file)[0] + '-speedup-gmm.csv'
+			df.to_csv(gmm_file, sep=',', encoding='utf-8', index=False)
+			print(gmm_file)
+
+		# main(root_dir, feature='IAT+SIZE', header=False)
+		# main(root_dir, feature='STATS', header=True)

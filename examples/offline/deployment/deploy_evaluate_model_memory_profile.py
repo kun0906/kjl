@@ -1,4 +1,5 @@
-""" Deploy the built models to different servers and then evaluate their performance.
+"""  (this is a test file, the deployment performance uses 'deploy_evaluate_model.py' with repeats=5)
+	Deploy the built models to different servers and then evaluate their performance.
 
 	Main steps:
 		1. Deployment: only upload the needed parameters of each model to the servers
@@ -6,7 +7,7 @@
 		3. Evaluate each new model on the test set
 
 
-	Command:
+	Command: (this is a test file, the deployment performance uses 'deploy_evaluate_model.py' with repeats=5)
 	current directory is project_root_dir (i.e., kjl/.)
 	PYTHONPATH=. PYTHONUNBUFFERED=1 python3.7 examples/offline/deployment/deploy_evaluate_model_memory_profile.py
 """
