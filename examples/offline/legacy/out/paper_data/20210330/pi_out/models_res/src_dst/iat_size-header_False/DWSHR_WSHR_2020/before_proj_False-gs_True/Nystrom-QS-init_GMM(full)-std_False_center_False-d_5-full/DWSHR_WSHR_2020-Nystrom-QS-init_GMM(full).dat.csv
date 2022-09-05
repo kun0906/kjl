@@ -1,0 +1,20 @@
+﻿0
+ DWSHR_WSHR_2020|
+ Nystrom-QS-init_GMM(full)
+ X_train: |X_val: 
+ X_test: (600
+ 21)
+ auc:
+ train:
+ test:
+ => aucs:0.7090277777777777-0.69995-0.7011888888888891-0.7212222222222222-0.7124277777777779
+ train_times:
+ test_times:0.02043340295786038-0.020929064869415016-0.022491113434080036-0.02303071829956025-0.023252256342675536
+ n_comp: 
+""
+ space_sizes: |model_spaces: 25.231-25.231-25.479-25.231-25.727
+ tot_clusters: 
+ 
+ n_clusters: 
+ 
+ with params: []: 

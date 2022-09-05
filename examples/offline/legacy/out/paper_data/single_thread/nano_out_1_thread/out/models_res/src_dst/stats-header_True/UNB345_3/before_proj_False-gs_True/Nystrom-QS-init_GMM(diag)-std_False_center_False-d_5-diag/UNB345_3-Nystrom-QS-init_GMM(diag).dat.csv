@@ -1,0 +1,20 @@
+﻿0
+ UNB345_3|
+ Nystrom-QS-init_GMM(diag)
+ X_train: |X_val: 
+ X_test: (600
+ 42)
+ auc:
+ train:
+ test:
+ => aucs:0.8728-0.8702666666666665-0.8944222222222221-0.8579444444444444-0.8471
+ train_times:
+ test_times:0.019184884359128775-0.019359904702287167-0.019499054143670945-0.01922259610146284-0.019318223767913877
+ n_comp: 
+""
+ space_sizes: |model_spaces: 40.069-40.069-40.069-40.069-40.069
+ tot_clusters: 
+ 
+ n_clusters: 
+ 
+ with params: []: 

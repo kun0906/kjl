@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 14, in <module>
+    import numpy as np
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/__init__.py", line 143, in <module>
+    from . import lib
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/lib/__init__.py", line 28, in <module>
+    from .shape_base import *
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/lib/shape_base.py", line 740, in <module>
+    def array_split(ary, indices_or_sections, axis=0):
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/overrides.py", line 168, in decorator
+    verify_matching_signatures(implementation, dispatcher)
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/overrides.py", line 75, in verify_matching_signatures
+    dispatcher_spec = ArgSpec(*getargspec(dispatcher))
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/compat/_inspect.py", line 110, in getargspec
+    args, varargs, varkw = getargs(func.__code__)
+KeyboardInterrupt

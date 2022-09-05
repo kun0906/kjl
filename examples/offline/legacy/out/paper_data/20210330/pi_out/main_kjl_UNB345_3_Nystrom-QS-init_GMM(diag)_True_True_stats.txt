@@ -1,0 +1,20 @@
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 14, in <module>
+    import numpy as np
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/__init__.py", line 143, in <module>
+    from . import lib
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/lib/__init__.py", line 25, in <module>
+    from .index_tricks import *
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/lib/index_tricks.py", line 11, in <module>
+    import numpy.matrixlib as matrixlib
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/matrixlib/__init__.py", line 4, in <module>
+    from .defmatrix import *
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/matrixlib/defmatrix.py", line 11, in <module>
+    from numpy.linalg import matrix_power
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/linalg/__init__.py", line 73, in <module>
+    from .linalg import *
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/linalg/linalg.py", line 1917, in <module>
+    def pinv(a, rcond=1e-15, hermitian=False):
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/overrides.py", line 181, in decorator
+    source, filename='<__array_function__ internals>', mode='exec')
+KeyboardInterrupt

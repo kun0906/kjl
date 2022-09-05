@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 7, in <module>
+    import cProfile
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/cProfile.py", line 10, in <module>
+    import profile as _pyprofile
+  File "<frozen importlib._bootstrap>", line 983, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 967, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 677, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 724, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 857, in get_code
+  File "<frozen importlib._bootstrap_external>", line 525, in _compile_bytecode
+KeyboardInterrupt

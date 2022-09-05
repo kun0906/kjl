@@ -1,0 +1,14 @@
+Fatal Python error: initsite: Failed to import the site module
+Traceback (most recent call last):
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site.py", line 73, in <module>
+    import os
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/os.py", line 57, in <module>
+    import posixpath as path
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/posixpath.py", line 28, in <module>
+    import genericpath
+  File "<frozen importlib._bootstrap>", line 983, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 967, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 677, in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 327, in __exit__
+  File "<frozen importlib._bootstrap>", line 224, in _verbose_message
+KeyboardInterrupt

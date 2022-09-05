@@ -1,0 +1,31 @@
+Traceback (most recent call last):
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/compat/py3k.py", line 28, in <module>
+    import pickle5 as pickle
+ModuleNotFoundError: No module named 'pickle5'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 14, in <module>
+    import numpy as np
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/__init__.py", line 140, in <module>
+    from . import core
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/__init__.py", line 22, in <module>
+    from . import multiarray
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/multiarray.py", line 12, in <module>
+    from . import overrides
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/overrides.py", line 9, in <module>
+    from numpy.compat._inspect import getargspec
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/compat/__init__.py", line 12, in <module>
+    from . import py3k
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/compat/py3k.py", line 30, in <module>
+    import pickle
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/pickle.py", line 94, in <module>
+    from org.python.core import PyStringMap
+  File "<frozen importlib._bootstrap>", line 983, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 963, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 906, in _find_spec
+  File "<frozen importlib._bootstrap_external>", line 1280, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1254, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1230, in _legacy_get_spec
+KeyboardInterrupt

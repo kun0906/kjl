@@ -1,0 +1,53 @@
+Namespace(dataset='AECHO1_2020', feat='iat_size', gs='True', header='True', model='KJL-GMM(full)', time='2021-04-01 08:44:42')
+***AECHO1_2020, KJL-GMM(full), iat_size, speedup/data/models/src_dst/iat_size-header_True/AECHO1_2020/before_proj_False-gs_True/KJL-GMM(full)-std_False_center_False-d_5-full
+***0_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 343, in main
+    model_params = load_data(model_params_file)
+  File "/home/pi/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/iat_size-header_True/AECHO1_2020/before_proj_False-gs_True/KJL-GMM(full)-std_False_center_False-d_5-full/repeat_0.model.model_params'
+Error: AECHO1_2020, KJL-GMM(full)
+***1_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 343, in main
+    model_params = load_data(model_params_file)
+  File "/home/pi/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/iat_size-header_True/AECHO1_2020/before_proj_False-gs_True/KJL-GMM(full)-std_False_center_False-d_5-full/repeat_1.model.model_params'
+Error: AECHO1_2020, KJL-GMM(full)
+***2_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 343, in main
+    model_params = load_data(model_params_file)
+  File "/home/pi/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/iat_size-header_True/AECHO1_2020/before_proj_False-gs_True/KJL-GMM(full)-std_False_center_False-d_5-full/repeat_2.model.model_params'
+Error: AECHO1_2020, KJL-GMM(full)
+***3_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 343, in main
+    model_params = load_data(model_params_file)
+  File "/home/pi/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/iat_size-header_True/AECHO1_2020/before_proj_False-gs_True/KJL-GMM(full)-std_False_center_False-d_5-full/repeat_3.model.model_params'
+Error: AECHO1_2020, KJL-GMM(full)
+***4_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 343, in main
+    model_params = load_data(model_params_file)
+  File "/home/pi/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/iat_size-header_True/AECHO1_2020/before_proj_False-gs_True/KJL-GMM(full)-std_False_center_False-d_5-full/repeat_4.model.model_params'
+Error: AECHO1_2020, KJL-GMM(full)
+/usr/local/lib/python3.7/dist-packages/numpy/core/fromnumeric.py:3335: RuntimeWarning: Mean of empty slice.
+  out=out, **kwargs)
+/usr/local/lib/python3.7/dist-packages/numpy/core/_methods.py:161: RuntimeWarning: invalid value encountered in double_scalars
+  ret = ret.dtype.type(ret / rcount)
+/usr/local/lib/python3.7/dist-packages/numpy/core/_methods.py:217: RuntimeWarning: Degrees of freedom <= 0 for slice
+  keepdims=keepdims)
+/usr/local/lib/python3.7/dist-packages/numpy/core/_methods.py:186: RuntimeWarning: invalid value encountered in true_divide
+  arrmean, rcount, out=arrmean, casting='unsafe', subok=False)
+/usr/local/lib/python3.7/dist-packages/numpy/core/_methods.py:209: RuntimeWarning: invalid value encountered in double_scalars
+  ret = ret.dtype.type(ret / rcount)
+speedup/out/models_res/src_dst/iat_size-header_True/AECHO1_2020/before_proj_False-gs_True/KJL-GMM(full)-std_False_center_False-d_5-full/AECHO1_2020-KJL-GMM(full).dat

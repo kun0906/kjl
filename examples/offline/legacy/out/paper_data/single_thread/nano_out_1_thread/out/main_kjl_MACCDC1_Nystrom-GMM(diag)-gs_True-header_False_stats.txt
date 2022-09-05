@@ -1,0 +1,53 @@
+Namespace(dataset='MACCDC1', feat='stats', gs='True', header='False', model='Nystrom-GMM(diag)', time='2021-04-05 18:08:25')
+***MACCDC1, Nystrom-GMM(diag), stats, speedup/data/models/src_dst/stats-header_False/MACCDC1/before_proj_False-gs_True/Nystrom-GMM(diag)-std_False_center_False-d_5-diag
+***0_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 353, in main
+    model_params = load_data(model_params_file)
+  File "/home/nano/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/stats-header_False/MACCDC1/before_proj_False-gs_True/Nystrom-GMM(diag)-std_False_center_False-d_5-diag/repeat_0.model.model_params'
+Error: MACCDC1, Nystrom-GMM(diag)
+***1_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 353, in main
+    model_params = load_data(model_params_file)
+  File "/home/nano/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/stats-header_False/MACCDC1/before_proj_False-gs_True/Nystrom-GMM(diag)-std_False_center_False-d_5-diag/repeat_1.model.model_params'
+Error: MACCDC1, Nystrom-GMM(diag)
+***2_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 353, in main
+    model_params = load_data(model_params_file)
+  File "/home/nano/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/stats-header_False/MACCDC1/before_proj_False-gs_True/Nystrom-GMM(diag)-std_False_center_False-d_5-diag/repeat_2.model.model_params'
+Error: MACCDC1, Nystrom-GMM(diag)
+***3_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 353, in main
+    model_params = load_data(model_params_file)
+  File "/home/nano/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/stats-header_False/MACCDC1/before_proj_False-gs_True/Nystrom-GMM(diag)-std_False_center_False-d_5-diag/repeat_3.model.model_params'
+Error: MACCDC1, Nystrom-GMM(diag)
+***4_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 353, in main
+    model_params = load_data(model_params_file)
+  File "/home/nano/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/stats-header_False/MACCDC1/before_proj_False-gs_True/Nystrom-GMM(diag)-std_False_center_False-d_5-diag/repeat_4.model.model_params'
+Error: MACCDC1, Nystrom-GMM(diag)
+/home/nano/.local/lib/python3.7/site-packages/numpy/core/fromnumeric.py:3335: RuntimeWarning: Mean of empty slice.
+  out=out, **kwargs)
+/home/nano/.local/lib/python3.7/site-packages/numpy/core/_methods.py:161: RuntimeWarning: invalid value encountered in double_scalars
+  ret = ret.dtype.type(ret / rcount)
+/home/nano/.local/lib/python3.7/site-packages/numpy/core/_methods.py:217: RuntimeWarning: Degrees of freedom <= 0 for slice
+  keepdims=keepdims)
+/home/nano/.local/lib/python3.7/site-packages/numpy/core/_methods.py:186: RuntimeWarning: invalid value encountered in true_divide
+  arrmean, rcount, out=arrmean, casting='unsafe', subok=False)
+/home/nano/.local/lib/python3.7/site-packages/numpy/core/_methods.py:209: RuntimeWarning: invalid value encountered in double_scalars
+  ret = ret.dtype.type(ret / rcount)
+speedup/out/models_res/src_dst/stats-header_False/MACCDC1/before_proj_False-gs_True/Nystrom-GMM(diag)-std_False_center_False-d_5-diag/MACCDC1-Nystrom-GMM(diag).dat

@@ -1,0 +1,53 @@
+Namespace(dataset='MACCDC1', feat='iat_size', gs='False', header='True', model='Nystrom-OCSVM(linear)', time='2021-04-05 18:01:25')
+***MACCDC1, Nystrom-OCSVM(linear), iat_size, speedup/data/models/src_dst/iat_size-header_True/MACCDC1/before_proj_False-gs_False/Nystrom-OCSVM(linear)-std_False_center_False-d_5-None
+***0_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 353, in main
+    model_params = load_data(model_params_file)
+  File "/home/nano/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/iat_size-header_True/MACCDC1/before_proj_False-gs_False/Nystrom-OCSVM(linear)-std_False_center_False-d_5-None/repeat_0.model.model_params'
+Error: MACCDC1, Nystrom-OCSVM(linear)
+***1_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 353, in main
+    model_params = load_data(model_params_file)
+  File "/home/nano/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/iat_size-header_True/MACCDC1/before_proj_False-gs_False/Nystrom-OCSVM(linear)-std_False_center_False-d_5-None/repeat_1.model.model_params'
+Error: MACCDC1, Nystrom-OCSVM(linear)
+***2_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 353, in main
+    model_params = load_data(model_params_file)
+  File "/home/nano/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/iat_size-header_True/MACCDC1/before_proj_False-gs_False/Nystrom-OCSVM(linear)-std_False_center_False-d_5-None/repeat_2.model.model_params'
+Error: MACCDC1, Nystrom-OCSVM(linear)
+***3_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 353, in main
+    model_params = load_data(model_params_file)
+  File "/home/nano/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/iat_size-header_True/MACCDC1/before_proj_False-gs_False/Nystrom-OCSVM(linear)-std_False_center_False-d_5-None/repeat_3.model.model_params'
+Error: MACCDC1, Nystrom-OCSVM(linear)
+***4_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 353, in main
+    model_params = load_data(model_params_file)
+  File "/home/nano/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/iat_size-header_True/MACCDC1/before_proj_False-gs_False/Nystrom-OCSVM(linear)-std_False_center_False-d_5-None/repeat_4.model.model_params'
+Error: MACCDC1, Nystrom-OCSVM(linear)
+/home/nano/.local/lib/python3.7/site-packages/numpy/core/fromnumeric.py:3335: RuntimeWarning: Mean of empty slice.
+  out=out, **kwargs)
+/home/nano/.local/lib/python3.7/site-packages/numpy/core/_methods.py:161: RuntimeWarning: invalid value encountered in double_scalars
+  ret = ret.dtype.type(ret / rcount)
+/home/nano/.local/lib/python3.7/site-packages/numpy/core/_methods.py:217: RuntimeWarning: Degrees of freedom <= 0 for slice
+  keepdims=keepdims)
+/home/nano/.local/lib/python3.7/site-packages/numpy/core/_methods.py:186: RuntimeWarning: invalid value encountered in true_divide
+  arrmean, rcount, out=arrmean, casting='unsafe', subok=False)
+/home/nano/.local/lib/python3.7/site-packages/numpy/core/_methods.py:209: RuntimeWarning: invalid value encountered in double_scalars
+  ret = ret.dtype.type(ret / rcount)
+speedup/out/models_res/src_dst/iat_size-header_True/MACCDC1/before_proj_False-gs_False/Nystrom-OCSVM(linear)-std_False_center_False-d_5-None/MACCDC1-Nystrom-OCSVM(linear).dat

@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 14, in <module>
+    import numpy as np
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/__init__.py", line 140, in <module>
+    from . import core
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/__init__.py", line 72, in <module>
+    from . import numeric
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/numeric.py", line 23, in <module>
+    from . import shape_base
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/shape_base.py", line 13, in <module>
+    from . import fromnumeric as _from_nx
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/fromnumeric.py", line 1915, in <module>
+    @array_function_dispatch(_shape_dispatcher)
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/overrides.py", line 181, in decorator
+    source, filename='<__array_function__ internals>', mode='exec')
+KeyboardInterrupt
