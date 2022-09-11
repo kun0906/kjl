@@ -9,4 +9,6 @@ utils/_pycache__/
 *.dat
 
 /legacy/
-!/~trash/
+/examples/offline/legacy/
+
+/~trash/

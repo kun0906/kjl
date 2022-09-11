@@ -101,21 +101,138 @@ def dat2gather_csv(in_file, out_file):
 	data = load(in_file)
 	print(data)
 
+def _get_line(results):
+	lines = []
+	for vs in results:
+		tmp = []
+		try:
+			size_ = []
+			for set_key in ['train', 'val', 'test']:
+				shape_ = vs[5]['0th_repeat'][set_key][f'{set_key}_shape']
+				size_.append(shape_[0])
+				dim_ = shape_[1]
+				auc_ = []
+				time_ = []
+				model_size_ = []
+				for i_repeat in sorted(vs[5].keys()):
+					# auc_ = '-'.join([str(vs[5][i_repeat][set_key][f'{set_key}_auc'])  for i_repeat in sorted(vs[5].keys())])
+					# time_ = '-'.join([str(vs[5][i_repeat][set_key][f'{set_key}_time'])  for i_repeat in sorted(vs[5].keys())])
+					# model_size_ = '-'.join()
+					auc_.append(str(vs[5][i_repeat][set_key][f'{set_key}_auc']))
+					time_.append(str(vs[5][i_repeat][set_key][f'{set_key}_time']))
+					model_size_.append(str(0))
+				tmp.append('-'.join(time_) + ',' + '-'.join(auc_))
+			size_ = '|'.join([str(v) for v in size_])
+			tmp = [size_, str(dim_)] + tmp + ['-'.join(model_size_)]
+		except Exception as e:
+			traceback.print_exc()
+		line = ','.join(vs[:5] + tmp)
+		lines.append(line)
+	return lines
+
+def parse_kde_result():
+	# format all results without kde
+	try:
+		root_dir = 'examples/offline/report/out/src_dst/results-20220910'
+		for device in ['MacOS', 'NANO', 'RASP']:
+			lg.info(f'\n\n***{device}, {root_dir}')
+			results = []
+			in_file = os.path.join(root_dir, f'{device}/training_results/KDE-2022-09-10 22:35:52.173766/res.dat')
+			kde_results = load(in_file)
+			for dataset, dataset_name in [('CTU-2022-09-03 20:08:46.601527', 'CTU1'), ('MAWI1_2020-2022-09-04 06:47:44.771062', 'MAWI1_2020'),
+			                ('MACCDC1-2022-09-04 14:52:54.447067', 'MACCDC1'), ('AECHO1_2020-2022-09-04 06:48:54.703572', 'AECHO1_2020'),
+			                ('DWSHR_AECHO_2020-2022-09-04 13:09:53.571742', 'DWSHR_AECHO_2020')]:
+				in_file = os.path.join(root_dir, f'{device}/training_results/{dataset}/res.dat')
+				data = load(in_file)
+				tmp = [vs for vs in kde_results if vs[0] == dataset_name and vs[4] == 'tuning_True'][0]
+				data.insert(3, tmp)
+				results.extend(data)
+
+			out_file = os.path.join(root_dir, f'{device}/training_results/IAT+SIZE-header_False/gather_detail.csv')
+			with open(out_file, 'w') as f:
+				for vs in results:
+					tmp = []
+					try:
+						size_ = []
+						for set_key in ['train', 'val', 'test']:
+							shape_ = vs[5]['0th_repeat'][set_key][f'{set_key}_shape']
+							size_.append(shape_[0])
+							dim_ = shape_[1]
+							auc_ = []
+							time_ = []
+							model_size_ = []
+							for i_repeat in sorted(vs[5].keys()):
+								# auc_ = '-'.join([str(vs[5][i_repeat][set_key][f'{set_key}_auc'])  for i_repeat in sorted(vs[5].keys())])
+								# time_ = '-'.join([str(vs[5][i_repeat][set_key][f'{set_key}_time'])  for i_repeat in sorted(vs[5].keys())])
+								# model_size_ = '-'.join()
+								auc_.append(str(vs[5][i_repeat][set_key][f'{set_key}_auc']))
+								time_.append(str(vs[5][i_repeat][set_key][f'{set_key}_time']))
+								model_size_.append(str(0))
+							tmp.append('-'.join(time_) + ',' + '-'.join(auc_))
+						size_ = '|'.join([str(v) for v in size_])
+						tmp = [size_, str(dim_)] + tmp + ['-'.join(model_size_)]
+					except Exception as e:
+						traceback.print_exc()
+					line = ','.join(vs[:5] + tmp)
+					print(line)
+					f.write(line + '\n')
+			print(out_file)
+
+			in_file = out_file
+			lg.debug(in_file)
+			_speedup.main(in_file, FEATURES=['IAT+SIZE'], HEADERS=[False])
+			# in_file = os.path.join(root_dir, f'{device}/STATS-header_True/gather.csv')
+			# lg.debug(in_file)
+			# _speedup.main(in_file, FEATURES=['STATS'], HEADERS=[True])
+
+			in_file = os.path.splitext(in_file)[0] + '-speedup.csv'
+			df = pd.read_csv(in_file)
+			# only contains the full covariance
+			df_full = df[(df.iloc[:, 4] == 'tuning_True') & (~df.iloc[:, 3].str.contains('diag'))].iloc[:,
+			          [0, 3, 5, 7, 8, 9]].T
+			df_full.columns = sum([[v] * 9 for v in ['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DSHWR']],
+			                      [])  # flatten a nested list
+			df_full.iloc[1, :] = sum([[v2 for v, v2 in [('OCSVM(rbf)', 'OCSVM'),
+			                                            ('KJL-OCSVM(linear)', 'OC-KJL-SVM(linear)'),
+			                                            ('Nystrom-OCSVM(linear)', 'OC-Nystrom-SVM(linear)'),
+			                                            ('KDE', 'KDE'),
+			                                            ('GMM(full)', 'GMM(full)'),
+			                                            ('KJL-GMM(full)', 'OC-KJL'),
+			                                            ('Nystrom-GMM(full)', 'OC-Nystrom'),
+			                                            ('KJL-QS-GMM(full)', 'OC-KJL-QS'),
+			                                            ('Nystrom-QS-GMM(full)', 'OC-Nystrom-QS')]] * 7], [])
+			df_diag = df[(df.iloc[:, 4] == 'tuning_True') & (~df.iloc[:, 3].str.contains('full'))].iloc[:,
+			          [0, 3, 5, 7, 8, 9]].T
+			df_diag.columns = sum([[v] * 9 for v in ['UNB', 'CTU', 'MAWI', 'MACCDC', 'SFRIG', 'AECHO', 'DSHWR']],
+			                      [])  # flatten a nested list
+			df = pd.concat([df_full, df_diag], axis=0)
+			gmm_file = os.path.splitext(in_file)[0] + '-speedup-gmm.csv'
+			df.to_csv(gmm_file, sep=',', encoding='utf-8', index=False)
+			print(gmm_file)
+
+
+	except Exception as e:
+		lg.error(f'Error: {e}.')
+
 if __name__ == '__main__':
 	# parse_result()
+	parse_kde_result()
+	exit()
+
+	# format all results without kde
 	try:
-		root_dir = 'examples/offline/report/out/src_dst/results-20220905'
-		for device in ['MacOS']:
+		root_dir = 'examples/offline/report/out/src_dst/results-20220910'
+		for device in ['MacOS', 'NANO', 'RASP']:
 			lg.info(f'\n\n***{device}, {root_dir}')
 			results = []
 			for dataset in ['CTU-2022-09-03 20:08:46.601527', 'MAWI1_2020-2022-09-04 06:47:44.771062',
 			                'MACCDC1-2022-09-04 14:52:54.447067', 'AECHO1_2020-2022-09-04 06:48:54.703572',
 			                'DWSHR_AECHO_2020-2022-09-04 13:09:53.571742']:
-				in_file = os.path.join(root_dir, f'{device}/{dataset}/res.dat')
+				in_file = os.path.join(root_dir, f'{device}/training_results/{dataset}/res.dat')
 				data = load(in_file)
 				results.extend(data)
 
-			out_file = os.path.join(root_dir, f'{device}/IAT+SIZE-header_False/gather_detail.csv')
+			out_file = os.path.join(root_dir, f'{device}/training_results/IAT+SIZE-header_False/gather_detail.csv')
 			with open(out_file, 'w') as f:
 				for vs in results:
 					tmp = []

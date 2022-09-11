@@ -31,6 +31,7 @@ from examples.offline.datasets.uchi import UCHI
 from examples.offline.datasets.unb import UNB
 from kjl.models.gmm import GMM
 from kjl.models.ocsvm import OCSVM
+from kjl.models.kde import KDE
 from kjl.projections.kjl import KJL
 from kjl.projections.nystrom import Nystrom
 from kjl.utils.tool import timer
@@ -194,6 +195,8 @@ def _single_main(args, train_set, test_set):
 		model = OCSVM(params=args.params)
 	elif 'GMM' in args.model:
 		model = GMM(params=args.params)
+	elif 'KDE' in args.model:
+		model = KDE(params=args.params)
 	else:
 		msg = args.model
 		raise NotImplementedError(msg)
