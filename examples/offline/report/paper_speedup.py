@@ -303,11 +303,15 @@ if __name__ == '__main__':
 		main(root_dir, feature='STATS', header=True)
 	else:
 		root_dir = 'examples/offline/report/out/src_dst/results-20220905'
+		root_dir = 'examples/offline/report/out/src_dst/results-20220910'
 		# After deployment and copy the result ('examples/offline/deployment/out/src_dst/results') to 'examples/offline/report/out/src_dst/'
-		for device in ['MacOS']:
+		for device in ['MacOS', 'NANO', 'RSPI']:
 			lg.info(f'\n\n***{device}, {root_dir}')
 			# in_file = os.path.join(root_dir, f'{device}/deployed_results/IAT+SIZE-header_False/gather-all.csv')
-			in_file = os.path.join(root_dir, f'{device}/deployed_results2/IAT+SIZE-header_False/gather-all.csv')
+			if device == 'MacOS':
+				in_file = os.path.join(root_dir, f'{device}/deployed_results2/IAT+SIZE-header_False/gather-all.csv')
+			else:
+				in_file = os.path.join(root_dir, f'{device}/IAT+SIZE-header_False/gather-all.csv')
 			lg.debug(in_file)
 			_speedup.main(in_file, FEATURES=['IAT+SIZE'], HEADERS=[False])
 			# in_file = os.path.join(root_dir, f'{device}/deployed_results/STATS-header_True/gather.csv')

@@ -225,16 +225,6 @@ def speedup_table(in_file, out_file, header=False, feature='IAT+SIZE'):
 			for covariance_type in ['full', 'diag']:
 				f.write(f'\n\n\n***{tuning}, {covariance_type}, {feature}, header_{header}\n')
 
-				# GMM Table (i.e., GMM('full', diag))
-				f.write(f'{tuning}, {covariance_type}, {feature}, header_{header},  GMM Table\n')
-				# Test time speedup (Neon)
-				f.write(' & '.join([vs[7] for vs in tmp if f'GMM({covariance_type})' == vs[3]]).
-				        replace('+/-', '$\pm$') + '\n')
-				# Space reduction
-				f.write(' & '.join([vs[9] for vs in tmp if f'GMM({covariance_type})' == vs[3]]).
-				        replace('+/-', '$\pm$') + '\n')
-
-
 				# OC-KJL Table (i.e., KJL-GMM(''))
 				f.write(f'\n\n{tuning}, {covariance_type}, {feature}, header_{header},  OC-KJL Table\n')
 				# Test time speedup (Neon)
@@ -251,6 +241,24 @@ def speedup_table(in_file, out_file, header=False, feature='IAT+SIZE'):
 				        replace('+/-', '$\pm$') + '\n')
 				# Space reduction
 				f.write(' & '.join([vs[9] for vs in tmp if f'Nystrom-GMM({covariance_type})' == vs[3]]).
+				        replace('+/-', '$\pm$') + '\n')
+
+				# KDE Table
+				f.write(f'{tuning}, {covariance_type}, {feature}, header_{header},  KDE Table\n')
+				# Test time speedup (Neon)
+				f.write(' & '.join([vs[7] for vs in tmp if f'KDE' == vs[3]]).
+				        replace('+/-', '$\pm$') + '\n')
+				# Space reduction
+				f.write(' & '.join([vs[9] for vs in tmp if f'KDE' == vs[3]]).
+				        replace('+/-', '$\pm$') + '\n')
+
+				# GMM Table (i.e., GMM('full', diag))
+				f.write(f'{tuning}, {covariance_type}, {feature}, header_{header},  GMM Table\n')
+				# Test time speedup (Neon)
+				f.write(' & '.join([vs[7] for vs in tmp if f'GMM({covariance_type})' == vs[3]]).
+				        replace('+/-', '$\pm$') + '\n')
+				# Space reduction
+				f.write(' & '.join([vs[9] for vs in tmp if f'GMM({covariance_type})' == vs[3]]).
 				        replace('+/-', '$\pm$') + '\n')
 
 				# OC-KJL, OC-KJL-QS vs OC-Nystrom, OC-Nystrom-QS
@@ -325,11 +333,13 @@ def main(in_file, FEATURES=['IAT+SIZE'], HEADERS=[False]):
 	###################################################################################################
 	# 2. format results
 	in_file = out_file
+	# (train_time_speedup, train_auc_speedup, test_time_speedup, test_auc_speedup, space_reduction)
 	baseline_file = os.path.splitext(in_file)[0] + '-baseline.txt'
 	baseline_table(in_file, baseline_file, header, feature)
 	lg.debug(f'baseline: {baseline_file}')
 
 	in_file = out_file
+	# (train_time_speedup, train_auc_speedup, test_time_speedup, test_auc_speedup, space_reduction)
 	speedup_file = os.path.splitext(in_file)[0] + '-speedup.txt'
 	speedup_table(in_file, speedup_file, header, feature)
 	lg.debug(f'speedup: {speedup_file}')

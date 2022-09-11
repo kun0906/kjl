@@ -16,6 +16,8 @@
 import cProfile
 import copy
 import itertools
+import os.path
+import shutil
 import time
 import traceback
 from collections import Counter
@@ -35,12 +37,16 @@ from kjl.utils import pstats
 from kjl.utils.tool import load, dump, check_path, timer
 
 RESULT_DIR = f'results/{START_TIME}'
-# DATASETS = ['UNB3_345']  # Two different normal data
-# MODELS = ["KJL-OCSVM(linear)"]
+DATASETS = ['CTU1']  # Two different normal data
+MODELS = ["KJL-OCSVM(linear)"]
 FEATURES = ['IAT+SIZE', 'STATS']
 HEADERS = [False, True]
 TUNINGS = [False, True]
-
+n_test_repeats = 100
+print(f'RESULT_DIR: {RESULT_DIR}')
+out_dir = 'examples/offline/deployment/out/src_dst'
+if os.path.exists(out_dir):
+	shutil.rmtree(out_dir, ignore_errors=True)
 
 def _get_parameters(model_all_data):
 	model = model_all_data['model']['model']
@@ -428,7 +434,7 @@ def main():
 		lg.debug(f'\n***Evaluate models, feature: {feature}, header: {header}')
 		in_dir = model_in_dir
 		out_dir = 'examples/offline/deployment/out/src_dst'
-		n_test_repeats = 100
+		# n_test_repeats = 100
 		evaluate(in_dir, out_dir, n_repeats, n_test_repeats, FEATURES=[feature], HEADERS=[header])
 
 		# 4. Gather all the individual result
