@@ -21,6 +21,7 @@ Command:
 # License: xxx
 import copy
 import itertools
+import os.path
 import traceback
 from collections import Counter
 
@@ -34,11 +35,11 @@ from examples.offline._offline import Data
 from kjl.utils.tool import dump, timer, check_path, remove_file, get_train_val, get_test_rest, load
 
 RESULT_DIR = f'results/{START_TIME}'
-# DATASETS = ['MAWI1_2020']  # Two different normal data, MAWI1_2020
+DATASETS = ['AECHO1_2020']  # Two different normal data, MAWI1_2020
 FEATURES = ['IAT+SIZE']
 HEADERS = [False]
 # MODELS = [  "Nystrom-QS-GMM(full)",   "Nystrom-QS-GMM(diag)"] # "OCSVM(rbf)", "GMM(full)", "GMM(diag)", "KJL-GMM(full)", "KJL-GMM(diag)",
-MODELS = ['KDE']
+# MODELS = ['GMM(full)']
 TUNINGS = [True, False]
 
 lg.debug(f'DATASETS: {DATASETS}, FEATURES: {FEATURES}, HEADERS: {HEADERS}, MODELS: {MODELS}, TUNINGS: {TUNINGS}')
@@ -468,7 +469,7 @@ def save_dict2txt(data, out_file, delimiter=','):
 def _main_entry(args):
 	try:
 		data = Data(name=args.dataset, flow_direction=args.direction, feature_name=args.feature,
-		            header=args.header,
+		            header=args.header, out_dir = args.out_dir,
 		            overwrite=args.overwrite, random_state=RANDOM_STATE)
 		data.generate()
 		if 'SAMP' in args.feature:
@@ -532,7 +533,8 @@ def _main_entry(args):
 				args_i = copy.deepcopy(args)
 				X_train, y_train, X_val, y_val = get_train_val(X_normal, y_normal, X_abnormal_rest, y_abnormal_rest,
 				                                               val_size=int(len(y_test) / 4),  # test: val = 4:1
-				                                               shuffle=True, random_state=RANDOM_STATE * (i + 100))
+				                                               shuffle=True, random_state=RANDOM_STATE * (i + 100),
+				                                               n_normal_max_train = args.n_normal_max_train)
 				# # normalization
 				# ss, X_train, y_train, X_val, y_val, X_test, y_test = normalize(X_train, y_train, X_val, y_val, X_test,
 				#                                                                y_test)
@@ -617,7 +619,7 @@ def gather(in_dir='src_dst', out_dir=''):
 
 
 @timer
-def _main():
+def _main(out_dir, n_normal_max_train=10000):
 	""" Main function
 
 	Returns
@@ -625,7 +627,7 @@ def _main():
 
 	"""
 	res = []
-	out_file = f'{OUT_DIR}/{FLOW_DIRECTION}/{RESULT_DIR}/res.dat'
+	out_file = f'{out_dir}/{FLOW_DIRECTION}/{RESULT_DIR}/res.dat'
 	is_parallel = False
 	if is_parallel:  # with parallel
 		# if backend='loky', the time taken is less than that of serial. but if backend='multiprocessing', we can
@@ -637,6 +639,7 @@ def _main():
 				try:
 					lg.info(f'*** {dataset}-{feature}-header_{header}, {model}-tuning_{tuning}')
 					args = parser()
+					args.out_dir = out_dir
 					args.dataset = dataset
 					args.feature = feature
 					args.header = header
@@ -666,6 +669,7 @@ def _main():
 			try:
 				lg.info(f'*** {dataset}-{feature}-header_{header}, {model}-tuning_{tuning}')
 				args = parser()
+				args.out_dir = out_dir
 				args.dataset = dataset
 				args.feature = feature
 				args.header = header
@@ -678,6 +682,7 @@ def _main():
 				# For testing. the number (20) here doesn't matter (because we will upload the build models
 				# to different devices and retest the models to get the final results)
 				args.n_test_repeats = 20
+				args.n_normal_max_train = n_normal_max_train
 				# get results
 				history = _main_entry(args)
 
@@ -700,7 +705,7 @@ def _main():
 
 
 @timer
-def main():
+def main(out_dir='', n_normal_max_train=10000):
 	""" Main function
 		1. get all the results
 		2. gather all results
@@ -709,17 +714,16 @@ def main():
 
 	"""
 	# # clean()
-
 	# 1. Run the main function and get the results for the given parameters
 	try:
-		_main()
+		_main(out_dir, n_normal_max_train)
 	except Exception as e:
 		lg.error(f'Error: {e}.')
 		traceback.print_exc()
 
 	# 2. Gather all the individual result
 	try:
-		in_dir = f'{OUT_DIR}/src_dst'
+		in_dir = f'{out_dir}/src_dst'
 		out_file = gather(in_dir, out_dir=os.path.join(in_dir, RESULT_DIR))
 		lg.info(out_file)
 	except Exception as e:
@@ -727,4 +731,6 @@ def main():
 
 
 if __name__ == '__main__':
-	main()
+	for n_normal_max_train in [1000, 3000, 5000, 8000, 10000]:
+		out_dir = os.path.join(OUT_DIR, f'train_size_{n_normal_max_train}')
+		main(out_dir, n_normal_max_train)

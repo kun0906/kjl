@@ -35,6 +35,9 @@ def correlation(X, title=''):
 def parse_result():
 	in_dir = 'examples/offline/out/src_dst'
 	dataset = 'CTU1'
+	dataset = 'MACCDC1'
+	# dataset = 'AECHO1_2020'
+	# dataset = 'DWSHR_AECHO_2020'
 	# dataset = 'AECHO1_2020'
 	full_file = f'{in_dir}/{dataset}/IAT+SIZE/header_False/GMM(full)/tuning_True/res.dat'
 	diag_file = f'{in_dir}/{dataset}/IAT+SIZE/header_False/GMM(diag)/tuning_True/res.dat'
@@ -58,7 +61,7 @@ def parse_result():
 
 		print(f'full_auc:', full['best']['score'], f'diag_auc:', diag['best']['score'])
 		print(f'full_test_auc:', full['test']['test_auc'], f'diag_test_auc:', diag['test']['test_auc'])
-
+		continue
 		n_components = full['best']['model']['model'].model.n_components
 		for flg in [False, True]:
 			print(f'\nReducing features: {flg}')
@@ -215,8 +218,8 @@ def parse_kde_result():
 		lg.error(f'Error: {e}.')
 
 if __name__ == '__main__':
-	# parse_result()
-	parse_kde_result()
+	parse_result()
+	# parse_kde_result()
 	exit()
 
 	# format all results without kde
