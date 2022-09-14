@@ -402,7 +402,8 @@ def get_test_rest(X_normal, y_normal, X_abnormal, y_abnormal,
 	return X_test, y_test, X_abnormal_rest, y_abnormal_rest, X_normal, y_normal
 
 
-def get_train_val(X_normal, y_normal, X_abnormal, y_abnormal, val_size=100, shuffle=True, random_state=42):
+def get_train_val(X_normal, y_normal, X_abnormal, y_abnormal, val_size=100, n_normal_max_train=10000,
+                  shuffle=True, random_state=42):
 	"""
 
 	Parameters
@@ -428,7 +429,7 @@ def get_train_val(X_normal, y_normal, X_abnormal, y_abnormal, val_size=100, shuf
 	X_val = np.concatenate([X_ab_val, X_val], axis=0)
 	y_val = np.concatenate([y_ab_val, y_val], axis=0)
 
-	n_normal_max_train = 10000
+	# n_normal_max_train = 10000
 	X_train = X_normal[:n_normal_max_train]
 	y_train = y_normal[:n_normal_max_train]
 	return X_train, y_train, X_val, y_val

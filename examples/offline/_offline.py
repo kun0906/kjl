@@ -40,8 +40,10 @@ from kjl.utils.tool import timer
 @timer
 class Data:
 	def __init__(self, name, verbose=10, overwrite=False, feature_name='IAT+SIZE', flow_direction='src_dst',
+	             out_dir = None,
 	             header=False, random_state=42):
 		self.name = name
+		self.out_dir = out_dir
 		self.verbose = verbose
 		self.overwrite = overwrite
 		self.feature_name = feature_name
@@ -50,28 +52,28 @@ class Data:
 		self.random_state = random_state
 
 		if name == 'DUMMY':
-			self.data = DUMMY(dataset_name=name, out_dir=OUT_DIR,
+			self.data = DUMMY(dataset_name=name, out_dir=out_dir,
 			                  feature_name=feature_name, flow_direction=self.flow_direction, header=self.header,
 			                  random_state=self.random_state, verbose=self.verbose, overwrite=self.overwrite)
 		elif name == 'UNB3_345':
-			self.data = UNB(dataset_name=name, out_dir=OUT_DIR,
+			self.data = UNB(dataset_name=name, out_dir=out_dir,
 			                feature_name=feature_name, flow_direction=self.flow_direction, header=self.header,
 			                random_state=self.random_state, verbose=self.verbose, overwrite=self.overwrite)
 		elif name == 'CTU1':
-			self.data = CTU(dataset_name=name, out_dir=OUT_DIR,
+			self.data = CTU(dataset_name=name, out_dir=out_dir,
 			                feature_name=feature_name, flow_direction=self.flow_direction, header=self.header,
 			                random_state=self.random_state, verbose=self.verbose, overwrite=self.overwrite)
 		elif name == 'MAWI1_2020':
-			self.data = MAWI(dataset_name=name, out_dir=OUT_DIR,
+			self.data = MAWI(dataset_name=name, out_dir=out_dir,
 			                 feature_name=feature_name, flow_direction=self.flow_direction, header=self.header,
 			                 random_state=self.random_state, verbose=self.verbose, overwrite=self.overwrite)
 		elif name == 'MACCDC1':
-			self.data = MACCDC(dataset_name=name, out_dir=OUT_DIR,
+			self.data = MACCDC(dataset_name=name, out_dir=out_dir,
 			                   feature_name=feature_name, flow_direction=self.flow_direction, header=self.header,
 			                   random_state=self.random_state, verbose=self.verbose, overwrite=self.overwrite)
 		elif name in ['SFRIG1_2020', 'SFRIG1_2021', 'AECHO1_2020', 'DWSHR_2020', 'WSHR_2020',
 		              'DWSHR_WSHR_2020', 'DWSHR_AECHO_2020', 'DWSHR_WSHR_AECHO_2020']:
-			self.data = UCHI(dataset_name=name, out_dir=OUT_DIR,
+			self.data = UCHI(dataset_name=name, out_dir=out_dir,
 			                 feature_name=feature_name, flow_direction=self.flow_direction, header=self.header,
 			                 random_state=self.random_state, verbose=self.verbose, overwrite=self.overwrite)
 		else:
