@@ -30,6 +30,7 @@ from examples.offline._constants import *
 from examples.offline._gather import gather
 from examples.offline.offline import save_dict2txt
 from kjl.models.gmm import _GMM
+from kjl.models.kde import _KDE
 from kjl.models.ocsvm import _OCSVM
 from kjl.projections.kjl import KJL
 from kjl.projections.nystrom import Nystrom
@@ -37,16 +38,57 @@ from kjl.utils import pstats
 from kjl.utils.tool import load, dump, check_path, timer
 
 RESULT_DIR = f'results/{START_TIME}'
-DATASETS = ['CTU1']  # Two different normal data
-MODELS = ["KJL-OCSVM(linear)"]
-FEATURES = ['IAT+SIZE', 'STATS']
-HEADERS = [False, True]
+DATASETS = ['AECHO1_2020']  # Two different normal data
+# MODELS = ["KJL-OCSVM(linear)"]
+FEATURES = ['IAT+SIZE']
+HEADERS = [False]
 TUNINGS = [False, True]
-n_test_repeats = 100
+n_test_repeats = 1
 print(f'RESULT_DIR: {RESULT_DIR}')
 out_dir = 'examples/offline/deployment/out/src_dst'
 if os.path.exists(out_dir):
 	shutil.rmtree(out_dir, ignore_errors=True)
+
+MODELS = [
+    ################################################################################################################
+    # # 1. OCSVM
+    "OCSVM(rbf)",
+    # "KJL-OCSVM(linear)",
+    # "Nystrom-OCSVM(linear)",
+
+    "KDE",
+
+    # ################################################################################################################
+    "GMM(full)",
+	# "GMM(diag)",
+
+    # # ################################################################################################################s
+    # # # 2. KJL/Nystrom
+    "KJL-GMM(full)", # "KJL-GMM(diag)",
+    "Nystrom-GMM(full)", # "Nystrom-GMM(diag)",
+
+    ################################################################################################################
+    # quickshift(QS)/meanshift(MS) are used before KJL/Nystrom projection
+    # "QS-KJL-GMM(full)", "QS-KJL-GMM(diag)",
+    # "MS-KJL-GMM(full)", "MS-KJL-GMM(diag)",
+
+    # "QS-Nystrom-GMM(full)", "QS-Nystrom-GMM(diag)",
+    # "MS-Nystrom-GMM(full)", "MS-Nystrom-GMM(diag)",
+
+    ################################################################################################################
+    # 3. quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection
+    "KJL-QS-GMM(full)", #  "KJL-QS-GMM(diag)",
+    # "KJL-MS-GMM(full)", "KJL-MS-GMM(diag)",
+
+    "Nystrom-QS-GMM(full)",  #  "Nystrom-QS-GMM(diag)",
+    # "Nystrom-MS-GMM(full)", "Nystrom-MS-GMM(diag)"
+    #
+    # ################################################################################################################
+    # # 4. quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection and initialize GMM (set 'GMM_is_init_all'=True)
+    # "KJL-QS-init_GMM(full)",   "KJL-QS-init_GMM(diag)",
+    # "Nystrom-QS-init_GMM(full)",   "Nystrom-QS-init_GMM(diag)",
+]
+
 
 def _get_parameters(model_all_data):
 	model = model_all_data['model']['model']
@@ -63,7 +105,9 @@ def _get_parameters(model_all_data):
 		if model_params['kernel'] == 'rbf':
 			model_params['_gamma'] = model.model._gamma
 		else:
-			model_params['_gamma'] = 0
+			# model_params['_gamma'] = 0
+			msg = f'Error: {model.kernel}'
+			raise NotImplementedError(msg)
 
 		model_params['support_vectors_'] = model.model.support_vectors_
 		model_params['_dual_coef_'] = model.model._dual_coef_
@@ -104,6 +148,30 @@ def _get_parameters(model_all_data):
 			project_params['Xrow'] = model.project.Xrow
 			project_params['eigvec_lambda'] = model.project.eigvec_lambda
 
+	elif 'KDE' in model_name:
+		# KDE params
+		# model_params['kernel'] = model.kernel
+		# if model_params['kernel'] == 'rbf':
+		# 	model_params['_gamma'] = model.model._gamma
+		# else:
+		# 	# model_params['_gamma'] = 0
+		# 	msg = f'Error: {model.kernel}'
+		# 	raise NotImplementedError(msg)
+		model_params['kernel'] = model.model.kernel
+		model_params['bandwidth'] = model.bandwidth
+		# model_params['_gamma'] = model.model._gamma
+		# have no answer until now.
+		# https://github.com/pulimeng/eToxPred/issues/1
+		# https://github.com/scikit-learn/scikit-learn/issues/19602
+		model_params['tree_'] = model.model.tree_   # this one will have issues on RSPI(32bit): require SIZE_t, but long long for kde.
+		# if 'KJL' in model_name:  # KJL-GMM
+		# 	project_params['sigma'] = model.project.sigma
+		# 	project_params['Xrow'] = model.project.Xrow
+		# 	project_params['U'] = model.project.U
+		# elif 'Nystrom' in model_name:  # Nystrom-GMM
+		# 	project_params['sigma'] = model.project.sigma
+		# 	project_params['Xrow'] = model.project.Xrow
+		# 	project_params['eigvec_lambda'] = model.project.eigvec_lambda
 
 	else:
 		raise NotImplementedError()
@@ -208,6 +276,11 @@ def reconstruct_model(params):
 		model.means_ = model_params['means_']
 		# models.precisions_ = model_params['precisions_']
 		model.precisions_cholesky_ = model_params['precisions_cholesky_']
+	elif 'KDE' in model_name:
+		model = _KDE()
+		model.bandwidth = model_params['bandwidth']
+		model.kernel = model_params['kernel']
+		model.tree_ = model_params['tree_']
 	else:
 		raise NotImplementedError()
 
@@ -394,6 +467,7 @@ def evaluate(in_dir, out_dir, n_repeats=5, n_test_repeats=10, FEATURES=[], HEADE
 				model_params_file = os.path.join(in_dir, dataset, feature, f'header_{header}', model,
 				                                 f'tuning_{tuning}',
 				                                 f'model_params_{i}th.dat')
+				lg.debug(model_params_file)
 				params = load(model_params_file)
 				reconstructed_model = reconstruct_model(params)
 				# 3. Evaluate new models
@@ -417,23 +491,25 @@ def evaluate(in_dir, out_dir, n_repeats=5, n_test_repeats=10, FEATURES=[], HEADE
 
 
 @timer
-def main():
+def main(out_dir, n_normal_max_train=1000):
 	n_repeats = 5
-	flg = True
-	model_in_dir = 'examples/offline/deployment/data/src_dst/models'
+	model_in_dir = f'examples/offline/deployment/data/train_size_{n_normal_max_train}/src_dst/models'
+	flg = True # this is only used in the trained server (e.g., NEON or MacOS), not RSPI(32bit) and NANO(64bit)
 	if flg:
 		# 1. only extract needed parameters from each built model. It should be done before deploying.
 		lg.debug(f'\n***Extract needed parameters')
-		in_dir = 'examples/offline/out/src_dst'
+		in_dir = f'examples/offline/out/train_size_{n_normal_max_train}/src_dst'
 		extract_needed_parameters(in_dir, model_in_dir, n_repeats)
 	# 2. deployment: upload the models and test set to different servers using (scp)
 	# lg.debug(f'\n***Upload models')
 
 	# 3. evaluate models
 	for (feature, header) in [('IAT+SIZE', False), ('STATS', True)]:  #
+		if feature not in FEATURES: continue
+		if header not in HEADERS: continue
 		lg.debug(f'\n***Evaluate models, feature: {feature}, header: {header}')
 		in_dir = model_in_dir
-		out_dir = 'examples/offline/deployment/out/src_dst'
+		out_dir = f'examples/offline/deployment/out/train_size_{n_normal_max_train}/src_dst'
 		# n_test_repeats = 100
 		evaluate(in_dir, out_dir, n_repeats, n_test_repeats, FEATURES=[feature], HEADERS=[header])
 
@@ -446,4 +522,7 @@ def main():
 
 
 if __name__ == '__main__':
-	main()
+	# main()
+	for n_normal_max_train in  [1000, 3000, 5000,8000, 10000]: # 1000, 3000, 5000, 10000
+		out_dir = os.path.join(OUT_DIR, f'train_size_{n_normal_max_train}')
+		main(out_dir, n_normal_max_train)

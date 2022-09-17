@@ -3,6 +3,10 @@
 ### Python3.7.9 version: 3.7.9
 # conda create -n py379 python=3.7.9
 
+# pip3: 21.0.1
+# python3 -m pip3 install pip==21.0.1
+# pip3 install --ignore-installed --no-cache-dir scikit-learn==0.22.1
+
 ### install odet
 # cd kjl/datasets/odet; pip install .
 # odet>=0.0.1
@@ -12,8 +16,10 @@
 # pip install .
 # quickshift++  # requriement an old sikit-learn (scikit-learn~=0.23.2 works, which needs old python3.7)
 
+# Python 3.7.3 with ’–enable-optimizations’ option for RSPI (32bit: Python3.7.3) and NANO (64bit: Python3.7.3)
+# Numpy 1.18.2 (install from the numpy source codes that searches for BLAS and LAPACK dynamic link libraries at
+# build time as influenced by the system environment variable
 
-# numpy ~= 1.19.2  # Sync with the numpy version used in TF
 # The rest of the packages are mostly used for testing purpose.
 #ConfigArgParse~=1.5.2
 #dill

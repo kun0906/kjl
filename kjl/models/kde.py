@@ -10,7 +10,7 @@ import time
 import numpy as np
 from func_timeout import FunctionTimedOut
 from loguru import logger as lg
-from pyod.models.base import BaseDetector
+# from pyod.models.base import BaseDetector
 from scipy.spatial import distance
 from sklearn.compose._column_transformer import _check_X
 from sklearn.neighbors import KernelDensity
@@ -19,8 +19,7 @@ from sklearn.neighbors._kde import VALID_KERNELS
 from kjl.models._base import BASE
 from kjl.utils import pstats
 
-
-class _KDE(KernelDensity, BaseDetector):
+class _KDE(KernelDensity):
 
 	def __init__(self, bandwidth=1.0, algorithm='auto',
 	             kernel='gaussian', metric="euclidean", atol=0, rtol=0, contamination=0.1,
@@ -70,7 +69,7 @@ class _KDE(KernelDensity, BaseDetector):
 		self.breadth_first = breadth_first
 		self.leaf_size = leaf_size
 		self.metric_params = metric_params
-		self.contamination = contamination
+		# self.contamination = contamination
 		self.random_state = random_state
 
 		# run the choose algorithm code so that exceptions will happen here
@@ -82,36 +81,6 @@ class _KDE(KernelDensity, BaseDetector):
 			raise ValueError("bandwidth must be positive")
 		if kernel not in VALID_KERNELS:
 			raise ValueError("invalid kernel: '{0}'".format(kernel))
-
-	def fit(self, X_train, y_train=None):
-		"""Fit KDE.
-
-		Parameters
-		----------
-		X_train : numpy array of shape (n_samples, n_features)
-			The input samples.
-
-		y_train : numpy array of shape (n_samples,), optional (default=None)
-			The ground truth of the input samples (labels).
-
-		Returns
-		-------
-		self : object
-			the fitted estimator.
-		"""
-		X_train = _check_X(X_train)
-		self.model = KernelDensity(bandwidth=self.bandwidth,
-		                           algorithm=self.algorithm,
-		                           kernel=self.kernel,
-		                           metric=self.metric,
-		                           atol=self.atol,
-		                           rtol=self.rtol,
-		                           breadth_first=self.breadth_first,
-		                           leaf_size=self.leaf_size,
-		                           metric_params=self.metric_params)
-
-		self.model.fit(X_train)
-		return self
 
 	def decision_function(self, X):
 		"""Predict raw anomaly scores of X using the fitted detector.
@@ -129,7 +98,7 @@ class _KDE(KernelDensity, BaseDetector):
 			The anomaly score of the input samples.
 		"""
 		# check_is_fitted(self, ['decision_scores_', 'threshold_', 'labels_'])
-		return -1 * self.model.score_samples(X)
+		return -1 * self.score_samples(X)
 
 	def predict_proba(self, X):
 		return -1 * self.score_samples(X)  #

@@ -39,7 +39,48 @@ DATASETS = ['AECHO1_2020']  # Two different normal data, MAWI1_2020
 FEATURES = ['IAT+SIZE']
 HEADERS = [False]
 # MODELS = [  "Nystrom-QS-GMM(full)",   "Nystrom-QS-GMM(diag)"] # "OCSVM(rbf)", "GMM(full)", "GMM(diag)", "KJL-GMM(full)", "KJL-GMM(diag)",
-# MODELS = ['GMM(full)']
+MODELS = ['KDE']
+
+MODELS = [
+    ################################################################################################################
+    # # 1. OCSVM
+    # "OCSVM(rbf)",
+    # "KJL-OCSVM(linear)",
+    # "Nystrom-OCSVM(linear)",
+
+    # "KDE",
+
+    ################################################################################################################
+    # "GMM(full)",
+	# "GMM(diag)",
+
+    # # ################################################################################################################s
+    # # # 2. KJL/Nystrom
+    "KJL-GMM(full)", # "KJL-GMM(diag)",
+    "Nystrom-GMM(full)", # "Nystrom-GMM(diag)",
+
+    ################################################################################################################
+    # quickshift(QS)/meanshift(MS) are used before KJL/Nystrom projection
+    # "QS-KJL-GMM(full)", "QS-KJL-GMM(diag)",
+    # "MS-KJL-GMM(full)", "MS-KJL-GMM(diag)",
+
+    # "QS-Nystrom-GMM(full)", "QS-Nystrom-GMM(diag)",
+    # "MS-Nystrom-GMM(full)", "MS-Nystrom-GMM(diag)",
+
+    ################################################################################################################
+    # 3. quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection
+    "KJL-QS-GMM(full)", #  "KJL-QS-GMM(diag)",
+    # "KJL-MS-GMM(full)", "KJL-MS-GMM(diag)",
+
+    "Nystrom-QS-GMM(full)",  #  "Nystrom-QS-GMM(diag)",
+    # "Nystrom-MS-GMM(full)", "Nystrom-MS-GMM(diag)"
+    #
+    # ################################################################################################################
+    # # 4. quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection and initialize GMM (set 'GMM_is_init_all'=True)
+    # "KJL-QS-init_GMM(full)",   "KJL-QS-init_GMM(diag)",
+    # "Nystrom-QS-init_GMM(full)",   "Nystrom-QS-init_GMM(diag)",
+]
+
 TUNINGS = [True, False]
 
 lg.debug(f'DATASETS: {DATASETS}, FEATURES: {FEATURES}, HEADERS: {HEADERS}, MODELS: {MODELS}, TUNINGS: {TUNINGS}')
@@ -731,6 +772,6 @@ def main(out_dir='', n_normal_max_train=10000):
 
 
 if __name__ == '__main__':
-	for n_normal_max_train in [1000, 3000, 5000, 8000, 10000]:
+	for n_normal_max_train in [5000]:    # 1000, 3000, 5000,8000, 10000
 		out_dir = os.path.join(OUT_DIR, f'train_size_{n_normal_max_train}')
 		main(out_dir, n_normal_max_train)
