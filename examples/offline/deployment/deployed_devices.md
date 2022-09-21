@@ -35,6 +35,9 @@ unzip -q kjl_deploy.zip
 vim kjl/examples/offline/deployment/deploy_evaluate_model.py 
 cd kjl
 PYTHONPATH=. PYTHONUNBUFFERED=1 python3.7 examples/offline/deployment/deploy_evaluate_model.py > deploy.txt 2>&1 &
+tail deploy.txt 
+ps -f 
+kill job 
 
 # compress and download the resutls
 cd ..
@@ -51,7 +54,7 @@ scp -p ky2440@tigerteam.io:/home/ky2440/pi_out.zip ~/PycharmProjects/kjl/example
 ## NANO
 ```shell
 # upload kjl_deploy to the login machine (tigerteam.io)
-scp -p ~/Downloads/kjl_deploy.zip  ky2440@tigerteam.io:/home/ky2440/
+scp -p ~/PycharmProjects/kjl_deploy.zip  ky2440@tigerteam.io:/home/ky2440/
 # upload the zip to another login machine (iotlab) from tigerteam.io
 ssh ky2440@tigerteam.io
 scp -p kjl_deploy.zip iotlab.cs.uchicago.edu:/home/ky2440/
@@ -63,11 +66,14 @@ scp -p kjl_deploy.zip nano@192.168.143.162:/home/nano/ky2440/
 ssh nano@192.168.143.162
 #tmux new -s kjl 
 tmux attach -t kjl 
+#tmux set -g mouse on	# tmux scroll up 
 cd ky2440
 unzip -q kjl_deploy.zip
-vim kjl/examples/offline/deployment/deploy_evaluate_model.py 
 cd kjl
+vim examples/offline/deployment/deploy_evaluate_model.py 
 PYTHONPATH=. PYTHONUNBUFFERED=1 python3.7 examples/offline/deployment/deploy_evaluate_model.py > deploy.txt 2>&1 &
+tail deploy.txt 
+ps -f 
 
 # compress and download the resutls
 cd ..

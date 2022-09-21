@@ -4,6 +4,8 @@
 # Email: kun.bj@outlook.com
 # Author: kun
 # License: xxx
+import itertools
+import os.path
 import traceback
 
 import pandas as pd
@@ -286,6 +288,129 @@ def main(root_dir, feature='IAT+SIZE', header=False):
 	lg.debug(f'speedup: {speedup_file}, {os.path.exists(speedup_file)}')
 
 
+
+def show_diff_train_sizes(ocsvm_gmm, out_file='', title='auc', n_repeats=5):
+	import matplotlib.pyplot as plt
+	font_size = 15
+
+	colors = ['blue', 'green', 'orange', 'c', 'm', 'b', 'r', 'tab:brown', 'tab:green']
+	labels = ['OCSVM(rbf)', 'GMM(full)', 'KDE']
+
+	sub_dataset = []
+	yerrs = []
+	data_name = ''
+	j = 0
+	for i, (train_size, res_) in enumerate(ocsvm_gmm):
+		for vs in res_:
+			try:
+				# vs = vs.split(',')
+				data_name = vs[0]
+				# tmp = [float(v) for v in str(vs[-3]).split('-')]    # for testing time
+				tmp =  [float(v) for v in str(vs[-2]).split('-')]   # for testing AUC
+				m_auc, std_auc = np.mean(tmp), np.std(tmp)
+				# m_auc = f'{m_auc:.2f}'
+				# std_auc = f'{std_auc:.2f}'
+				vs = [data_name, vs[3], int(train_size), float(m_auc), float(std_auc)]
+			except Exception as e:
+				print(e)
+				# traceback.print_exc()
+				vs = ['0', '0', 0, 0, 0]
+				# yerrs.append(0)
+			sub_dataset.append(vs)
+
+	df = pd.DataFrame(sub_dataset, columns=['datasets', 'model_name', 'train_size', 'auc', 'std'])
+	# g = sns.barplot(y="diff", x='datasets', data=df, hue='repres', ax=axes[t, ind % fig_cols], palette=new_colors)
+	print(sub_dataset, 'yerrs:', yerrs)
+
+	mask = df['model_name'] == 'OCSVM(rbf)'
+	ocsvm = df[mask]
+	j = 0
+	plt.errorbar(ocsvm['train_size'].values, ocsvm['auc'].values, ocsvm['std'].values, fmt='*-',
+	             capsize=3, color=colors[j], ecolor='tab:red',
+	             markersize=8, markerfacecolor='black',
+	             label=labels[j])
+
+	mask = df['model_name'] == 'GMM(full)'
+	gmm = df[mask]
+	j = 1
+	plt.errorbar(gmm['train_size'].values, gmm['auc'].values, gmm['std'].values,
+	             markersize=8, markerfacecolor='black',
+	             fmt='o-', capsize=3, color=colors[j],
+	             ecolor='tab:red',
+	             label=labels[j])
+
+	try:
+		mask = df['model_name'] == 'KDE'
+		kde = df[mask]
+		j = 2
+		plt.errorbar(kde['train_size'].values, kde['auc'].values, kde['std'].values,
+		             markersize = 8, markerfacecolor ='black',
+		             fmt='^-', capsize=3, color=colors[j],
+		             ecolor='tab:red',
+		             label=labels[j])
+	except Exception as e:
+		print(e)
+
+	plt.xticks(ocsvm['train_size'].values, fontsize=font_size - 1)
+	plt.yticks(fontsize=font_size - 1)
+	# fig.suptitle(f'{data_name}', y=0.98, fontsize=font_size)
+	plt.xlabel('Train size ($n$)', fontsize=font_size)
+	plt.ylabel('AUC', fontsize=font_size)
+	# plt.title(f'{data_name}', fontsize = font_size-2)
+	# bbox_to_anchor: (x, y, width, height)
+	plt.legend(loc='upper right', bbox_to_anchor=(0.5, 0.3, 0.5, 0.5), fontsize=font_size - 2)
+	# plt.ylim([0.86, 1])
+	# n_groups = len(show_datasets)
+	# index = np.arange(n_groups)
+	# # print(index)
+	# # plt.xlim(xlim[0], n_groups)
+	# plt.xticks(index + len(show_repres) // 2 * bar_width, labels=[v for v in show_datasets])
+	plt.tight_layout()
+
+	# plt.legend(show_repres, loc='lower right')
+	# # plt.savefig("DT_CNN_F1"+".jpg", dpi = 400)
+	plt.savefig(out_file)  # should use before plt.show()
+	plt.show()
+	plt.close()
+
+	return out_file
+
+def get_results_(in_file, DATASETS = [], FEATURES=['IAT+SIZE'],
+                 MODELS = ['OCSVM(rbf)', 'GMM(full)', 'KDE'],
+                 HEADERS=[False], TUNINGS=[True]):
+	try:
+		df = pd.read_csv(in_file, header=None) # doesn't work warn_bad_lines=True, error_bad_lines=False
+	except Exception as e:
+		data = []
+		with open(in_file, 'r') as f:
+			line = f.readline()
+			while line:
+				if (not line.startswith(',0_0|0_0|0_0,')):
+					data.append(line.split(','))
+				line = f.readline()
+		df = pd.DataFrame(data)
+
+	res = []
+	for dataset, feature, header, model, tuning in list(
+			itertools.product(DATASETS, FEATURES, HEADERS, MODELS, TUNINGS)):
+		try:
+			# baseline
+			baseline = get_one_result(df, dataset, feature, f'header_{header}', 'OCSVM(rbf)', f'tuning_{tuning}')
+			# another model result
+			model_result = get_one_result(df, dataset, feature, f'header_{header}', model, f'tuning_{tuning}')
+
+			# data = get_speedup(baseline, model_result)
+			line = model_result[:]
+		except Exception as e:
+			lg.error(e)
+			traceback.print_exc()
+			data = (0, 0, 0, 0, 0)
+		# line = ','.join([dataset, feature, f'header_{header}', model, f'tuning_{tuning}'] + [str(v) for v in data])
+		lg.debug(line)
+		res.append(line)
+
+	return res
+
 if __name__ == '__main__':
 	is_iot_device = False
 	if is_iot_device:
@@ -295,7 +420,7 @@ if __name__ == '__main__':
 		date_str = '2022-09-16 12:32:22.738044'
 		for device in ['RSPI', 'Nano']:
 			lg.info(f'\n\n***{device}, {root_dir}')
-			for n_normal_max_train in [1000, 3000, 5000, 8000, 10000]:  # 1000, 3000, 5000, 10000
+			for n_normal_max_train in [500, 1000, 2000, 3000, 4000, 5000]:  # 1000, 3000, 5000, 10000
 				try:
 					lg.info(f'\n\n***{device}, {root_dir}')
 					in_file = os.path.join(root_dir, f'{device}/train_size_{n_normal_max_train}/src_dst/results/{date_str}/IAT+SIZE-header_False/gather-all.csv')
@@ -316,23 +441,28 @@ if __name__ == '__main__':
 		root_dir = 'examples/offline/report/out/src_dst/results-20220905'
 		root_dir = 'examples/offline/report/out/src_dst/results-KDE_GMM-20220916'
 		# After deployment and copy the result ('examples/offline/deployment/out/src_dst/results') to 'examples/offline/report/out/src_dst/'
-		for device in ['RSPI', 'MacOS', 'NANO']:
+		for device in ['MacOS', 'RSPI', 'NANO']:
 			if device == 'RSPI':
 				date_str = '2022-09-17 08:48:25.295151'
 			elif device =='NANO':
 				date_str = '2022-09-16 12:34:44.607093'
 			else:
-				continue
+				date_str = '2022-09-20 14:47:11.703436'
 			df_all = []
-			for n_normal_max_train in [1000, 3000, 5000, 8000, 10000]:  # 1000, 3000, 5000, 10000
+			ocsvm_gmm = []
+			for n_normal_max_train in [1000, 2000, 3000, 4000, 5000]:  # 1000, 3000, 5000, 10000, # 1000, 2000, 3000, 4000, 5000
 				lg.info(f'\n\n***{device}, {root_dir}')
 				# in_file = os.path.join(root_dir, f'{device}/deployed_results/IAT+SIZE-header_False/gather-all.csv')
 				if device == 'MacOS':
-					in_file = os.path.join(root_dir, f'{device}/deployed_results2/IAT+SIZE-header_False/gather-all.csv')
-					continue
+					# in_file = os.path.join(root_dir, f'{device}/deployed_results2/IAT+SIZE-header_False/gather-all.csv')
+					in_file = os.path.join(root_dir,  f'{device}/train_size_{n_normal_max_train}/src_dst/results/{date_str}/IAT+SIZE-header_False/gather-all.csv')
+					# continue
 				else:
 					in_file = os.path.join(root_dir, f'{device}/train_size_{n_normal_max_train}/src_dst/results/{date_str}/IAT+SIZE-header_False/gather-all.csv')
 				lg.debug(in_file)
+				ocsvm_gmm.append((n_normal_max_train, get_results_(in_file, DATASETS = ['DWSHR_AECHO_2020'],
+				                                                   FEATURES=['IAT+SIZE'], HEADERS=[False],
+				                                                   TUNINGS = [True])))
 				_speedup.main(in_file, FEATURES=['IAT+SIZE'], HEADERS=[False])
 				# in_file = os.path.join(root_dir, f'{device}/deployed_results/STATS-header_True/gather.csv')
 				# lg.debug(in_file)
@@ -380,5 +510,7 @@ if __name__ == '__main__':
 			gmm_file = os.path.join(root_dir, f'{device}/speedup-gmm-all_train_sizes.csv')
 			df_all.to_csv(gmm_file, sep=',', encoding='utf-8', index=False)
 			print(gmm_file)
+
+			show_diff_train_sizes(ocsvm_gmm)
 			# main(root_dir, feature='IAT+SIZE', header=False)
 			# main(root_dir, feature='STATS', header=True)
