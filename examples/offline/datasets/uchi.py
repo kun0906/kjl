@@ -49,6 +49,7 @@ def get_iot2021_flows(in_dir=f'../Datasets/UCHI/IOT_2021/data-clean/refrigerator
                       out_dir='',
                       direction='src'):
 	""" Hard coding in_dir and pcap paths
+	# extract from data-clean.zip (collected at 2021 for human activity recognition: contains pcap and videos)
 	Note:
 		1) refrigerator IP changes over time (dynamic ip), so here we filter with mac address.
 		2) please don't merge all pcaps first and then obtain flows.
@@ -171,6 +172,7 @@ def _get_uchi_flows(original_dir, out_dir, data_name, direction):
 	elif data_name == 'UCHI/IOT_2021/sfrig_mac_70:2c:1f:39:25:6e':
 		# IP = 'mac_70:2c:1f:39:25:6e'  # IP for the new data changes over time, so here use mac address instead
 		# hard coding (is not a good idea)
+		# # extract from data-clean.zip (collected at 2021 for human activity recognition: contains pcap and videos)
 		meta = get_iot2021_flows(in_dir=f'{original_dir}/UCHI/IOT_2021/data-clean/refrigerator',
 		                         out_dir=out_dir,
 		                         direction=direction)
@@ -275,6 +277,7 @@ def get_uchi_flows(original_dir='../Datasets',
 	if data_name == 'SFRIG1_2020':  # normal >10000, abnormal: ~900
 		subdatasets = ('UCHI/IOT_2020/sfrig_192.168.143.43',)
 	elif data_name == 'SFRIG1_2021':  # normal >10000, abnormal: ~10000
+		# extract from data-clean.zip (collected at 2021 for human activity recognition: contains pcap and videos)
 		subdatasets = ('UCHI/IOT_2021/sfrig_mac_70:2c:1f:39:25:6e',)
 	elif data_name == 'AECHO1_2020':  # normal >10000, abnormal: ~800
 		subdatasets = ('UCHI/IOT_2020/aecho_192.168.143.74',)

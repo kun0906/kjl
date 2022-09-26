@@ -1,3 +1,12 @@
+
+# Python -m sysconfig
+https://docs.python.org/3/library/sysconfig.html
+
+https://stackoverflow.com/questions/10192758/how-to-get-the-list-of-options-that-python-was-compiled-with
+To find the configure flags that were actually used during the build, the value you're looking for is CONFIG_ARGS.
+print distutils.sysconfig.get_config_var('CONFIG_ARGS')
+
+
 # get all configuration and work for python3.7.3
 pip3.7 list | grep numpy
 numpy           1.18.2
@@ -49,7 +58,11 @@ lapack_opt_info:
   NOT AVAILABLE
 >>>
 
+import distutils 🢀 This cause the issue
+import distutils.sysconfig 🢀 This works fine
+
 import numpy.distutils
+import distutils.sysconfig
 np_config_vars = numpy.distutils.unixccompiler.sysconfig.get_config_vars()
 import pprint
 pprint.pprint(np_config_vars)

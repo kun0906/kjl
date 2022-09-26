@@ -1,4 +1,35 @@
-# Compress and download codes and results from 'Neon'
+# Compress and download codes and results from 'Neon'  
+
+https://stackoverflow.com/questions/10192758/how-to-get-the-list-of-options-that-python-was-compiled-with 
+
+To find the configure flags that were actually used during the build, the value you're looking for is CONFIG_ARGS.
+print distutils.sysconfig.get_config_var('CONFIG_ARGS')
+
+[//]: # (# Python 3.7.9 with ./configure --enable-optimizations for 'Nichols')
+
+[//]: # (ssh __ky2440@nichols.cs.uchicago.edu)
+
+[//]: # (Install instruction for Python3.7.9 from source )
+
+[//]: # (```shell)
+
+[//]: # (cd Python3.7.9)
+
+[//]: # (./configure --enable-optimizations)
+
+[//]: # (make -j 8  # need make installed in the machine &#40;however, nichols doesn't have make&#41;)
+
+[//]: # (make altinstall  )
+
+[//]: # (# The altinstall target will make sure the default Python on your machine is not touched, or to avoid overwriting the system Python.)
+
+[//]: # (#Do not use the standard make install as it will overwrite the default system python3 binary.)
+
+[//]: # (```)
+
+[//]: # (https://linuxize.com/post/how-to-install-python-3-7-on-ubuntu-18-04/
+
+)
 # Python 3.7.3 with ’–enable-optimizations’ option for RSPI (32bit: Python3.7.3) and NANO (64bit: Python3.7.3)
 # Numpy 1.18.2 (install from the numpy source codes that searches for BLAS and LAPACK dynamic link libraries at
 # build time as influenced by the system environment variable
@@ -9,6 +40,8 @@
 zip -r kjl_deploy.zip kjl -x kjl/examples/offline/out/\* kjl/legacy/\* kjl/examples/online/\* kjl/examples/offline/report/\* kjl/examples/offline/deployment/out/\* kjl/examples/offline/legacy/\* kjl/\.git/\*
 # download kjl_deploy.zip from the remote server (Neon) to local 
 #scp -p ky2440@neon.cs.uchicago.edu:~/kjl_deploy.zip ~/Downloads/
+#ssh __ky2440@nichols.cs.uchicago.edu
+sshfs __ky2440@nichols.cs.uchicago.edu:/data/ky2440 nichols
 ```
 
 # Upload data and results to different devices

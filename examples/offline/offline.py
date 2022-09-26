@@ -11,6 +11,7 @@ Command:
 	current directory is project_root_dir (i.e., kjl/.)
 	PYTHONPATH=. PYTHONUNBUFFERED=1 python3.7 examples/offline/offline.py > log.txt 2>&1 &
 
+	ssh __ky2440@nichols.cs.uchicago.edu
 
 # 1. repeat model 5 times and get the best one
 # 2. testing the best model 20 tims on the test set to get the average/std auc.
@@ -35,7 +36,7 @@ from examples.offline._offline import Data
 from kjl.utils.tool import dump, timer, check_path, remove_file, get_train_val, get_test_rest, load
 
 RESULT_DIR = f'results/{START_TIME}'
-DATASETS = ['DWSHR_AECHO_2020']  # Two different normal data, MAWI1_2020
+# DATASETS = ['CTU1']  # DWSHR_AECHO_2020, Two different normal data, MAWI1_2020
 FEATURES = ['IAT+SIZE']
 HEADERS = [False]
 # MODELS = [  "Nystrom-QS-GMM(full)",   "Nystrom-QS-GMM(diag)"] # "OCSVM(rbf)", "GMM(full)", "GMM(diag)", "KJL-GMM(full)", "KJL-GMM(diag)",
@@ -81,7 +82,7 @@ MODELS = ["OCSVM(rbf)", 'KDE', "GMM(full)",]
 #     # "Nystrom-QS-init_GMM(full)",   "Nystrom-QS-init_GMM(diag)",
 # ]
 
-TUNINGS = [True]
+TUNINGS = [False, True]
 
 lg.debug(f'DATASETS: {DATASETS}, FEATURES: {FEATURES}, HEADERS: {HEADERS}, MODELS: {MODELS}, TUNINGS: {TUNINGS}')
 
@@ -772,6 +773,6 @@ def main(out_dir='', n_normal_max_train=10000):
 
 
 if __name__ == '__main__':
-	for n_normal_max_train in [2000]:    # 500, 1000, 2000, 3000, 4000, 5000
+	for n_normal_max_train in [500, 1000, 2000, 3000, 4000, 5000]:    # 500, 1000, 2000, 3000, 4000, 5000
 		out_dir = os.path.join(OUT_DIR, f'train_size_{n_normal_max_train}')
 		main(out_dir, n_normal_max_train)

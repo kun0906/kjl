@@ -38,12 +38,12 @@ from kjl.utils import pstats
 from kjl.utils.tool import load, dump, check_path, timer
 
 RESULT_DIR = f'results/{START_TIME}'
-DATASETS = ['DWSHR_AECHO_2020']  # Two different normal data
+# DATASETS = ['DWSHR_AECHO_2020']  # Two different normal data
 # MODELS = ["KJL-OCSVM(linear)"]
 FEATURES = ['IAT+SIZE']
 HEADERS = [False]
 TUNINGS = [False, True]
-n_test_repeats = 1
+n_test_repeats = 100
 print(f'RESULT_DIR: {RESULT_DIR}')
 out_dir = 'examples/offline/deployment/out/src_dst'
 if os.path.exists(out_dir):
@@ -62,31 +62,31 @@ MODELS = [
     "GMM(full)",
 	# "GMM(diag)",
 
-    # # ################################################################################################################s
-    # # # 2. KJL/Nystrom
-    "KJL-GMM(full)", # "KJL-GMM(diag)",
-    "Nystrom-GMM(full)", # "Nystrom-GMM(diag)",
-
-    ################################################################################################################
-    # quickshift(QS)/meanshift(MS) are used before KJL/Nystrom projection
-    # "QS-KJL-GMM(full)", "QS-KJL-GMM(diag)",
-    # "MS-KJL-GMM(full)", "MS-KJL-GMM(diag)",
-
-    # "QS-Nystrom-GMM(full)", "QS-Nystrom-GMM(diag)",
-    # "MS-Nystrom-GMM(full)", "MS-Nystrom-GMM(diag)",
-
-    ################################################################################################################
-    # 3. quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection
-    "KJL-QS-GMM(full)", #  "KJL-QS-GMM(diag)",
-    # "KJL-MS-GMM(full)", "KJL-MS-GMM(diag)",
-
-    "Nystrom-QS-GMM(full)",  #  "Nystrom-QS-GMM(diag)",
-    # "Nystrom-MS-GMM(full)", "Nystrom-MS-GMM(diag)"
-    #
+    # # # ################################################################################################################s
+    # # # # 2. KJL/Nystrom
+    # "KJL-GMM(full)", # "KJL-GMM(diag)",
+    # "Nystrom-GMM(full)", # "Nystrom-GMM(diag)",
+	#
     # ################################################################################################################
-    # # 4. quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection and initialize GMM (set 'GMM_is_init_all'=True)
-    # "KJL-QS-init_GMM(full)",   "KJL-QS-init_GMM(diag)",
-    # "Nystrom-QS-init_GMM(full)",   "Nystrom-QS-init_GMM(diag)",
+    # # quickshift(QS)/meanshift(MS) are used before KJL/Nystrom projection
+    # # "QS-KJL-GMM(full)", "QS-KJL-GMM(diag)",
+    # # "MS-KJL-GMM(full)", "MS-KJL-GMM(diag)",
+	#
+    # # "QS-Nystrom-GMM(full)", "QS-Nystrom-GMM(diag)",
+    # # "MS-Nystrom-GMM(full)", "MS-Nystrom-GMM(diag)",
+	#
+    # ################################################################################################################
+    # # 3. quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection
+    # "KJL-QS-GMM(full)", #  "KJL-QS-GMM(diag)",
+    # # "KJL-MS-GMM(full)", "KJL-MS-GMM(diag)",
+	#
+    # "Nystrom-QS-GMM(full)",  #  "Nystrom-QS-GMM(diag)",
+    # # "Nystrom-MS-GMM(full)", "Nystrom-MS-GMM(diag)"
+    # #
+    # # ################################################################################################################
+    # # # 4. quickshift(QS)/meanshift(MS) are used after KJL/Nystrom projection and initialize GMM (set 'GMM_is_init_all'=True)
+    # # "KJL-QS-init_GMM(full)",   "KJL-QS-init_GMM(diag)",
+    # # "Nystrom-QS-init_GMM(full)",   "Nystrom-QS-init_GMM(diag)",
 ]
 
 

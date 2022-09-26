@@ -57,7 +57,7 @@ DATASETS = [
     'MAWI1_2020', # Two different normal data
     'MACCDC1',    # Two different normal data
     # 'SFRIG1_2020', #  Two different normal data
-    'SFRIG1_2021',  # Two different normal data
+    'SFRIG1_2021',  # Two different normal data: # extract from data-clean.zip (collected at 2021 for human activity recognition: contains pcap and videos)
     'AECHO1_2020', # Two different normal data
     'DWSHR_AECHO_2020',  # only use Dwshr normal as normal data, and combine Dwshr and wshr novelties as novelty
     # 'DWSHR_WSHR_2020',  # only use Dwshr normal as normal data, and combine Dwshr and wshr novelties as novelty
@@ -70,7 +70,7 @@ data_orig2name = {
                  'CTU1': 'CTU',  # Two different abnormal data
                  'MAWI1_2020': 'MAWI',  # Two different normal data
                  'MACCDC1':'MACCDC',  # Two different normal data
-                 'SFRIG1_2021':'SFRIG',  # Two different normal data
+                 'SFRIG1_2021':'SFRIG',  # Two different normal data: # extract from data-clean.zip (collected at 2021 for human activity recognition: contains pcap and videos)
                  'AECHO1_2020':'AECHO',  # Two different normal data
                  # 'DWSHR_WSHR_2020':'DWSHR',  # only use Dwshr normal as normal data, and combine Dwshr and wshr novelties as novelty
                      'DWSHR_AECHO_2020':'DWSHR'
