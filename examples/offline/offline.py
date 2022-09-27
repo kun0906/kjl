@@ -13,6 +13,8 @@ Command:
 
 	ssh __ky2440@nichols.cs.uchicago.edu
 
+find . -name \*.mp4 -type f -delete
+
 # 1. repeat model 5 times and get the best one
 # 2. testing the best model 20 tims on the test set to get the average/std auc.
 
@@ -37,7 +39,7 @@ from examples.offline._offline import Data
 from kjl.utils.tool import dump, timer, check_path, remove_file, get_train_val, get_test_rest, load
 
 RESULT_DIR = f'results/{START_TIME}'
-DATASETS = ['SFRIG1_2021', ]  # DWSHR_AECHO_2020, Two different normal data, MAWI1_2020, SFRIG1_2020, 'UNB3_345'
+DATASETS = ['UNB3_345', ]  # DWSHR_AECHO_2020, Two different normal data, MAWI1_2020, SFRIG1_2020, 'UNB3_345'
 FEATURES = ['IAT+SIZE']
 HEADERS = [False]
 # MODELS = [  "Nystrom-QS-GMM(full)",   "Nystrom-QS-GMM(diag)"] # "OCSVM(rbf)", "GMM(full)", "GMM(diag)", "KJL-GMM(full)", "KJL-GMM(diag)",
@@ -796,7 +798,7 @@ def split_Xy(data_name, dim=0, n_normal_max_train=0):
 
 if __name__ == '__main__':
 	# main(OUT_DIR, )
-	for n_normal_max_train in [500, 1000, 2000, 3000, 4000, 5000]:    # 500, 1000, 2000, 3000, 4000, 5000
+	for n_normal_max_train in [1000, 2000, 3000, 4000, 5000]:    # 500, 1000, 2000, 3000, 4000, 5000
 		out_dir = os.path.join(OUT_DIR, f'train_size_{n_normal_max_train}')
 		main(out_dir, n_normal_max_train)
 

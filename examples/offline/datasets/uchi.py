@@ -1,5 +1,5 @@
 """ UCHI class for dataset
-
+find . -name \*.mp4 -type f -delete
 """
 # Email: kun.bj@outlook.com
 # Author: kun
@@ -49,10 +49,19 @@ def get_iot2021_flows(in_dir=f'../Datasets/UCHI/IOT_2021/data-clean/refrigerator
                       out_dir='',
                       direction='src'):
 	""" Hard coding in_dir and pcap paths
+
+	The dataset: (data-clean.zip: collected at 2021, which contains videos and pcaps)
+		here we only use all the pcaps under the "Datasets/UCHI/IOT_2021/data-clean/refrigerator" and \
+		two extra idle pcaps: (/idle_1629935923.pcap and idle_1630275254.pcap: probably from unsplitted idles pcap,
+		cannot remember the details. )
+	
 	# extract from data-clean.zip (collected at 2021 for human activity recognition: contains pcap and videos)
 	Note:
 		1) refrigerator IP changes over time (dynamic ip), so here we filter with mac address.
 		2) please don't merge all pcaps first and then obtain flows.
+
+		find . -name \*.mp4 -type f -delete
+
 	Parameters
 	----------
 	in_dir

@@ -1,6 +1,7 @@
+## KJL
 A python library is created for efficient anomaly detection, which mainly includes two submodules: kernel projection ('projection') and novelty detection models ('models'). 
 
-Architecture:
+##Architecture
 - docs/: 
     includes all documents (such as APIs)
 - applications/: 
@@ -26,11 +27,11 @@ Architecture:
 - setup.py
 - version.txt
 
-How to install?
+## Install
     pip3 install . 
     (pip3 will call setup.py to install the library automatically)
 
-How to use?
+## Usage
 
     """ 1.1 Parse data and extract features
 
@@ -82,9 +83,9 @@ How to use?
 
 	return res
 
-For more examples, please check the 'applications' directory
+For more examples, please check the 'examples' directory
 
-TODO
+## TODO
 
 - Complete the online application
 - Further evaluate and optimize the library continually.
@@ -93,3 +94,6 @@ TODO
 - Generated docs from docs-string automatically
 
 Welcome to make any comments to make it more robust and easier to use!
+
+## Contact
+- Email: kun.bj@outlook.com

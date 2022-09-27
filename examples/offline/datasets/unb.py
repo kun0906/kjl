@@ -106,7 +106,7 @@ def get_unb_flows(original_dir='../Datasets',
                   direction='src_dst',
                   ):
 	lg.debug(get_unb_flows.__dict__)
-	if data_name == 'UNB3_345':
+	if data_name == 'UNB3_345': # spend ~2 hours on my laptop to get Xy.dat
 		subdatasets = ('UNB/CICIDS_2017/pc_192.168.10.9',
 		               'UNB/CICIDS_2017/pc_192.168.10.14',
 		               'UNB/CICIDS_2017/pc_192.168.10.15',)  # each_data has normal and abnormal

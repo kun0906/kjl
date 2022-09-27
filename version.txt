@@ -1,3 +1,8 @@
+V0.2.2: IOT_2021 (data-clean.zip collected at 2021 for human activity recognition)
+
+- Extract from data-clean.zip (collected at 2021 for human activity recognition: contains pcap and videos)
+- SFRIG1_2021
+
 # 0.1.7 (20220910)
 1. add KDE
 
