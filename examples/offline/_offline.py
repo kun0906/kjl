@@ -34,7 +34,7 @@ from kjl.models.ocsvm import OCSVM
 from kjl.models.kde import KDE
 from kjl.projections.kjl import KJL
 from kjl.projections.nystrom import Nystrom
-from kjl.utils.tool import timer
+from kjl.utils.tool import timer, load
 
 
 @timer
@@ -84,7 +84,24 @@ class Data:
 		self.y = None
 
 	def generate(self):
-		self.X, self.y = self.data.generate()
+		if self.name == 'UNB3_345' or self.name == 'SFRIG1_2020': # for different training sizes
+			# Xy_file = f'examples/offline/out/src_dst/{self.name}/IAT+SIZE/header_False/Xy.dat'
+			# meta = load(Xy_file)
+			# # print(data)
+			# self.X, self.y = meta['X'], meta['y']
+			Xy_file = f'examples/offline/out/src_dst/{self.name}/IAT+SIZE/header_False/Xy.txt'
+			if self.name == 'UNB3_345': dim = 43
+			if self.name == 'SFRIG1_2020': dim = 25
+			with open(Xy_file, 'r') as f:
+				data = f.readlines()
+				X, y = [], []
+				for line in data:
+					line = line.split(',')
+					X.append([float(v) for v in line[:dim]])
+					y.append(''.join(line[dim:]))
+			self.X, self.y = np.asarray(X), np.asarray(y)
+		else:
+			self.X, self.y = self.data.generate()
 		if 'SAMP' in self.feature_name:
 			for key, vs in self.y.items():
 				self.y[key] = np.asarray([0 if v.startswith('normal') else 1 for v in vs])

@@ -28,6 +28,7 @@ from collections import Counter
 
 import configargparse
 import pandas as pd
+import sklearn.model_selection
 from joblib import Parallel, delayed
 
 from examples.offline import _offline
@@ -36,7 +37,7 @@ from examples.offline._offline import Data
 from kjl.utils.tool import dump, timer, check_path, remove_file, get_train_val, get_test_rest, load
 
 RESULT_DIR = f'results/{START_TIME}'
-# DATASETS = ['CTU1']  # DWSHR_AECHO_2020, Two different normal data, MAWI1_2020
+DATASETS = ['SFRIG1_2021', ]  # DWSHR_AECHO_2020, Two different normal data, MAWI1_2020, SFRIG1_2020, 'UNB3_345'
 FEATURES = ['IAT+SIZE']
 HEADERS = [False]
 # MODELS = [  "Nystrom-QS-GMM(full)",   "Nystrom-QS-GMM(diag)"] # "OCSVM(rbf)", "GMM(full)", "GMM(diag)", "KJL-GMM(full)", "KJL-GMM(diag)",
@@ -514,6 +515,7 @@ def _main_entry(args):
 		            header=args.header, out_dir = args.out_dir,
 		            overwrite=args.overwrite, random_state=RANDOM_STATE)
 		data.generate()
+
 		if 'SAMP' in args.feature:
 			previous = -1
 			for key in data.y.keys():  # data[0.1] = [0, 0, ... 1, 1,1]
@@ -771,8 +773,30 @@ def main(out_dir='', n_normal_max_train=10000):
 	except Exception as e:
 		lg.error(f'Error: {e}.')
 
+# split_Xy(data_name = 'UNB3_345', dim=43) # only for SFRIG1_2020 (dim=25) and UNB3_345 (dim=43)
+def split_Xy(data_name, dim=0, n_normal_max_train=0):
+	Xy_file = f'examples/offline/out/src_dst/{data_name}/IAT+SIZE/header_False/Xy.txt'
+	with open(Xy_file, 'r') as f:
+		data = f.readlines()
+		X, y = [], []
+		for line in data:
+			line = line.split(',')
+			X.append(line[:dim])
+			y.append(''.join(line[dim:]))
+
+	X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(X, y, train_size=n_normal_max_train, shuffle=True, random_state=42)
+	Xy_dat = f'examples/offline/out/src_dst/{data_name}/IAT+SIZE/header_False/Xy.dat'
+	dump((X_train, y_train), Xy_dat)
+
+	Xy_file = f'examples/offline/out/src_dst/{data_name}/IAT+SIZE/header_False/Xy.dat'
+	meta = load(Xy_file)
+	# print(data)
+	X, y = meta['X'], meta['y']
+
 
 if __name__ == '__main__':
+	# main(OUT_DIR, )
 	for n_normal_max_train in [500, 1000, 2000, 3000, 4000, 5000]:    # 500, 1000, 2000, 3000, 4000, 5000
 		out_dir = os.path.join(OUT_DIR, f'train_size_{n_normal_max_train}')
 		main(out_dir, n_normal_max_train)
+

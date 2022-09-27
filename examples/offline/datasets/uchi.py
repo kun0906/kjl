@@ -66,7 +66,7 @@ def get_iot2021_flows(in_dir=f'../Datasets/UCHI/IOT_2021/data-clean/refrigerator
 	device2mac = {'refrigerator': '70:2c:1f:39:25:6e', 'nestcam': '18:b4:30:8a:9f:b2',
 	              'alexa': '4c:ef:c0:0b:91:b3'}
 	normal_pcaps = list(glob.iglob(in_dir + '/no_interaction/**/*.' + 'pcap', recursive=True))
-	normal_pcaps.append(in_dir + '/idle_1629935923.pcap')
+	normal_pcaps.append(in_dir + '/idle_1629935923.pcap')   # unclear the data source: probabily from the combination of all idle pcaps
 	normal_pcaps.append(in_dir + '/idle_1630275254.pcap')
 	normal_pcaps = sorted(normal_pcaps)
 	normal_flows = []

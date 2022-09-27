@@ -9,8 +9,8 @@ Recreate new models from saved paramters stored on the disk and evalute them on 
     main_reload.sh: a shell script to run all experiments.
 
     $cd kjl/examples/
-    $chmod 755 ./speedup/main_reload.sh
-    $./speedup/main_reload.sh
+    $chmod 755 ./offline/main_reload.sh
+    $./offline/main_reload.sh
 
     Note: the main_reload.sh uses python3.7.
           If Python version is not 3.7, please modify the main_reload.sh.
@@ -19,7 +19,7 @@ Recreate new models from saved paramters stored on the disk and evalute them on 
 2. Project structures
 |-kjl: (root)
   |--examples
-     |--speedup
+     |--offline
          |--data: (all models and datasets)
          |--main_reload.sh (bash shell sript)
          |--main_reload_idv.py

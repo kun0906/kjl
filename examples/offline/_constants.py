@@ -52,7 +52,7 @@ TUNINGS = [False, True]
 DATASETS = [
     # 'DUMMY',
 	 # Final datasets for the paper
-    'UNB3_345',  # Combine UNB3, UNB3 and UNB5 attack data as attack data and only use UNB3's normal as normal data
+    'UNB3_345',  # Combine UNB3, UNB4 and UNB5 attack data as attack data and only use UNB3's normal as normal data
     'CTU1',      # Two different abnormal data
     'MAWI1_2020', # Two different normal data
     'MACCDC1',    # Two different normal data
@@ -66,7 +66,7 @@ DATASETS = [
 
 data_orig2name = {
                   # Final datasets for the paper
-                 'UNB3_345': 'UNB', # Combine UNB3, UNB3 and UNB5 attack data as attack data and only use UNB3's normal as normal data
+                 'UNB3_345': 'UNB', # Combine UNB3, UNB4 and UNB5 attack data as attack data and only use UNB3's normal as normal data
                  'CTU1': 'CTU',  # Two different abnormal data
                  'MAWI1_2020': 'MAWI',  # Two different normal data
                  'MACCDC1':'MACCDC',  # Two different normal data

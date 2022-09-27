@@ -14,6 +14,10 @@ from kjl.utils.tool import load, remove_file, dump, check_path
 
 
 def _get_unb_flows(original_dir, out_dir, data_name, direction):
+	normal_file = os.path.join(out_dir, direction, data_name, 'normal_flows_labels.dat')
+	abnormal_file = os.path.join(out_dir, direction, data_name, 'abnormal_flows_labels.dat')
+	if os.path.exists(normal_file) and os.path.exists(abnormal_file):
+		return normal_file, abnormal_file
 	##############################################################################################################
 	# step 1: get path
 	# get label_file
