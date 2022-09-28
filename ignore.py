@@ -19,6 +19,8 @@ def search(in_dir = None):
 				add_files.append(f)
 		else:
 			v1, v2 = search(in_dir = f)
+			if len(v1) == 0:
+				ignored_files.append((f, 0))    # add directory
 			add_files.extend(v1)
 			ignored_files.extend(v2)
 
@@ -26,7 +28,7 @@ def search(in_dir = None):
 
 def write(ignore_files, ignore_path = '.gitignore'):
 	with open(ignore_path, 'w') as f:
-		ss = ['./legacy/', './**/*.DS_Store', '*.zip', '*.dat', '.idea/', '.git/']
+		ss = ['**/legacy/', '*.DS_Store', '*.zip', '*.dat', '.idea/', '.git/', '**/__pycache__/']
 		ss = '\n'.join(ss)
 		f.write(ss + '\n\n')
 
@@ -35,15 +37,19 @@ def write(ignore_files, ignore_path = '.gitignore'):
 			f.write(file + '\n')
 
 def add(add_files):
-	for i, file in enumerate(add_files):
-		cmd = f"git add -f \"{file}\""
-		if i%100 == 0: print(file)
-		os.system(cmd)
+	# for i, file in enumerate(add_files):
+	# 	cmd = f"git add -f \"{file}\""
+	# 	if i%100 == 0: print(file)
+	# 	os.system(cmd)
+
+	ss = ' '.join([f"\"{v}\"" for v in add_files])
+	cmd = f"git add -f \"{ss}\""
+	os.system(cmd)
 
 if __name__ == '__main__':
 	add_files, ignored_files = search(in_dir='.')
 	print(len(add_files), len(ignored_files))
 	print(ignored_files[:10])
-	# add(add_files)
+	add(add_files)
 	write(ignored_files, ignore_path='.gitignore')
 	print(len(ignored_files))
