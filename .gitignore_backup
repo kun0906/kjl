@@ -1,0 +1,13 @@
+.idea/**
+__pycache__/
+utils/_pycache__/
+*.pcap
+*.pdf
+*.png
+*.log
+*.dat
+
+/legacy/
+/examples/offline/legacy/
+/examples/online/data/src_dst/
+/~trash/

@@ -19,7 +19,7 @@ def search(in_dir = None):
 	return ignored_files
 
 def write(ignore_files, ignore_path = '.gitignore'):
-	with open(ignore_path, 'a') as f:
+	with open(ignore_path, 'w') as f:
 		for file, size in ignore_files:
 			print(f'{file}, {int(size)/(1000*1000):.2f}MB')
 			f.write(file + '\n')
@@ -29,4 +29,5 @@ if __name__ == '__main__':
 	ignored_files = search(in_dir='.')
 	print(len(ignored_files))
 	print(ignored_files[:10])
-	write(ignored_files, ignore_path='.gitignore1')
+	write(ignored_files, ignore_path='.gitignore_new')
+	print(len(ignored_files))
