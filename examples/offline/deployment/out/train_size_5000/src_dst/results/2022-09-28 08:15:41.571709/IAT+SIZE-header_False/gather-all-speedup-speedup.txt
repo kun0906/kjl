@@ -1,0 +1,124 @@
+
+
+
+***tuning_False, full, IAT+SIZE, header_False
+
+
+tuning_False, full, IAT+SIZE, header_False,  OC-KJL Table
+0 & 0 & 0 & 0 & 0 & 33.44 $\pm$ 2.03 & 0
+0 & 0 & 0 & 0 & 0 & 21.89 $\pm$ 0.01 & 0
+
+
+tuning_False, full, IAT+SIZE, header_False, OC-Nystrom Table
+0 & 0 & 0 & 0 & 0 & 44.58 $\pm$ 2.70 & 0
+0 & 0 & 0 & 0 & 0 & 21.88 $\pm$ 0.01 & 0
+tuning_False, full, IAT+SIZE, header_False,  KDE Table
+0 & 0 & 0 & 0 & 0 & 0.08 $\pm$ 0.00 & 0.08 $\pm$ 0.00
+0 & 0 & 0 & 0 & 0 & 0.48 $\pm$ 0.00 & 0.48 $\pm$ 0.00
+tuning_False, full, IAT+SIZE, header_False,  GMM Table
+0 & 0 & 0 & 0 & 0 & 19.79 $\pm$ 1.20 & 74.02 $\pm$ 2.98
+0 & 0 & 0 & 0 & 0 & 68.39 $\pm$ 0.02 & 80.95 $\pm$ 0.01
+
+
+tuning_False, full, IAT+SIZE, header_False, OC-KJL, OC-KJL-QS vs OC-Nystrom, OC-Nystrom-QS
+0 & 0 & 0 & 0 & 0 & 33.44 $\pm$ 2.03 & 0
+0 & 0 & 0 & 0 & 0 & 21.89 $\pm$ 0.01 & 0
+0 & 0 & 0 & 0 & 0 & 14.89 $\pm$ 0.90 & 0
+0 & 0 & 0 & 0 & 0 & 20.36 $\pm$ 0.01 & 0
+0 & 0 & 0 & 0 & 0 & 44.58 $\pm$ 2.70 & 0
+0 & 0 & 0 & 0 & 0 & 21.88 $\pm$ 0.01 & 0
+0 & 0 & 0 & 0 & 0 & 22.83 $\pm$ 1.38 & 0
+0 & 0 & 0 & 0 & 0 & 19.82 $\pm$ 0.01 & 0
+
+
+
+***tuning_False, diag, IAT+SIZE, header_False
+
+
+tuning_False, diag, IAT+SIZE, header_False,  OC-KJL Table
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0
+
+
+tuning_False, diag, IAT+SIZE, header_False, OC-Nystrom Table
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0
+tuning_False, diag, IAT+SIZE, header_False,  KDE Table
+0 & 0 & 0 & 0 & 0 & 0.08 $\pm$ 0.00 & 0.08 $\pm$ 0.00
+0 & 0 & 0 & 0 & 0 & 0.48 $\pm$ 0.00 & 0.48 $\pm$ 0.00
+tuning_False, diag, IAT+SIZE, header_False,  GMM Table
+0 & 0 & 0 & 0 & 0 & 35.68 $\pm$ 2.16 & 0
+0 & 0 & 0 & 0 & 0 & 701.87 $\pm$ 0.21 & 0
+
+
+tuning_False, diag, IAT+SIZE, header_False, OC-KJL, OC-KJL-QS vs OC-Nystrom, OC-Nystrom-QS
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0
+
+
+
+***tuning_True, full, IAT+SIZE, header_False
+
+
+tuning_True, full, IAT+SIZE, header_False,  OC-KJL Table
+0 & 0 & 0 & 0 & 0 & 23.30 $\pm$ 1.36 & 0
+0 & 0 & 0 & 0 & 0 & 19.62 $\pm$ 0.01 & 0
+
+
+tuning_True, full, IAT+SIZE, header_False, OC-Nystrom Table
+0 & 0 & 0 & 0 & 0 & 24.70 $\pm$ 1.44 & 0
+0 & 0 & 0 & 0 & 0 & 19.78 $\pm$ 0.01 & 0
+tuning_True, full, IAT+SIZE, header_False,  KDE Table
+0 & 0 & 0 & 0 & 0 & 0.08 $\pm$ 0.00 & 0.12 $\pm$ 0.01
+0 & 0 & 0 & 0 & 0 & 0.48 $\pm$ 0.00 & 0.48 $\pm$ 0.00
+tuning_True, full, IAT+SIZE, header_False,  GMM Table
+0 & 0 & 0 & 0 & 0 & 6.09 $\pm$ 0.36 & 18.11 $\pm$ 1.07
+0 & 0 & 0 & 0 & 0 & 5.09 $\pm$ 0.00 & 10.21 $\pm$ 0.00
+
+
+tuning_True, full, IAT+SIZE, header_False, OC-KJL, OC-KJL-QS vs OC-Nystrom, OC-Nystrom-QS
+0 & 0 & 0 & 0 & 0 & 23.30 $\pm$ 1.36 & 0
+0 & 0 & 0 & 0 & 0 & 19.62 $\pm$ 0.01 & 0
+0 & 0 & 0 & 0 & 0 & 18.14 $\pm$ 1.06 & 0
+0 & 0 & 0 & 0 & 0 & 20.34 $\pm$ 0.01 & 0
+0 & 0 & 0 & 0 & 0 & 24.70 $\pm$ 1.44 & 0
+0 & 0 & 0 & 0 & 0 & 19.78 $\pm$ 0.01 & 0
+0 & 0 & 0 & 0 & 0 & 12.53 $\pm$ 0.73 & 0
+0 & 0 & 0 & 0 & 0 & 20.33 $\pm$ 0.01 & 0
+
+
+
+***tuning_True, diag, IAT+SIZE, header_False
+
+
+tuning_True, diag, IAT+SIZE, header_False,  OC-KJL Table
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0
+
+
+tuning_True, diag, IAT+SIZE, header_False, OC-Nystrom Table
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0
+tuning_True, diag, IAT+SIZE, header_False,  KDE Table
+0 & 0 & 0 & 0 & 0 & 0.08 $\pm$ 0.00 & 0.12 $\pm$ 0.01
+0 & 0 & 0 & 0 & 0 & 0.48 $\pm$ 0.00 & 0.48 $\pm$ 0.00
+tuning_True, diag, IAT+SIZE, header_False,  GMM Table
+0 & 0 & 0 & 0 & 0 & 28.04 $\pm$ 1.64 & 0
+0 & 0 & 0 & 0 & 0 & 372.68 $\pm$ 0.17 & 0
+
+
+tuning_True, diag, IAT+SIZE, header_False, OC-KJL, OC-KJL-QS vs OC-Nystrom, OC-Nystrom-QS
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0
+0 & 0 & 0 & 0 & 0 & 0 & 0

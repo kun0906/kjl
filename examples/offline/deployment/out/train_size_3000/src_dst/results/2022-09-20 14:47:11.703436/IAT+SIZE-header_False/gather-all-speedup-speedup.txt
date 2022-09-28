@@ -1,0 +1,124 @@
+
+
+
+***tuning_False, full, IAT+SIZE, header_False
+
+
+tuning_False, full, IAT+SIZE, header_False,  OC-KJL Table
+0 & 0 & 0 & 0 & 0 & 35.17 $\pm$ 14.96 & 0
+0 & 0 & 0 & 0 & 0 & 13.16 $\pm$ 0.00 & 0
+
+
+tuning_False, full, IAT+SIZE, header_False, OC-Nystrom Table
+0 & 0 & 0 & 0 & 0 & 31.42 $\pm$ 13.36 & 0
+0 & 0 & 0 & 0 & 0 & 13.15 $\pm$ 0.00 & 0
+tuning_False, full, IAT+SIZE, header_False,  KDE Table
+0 & 0 & 0 & 0 & 0 & 0.14 $\pm$ 0.06 & 0
+0 & 0 & 0 & 0 & 0 & 0.46 $\pm$ 0.00 & 0
+tuning_False, full, IAT+SIZE, header_False,  GMM Table
+0 & 0 & 0 & 0 & 0 & 123.54 $\pm$ 52.53 & 0
+0 & 0 & 0 & 0 & 0 & 41.10 $\pm$ 0.01 & 0
+
+
+tuning_False, full, IAT+SIZE, header_False, OC-KJL, OC-KJL-QS vs OC-Nystrom, OC-Nystrom-QS
+0 & 0 & 0 & 0 & 0 & 35.17 $\pm$ 14.96 & 0
+0 & 0 & 0 & 0 & 0 & 13.16 $\pm$ 0.00 & 0
+0 & 0 & 0 & 0 & 0 & 11.62 $\pm$ 4.94 & 0
+0 & 0 & 0 & 0 & 0 & 12.29 $\pm$ 0.00 & 0
+0 & 0 & 0 & 0 & 0 & 31.42 $\pm$ 13.36 & 0
+0 & 0 & 0 & 0 & 0 & 13.15 $\pm$ 0.00 & 0
+0 & 0 & 0 & 0 & 0 & 23.66 $\pm$ 10.06 & 0
+0 & 0 & 0 & 0 & 0 & 11.88 $\pm$ 0.00 & 0
+
+
+
+***tuning_False, diag, IAT+SIZE, header_False
+
+
+tuning_False, diag, IAT+SIZE, header_False,  OC-KJL Table
+0 & 0 & 0 & 0 & 0 & 2.34 $\pm$ 0.99 & 0
+0 & 0 & 0 & 0 & 0 & 13.22 $\pm$ 0.00 & 0
+
+
+tuning_False, diag, IAT+SIZE, header_False, OC-Nystrom Table
+0 & 0 & 0 & 0 & 0 & 9.33 $\pm$ 3.97 & 0
+0 & 0 & 0 & 0 & 0 & 13.22 $\pm$ 0.00 & 0
+tuning_False, diag, IAT+SIZE, header_False,  KDE Table
+0 & 0 & 0 & 0 & 0 & 0.14 $\pm$ 0.06 & 0
+0 & 0 & 0 & 0 & 0 & 0.46 $\pm$ 0.00 & 0
+tuning_False, diag, IAT+SIZE, header_False,  GMM Table
+0 & 0 & 0 & 0 & 0 & 5.72 $\pm$ 2.43 & 0
+0 & 0 & 0 & 0 & 0 & 421.82 $\pm$ 0.11 & 0
+
+
+tuning_False, diag, IAT+SIZE, header_False, OC-KJL, OC-KJL-QS vs OC-Nystrom, OC-Nystrom-QS
+0 & 0 & 0 & 0 & 0 & 2.34 $\pm$ 0.99 & 0
+0 & 0 & 0 & 0 & 0 & 13.22 $\pm$ 0.00 & 0
+0 & 0 & 0 & 0 & 0 & 18.16 $\pm$ 7.72 & 0
+0 & 0 & 0 & 0 & 0 & 12.89 $\pm$ 0.00 & 0
+0 & 0 & 0 & 0 & 0 & 9.33 $\pm$ 3.97 & 0
+0 & 0 & 0 & 0 & 0 & 13.22 $\pm$ 0.00 & 0
+0 & 0 & 0 & 0 & 0 & 34.04 $\pm$ 14.47 & 0
+0 & 0 & 0 & 0 & 0 & 12.73 $\pm$ 0.00 & 0
+
+
+
+***tuning_True, full, IAT+SIZE, header_False
+
+
+tuning_True, full, IAT+SIZE, header_False,  OC-KJL Table
+0 & 0 & 0 & 0 & 0 & 17.76 $\pm$ 5.31 & 0
+0 & 0 & 0 & 0 & 0 & 11.89 $\pm$ 0.01 & 0
+
+
+tuning_True, full, IAT+SIZE, header_False, OC-Nystrom Table
+0 & 0 & 0 & 0 & 0 & 11.28 $\pm$ 3.37 & 0
+0 & 0 & 0 & 0 & 0 & 11.82 $\pm$ 0.01 & 0
+tuning_True, full, IAT+SIZE, header_False,  KDE Table
+0 & 0 & 0 & 0 & 0 & 0.11 $\pm$ 0.03 & 0.18 $\pm$ 0.09
+0 & 0 & 0 & 0 & 0 & 0.46 $\pm$ 0.00 & 0.46 $\pm$ 0.00
+tuning_True, full, IAT+SIZE, header_False,  GMM Table
+0 & 0 & 0 & 0 & 0 & 11.70 $\pm$ 3.50 & 17.43 $\pm$ 9.15
+0 & 0 & 0 & 0 & 0 & 3.57 $\pm$ 0.00 & 3.80 $\pm$ 0.00
+
+
+tuning_True, full, IAT+SIZE, header_False, OC-KJL, OC-KJL-QS vs OC-Nystrom, OC-Nystrom-QS
+0 & 0 & 0 & 0 & 0 & 17.76 $\pm$ 5.31 & 0
+0 & 0 & 0 & 0 & 0 & 11.89 $\pm$ 0.01 & 0
+0 & 0 & 0 & 0 & 0 & 13.40 $\pm$ 4.01 & 0
+0 & 0 & 0 & 0 & 0 & 12.24 $\pm$ 0.01 & 0
+0 & 0 & 0 & 0 & 0 & 11.28 $\pm$ 3.37 & 0
+0 & 0 & 0 & 0 & 0 & 11.82 $\pm$ 0.01 & 0
+0 & 0 & 0 & 0 & 0 & 14.23 $\pm$ 4.25 & 0
+0 & 0 & 0 & 0 & 0 & 12.18 $\pm$ 0.01 & 0
+
+
+
+***tuning_True, diag, IAT+SIZE, header_False
+
+
+tuning_True, diag, IAT+SIZE, header_False,  OC-KJL Table
+0 & 0 & 0 & 0 & 0 & 3.02 $\pm$ 0.90 & 0
+0 & 0 & 0 & 0 & 0 & 12.66 $\pm$ 0.01 & 0
+
+
+tuning_True, diag, IAT+SIZE, header_False, OC-Nystrom Table
+0 & 0 & 0 & 0 & 0 & 8.99 $\pm$ 2.69 & 0
+0 & 0 & 0 & 0 & 0 & 12.73 $\pm$ 0.01 & 0
+tuning_True, diag, IAT+SIZE, header_False,  KDE Table
+0 & 0 & 0 & 0 & 0 & 0.11 $\pm$ 0.03 & 0.18 $\pm$ 0.09
+0 & 0 & 0 & 0 & 0 & 0.46 $\pm$ 0.00 & 0.46 $\pm$ 0.00
+tuning_True, diag, IAT+SIZE, header_False,  GMM Table
+0 & 0 & 0 & 0 & 0 & 5.42 $\pm$ 1.62 & 0
+0 & 0 & 0 & 0 & 0 & 71.98 $\pm$ 0.06 & 0
+
+
+tuning_True, diag, IAT+SIZE, header_False, OC-KJL, OC-KJL-QS vs OC-Nystrom, OC-Nystrom-QS
+0 & 0 & 0 & 0 & 0 & 3.02 $\pm$ 0.90 & 0
+0 & 0 & 0 & 0 & 0 & 12.66 $\pm$ 0.01 & 0
+0 & 0 & 0 & 0 & 0 & 12.36 $\pm$ 3.69 & 0
+0 & 0 & 0 & 0 & 0 & 12.91 $\pm$ 0.01 & 0
+0 & 0 & 0 & 0 & 0 & 8.99 $\pm$ 2.69 & 0
+0 & 0 & 0 & 0 & 0 & 12.73 $\pm$ 0.01 & 0
+0 & 0 & 0 & 0 & 0 & 5.79 $\pm$ 1.73 & 0
+0 & 0 & 0 & 0 & 0 & 12.79 $\pm$ 0.01 & 0
