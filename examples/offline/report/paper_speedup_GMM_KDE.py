@@ -9,10 +9,12 @@ import os.path
 import traceback
 
 import pandas as pd
+from matplotlib.ticker import FormatStrFormatter
 
 from examples.offline._constants import *
 from examples.offline.report import _speedup
 from examples.offline.report._speedup import get_one_result
+from kjl.utils.tool import check_path
 
 
 def baseline_table(neon_file, rspi_file, nano_file, out_file, header=False, feature='IAT+SIZE'):
@@ -353,12 +355,16 @@ def show_diff_train_sizes(ocsvm_gmm, out_file='', title='auc', n_repeats=5):
 
 	plt.xticks(ocsvm['train_size'].values, fontsize=font_size - 1)
 	plt.yticks(fontsize=font_size - 1)
+	plt.gca().yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 	# fig.suptitle(f'{data_name}', y=0.98, fontsize=font_size)
 	plt.xlabel('Train size ($n$)', fontsize=font_size)
 	plt.ylabel('AUC', fontsize=font_size)
 	# plt.title(f'{data_name}', fontsize = font_size-2)
-	# bbox_to_anchor: (x, y, width, height)
-	plt.legend(loc='upper right', bbox_to_anchor=(0.5, 0.3, 0.5, 0.5), fontsize=font_size - 2)
+	if data_name == 'DWSHR_AECHO_2020':
+		# bbox_to_anchor: (x, y, width, height)
+		plt.legend(loc='upper right', bbox_to_anchor=(0.5, 0.3, 0.5, 0.5), fontsize=font_size - 2)
+	else:
+		plt.legend(loc='upper right', bbox_to_anchor=(0.5, 0.25, 0.5, 0.5), fontsize=font_size - 2)
 	# plt.ylim([0.86, 1])
 	# n_groups = len(show_datasets)
 	# index = np.arange(n_groups)
@@ -420,7 +426,7 @@ if __name__ == '__main__':
 		date_str = '2022-09-16 12:32:22.738044'
 		for device in ['RSPI', 'Nano']:
 			lg.info(f'\n\n***{device}, {root_dir}')
-			for n_normal_max_train in [500, 1000, 2000, 3000, 4000, 5000]:  # 1000, 3000, 5000, 10000
+			for n_normal_max_train in [1000, 2000, 3000, 4000, 5000]:  # 1000, 3000, 5000, 10000
 				try:
 					lg.info(f'\n\n***{device}, {root_dir}')
 					in_file = os.path.join(root_dir, f'{device}/train_size_{n_normal_max_train}/src_dst/results/{date_str}/IAT+SIZE-header_False/gather-all.csv')
@@ -440,6 +446,7 @@ if __name__ == '__main__':
 	else:
 		root_dir = 'examples/offline/report/out/src_dst/results-20220905'
 		root_dir = 'examples/offline/report/out/src_dst/results-KDE_GMM-20220916'
+		root_dir = 'examples/offline/deployment/out'
 		# After deployment and copy the result ('examples/offline/deployment/out/src_dst/results') to 'examples/offline/report/out/src_dst/'
 		for device in ['MacOS', 'RSPI', 'NANO']:
 			if device == 'RSPI':
@@ -448,6 +455,9 @@ if __name__ == '__main__':
 				date_str = '2022-09-16 12:34:44.607093'
 			else:
 				date_str = '2022-09-20 14:47:11.703436'
+				data_str = '2022-09-26 20:51:34.988580'
+				data_str = '2022-09-27 21:03:06.474680'
+				data_str = '2022-09-28 08:16:08.248261'
 			df_all = []
 			ocsvm_gmm = []
 			for n_normal_max_train in [1000, 2000, 3000, 4000, 5000]:  # 1000, 3000, 5000, 10000, # 1000, 2000, 3000, 4000, 5000
@@ -456,10 +466,16 @@ if __name__ == '__main__':
 				if device == 'MacOS':
 					# in_file = os.path.join(root_dir, f'{device}/deployed_results2/IAT+SIZE-header_False/gather-all.csv')
 					in_file = os.path.join(root_dir,  f'{device}/train_size_{n_normal_max_train}/src_dst/results/{date_str}/IAT+SIZE-header_False/gather-all.csv')
-					# continue
+					in_file = os.path.join(root_dir,
+				                       f'train_size_{n_normal_max_train}/src_dst/results/{data_str}/IAT+SIZE-header_False/gather-all.csv')
+
+				# continue
 				else:
 					in_file = os.path.join(root_dir, f'{device}/train_size_{n_normal_max_train}/src_dst/results/{date_str}/IAT+SIZE-header_False/gather-all.csv')
 				lg.debug(in_file)
+
+				#### for different training sizes
+				# 'DWSHR_AECHO_2020', 'CTU1', 'MAWI1_2020' ,'MACCDC1',  'AECHO1_2020', 'AECHO1_2020, UNB3_345, SFRIG1_2021
 				ocsvm_gmm.append((n_normal_max_train, get_results_(in_file, DATASETS = ['DWSHR_AECHO_2020'],
 				                                                   FEATURES=['IAT+SIZE'], HEADERS=[False],
 				                                                   TUNINGS = [True])))
@@ -508,6 +524,7 @@ if __name__ == '__main__':
 
 			# save all in one
 			gmm_file = os.path.join(root_dir, f'{device}/speedup-gmm-all_train_sizes.csv')
+			check_path(gmm_file)
 			df_all.to_csv(gmm_file, sep=',', encoding='utf-8', index=False)
 			print(gmm_file)
 
