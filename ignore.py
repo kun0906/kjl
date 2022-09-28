@@ -26,8 +26,10 @@ def search(in_dir = None):
 
 def write(ignore_files, ignore_path = '.gitignore'):
 	with open(ignore_path, 'w') as f:
-		f.write('legacy/\n')
-		f.write('.DS_Store/\n')
+		ss = ['./legacy/', './**/*.DS_Store', '*.zip', '*.dat', '.idea/', '.git/']
+		ss = '\n'.join(ss)
+		f.write(ss + '\n\n')
+
 		for i, (file, size) in enumerate(ignore_files):
 			if i %100 == 0: print(f'{file}, {int(size)/(1000*1000):.2f}MB')
 			f.write(file + '\n')
@@ -42,6 +44,6 @@ if __name__ == '__main__':
 	add_files, ignored_files = search(in_dir='.')
 	print(len(add_files), len(ignored_files))
 	print(ignored_files[:10])
-	add(add_files)
-	write(ignored_files, ignore_path='.gitignore_new')
+	# add(add_files)
+	write(ignored_files, ignore_path='.gitignore')
 	print(len(ignored_files))
