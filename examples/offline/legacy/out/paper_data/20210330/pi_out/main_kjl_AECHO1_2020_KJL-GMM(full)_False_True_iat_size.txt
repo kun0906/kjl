@@ -1,0 +1,53 @@
+Namespace(dataset='AECHO1_2020', feat='iat_size', gs='False', header='True', model='KJL-GMM(full)', time='2021-04-01 01:56:53')
+***AECHO1_2020, KJL-GMM(full), iat_size, speedup/data/models/src_dst/iat_size-header_True/AECHO1_2020/before_proj_False-gs_False/KJL-GMM(full)-std_False_center_False-d_5-full
+***0_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 343, in main
+    model_params = load_data(model_params_file)
+  File "/Users/kunyang/PycharmProjects/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/iat_size-header_True/AECHO1_2020/before_proj_False-gs_False/KJL-GMM(full)-std_False_center_False-d_5-full/repeat_0.model.model_params'
+Error: AECHO1_2020, KJL-GMM(full)
+***1_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 343, in main
+    model_params = load_data(model_params_file)
+  File "/Users/kunyang/PycharmProjects/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/iat_size-header_True/AECHO1_2020/before_proj_False-gs_False/KJL-GMM(full)-std_False_center_False-d_5-full/repeat_1.model.model_params'
+Error: AECHO1_2020, KJL-GMM(full)
+***2_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 343, in main
+    model_params = load_data(model_params_file)
+  File "/Users/kunyang/PycharmProjects/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/iat_size-header_True/AECHO1_2020/before_proj_False-gs_False/KJL-GMM(full)-std_False_center_False-d_5-full/repeat_2.model.model_params'
+Error: AECHO1_2020, KJL-GMM(full)
+***3_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 343, in main
+    model_params = load_data(model_params_file)
+  File "/Users/kunyang/PycharmProjects/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/iat_size-header_True/AECHO1_2020/before_proj_False-gs_False/KJL-GMM(full)-std_False_center_False-d_5-full/repeat_3.model.model_params'
+Error: AECHO1_2020, KJL-GMM(full)
+***4_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 343, in main
+    model_params = load_data(model_params_file)
+  File "/Users/kunyang/PycharmProjects/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/iat_size-header_True/AECHO1_2020/before_proj_False-gs_False/KJL-GMM(full)-std_False_center_False-d_5-full/repeat_4.model.model_params'
+Error: AECHO1_2020, KJL-GMM(full)
+/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/fromnumeric.py:3373: RuntimeWarning: Mean of empty slice.
+  out=out, **kwargs)
+/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
+  ret = ret.dtype.type(ret / rcount)
+/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/_methods.py:234: RuntimeWarning: Degrees of freedom <= 0 for slice
+  keepdims=keepdims)
+/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/_methods.py:195: RuntimeWarning: invalid value encountered in true_divide
+  arrmean, rcount, out=arrmean, casting='unsafe', subok=False)
+/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/_methods.py:226: RuntimeWarning: invalid value encountered in double_scalars
+  ret = ret.dtype.type(ret / rcount)
+speedup/out/models_res/src_dst/iat_size-header_True/AECHO1_2020/before_proj_False-gs_False/KJL-GMM(full)-std_False_center_False-d_5-full/AECHO1_2020-KJL-GMM(full).dat

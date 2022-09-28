@@ -1,0 +1,19 @@
+﻿0
+ CTU1|
+ Nystrom-GMM(diag)
+ X_train: |X_val: 
+ X_test: 
+ auc:
+ train:
+ test:
+ => aucs:
+ train_times:
+ test_times:
+ n_comp: 
+""
+ space_sizes: |model_spaces: 
+ tot_clusters: 
+ 
+ n_clusters: 
+ 
+ with params: []: 

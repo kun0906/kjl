@@ -1,0 +1,105 @@
+Dataset   & UNB      & CTU  & MAWI         & MACCDC       & SFRIG  & AECHO   &DWSHR  \\
+\midrule
+Common AUC &0.59 $\pm$ 0.00 & 0.59 $\pm$ 0.02 & 0.99 $\pm$ 0.00 & 0.81 $\pm$ 0.03 & 0.93 $\pm$ 0.00 & 0.85 $\pm$ 0.00 & 0.68 $\pm$ 0.01 \\
+\midrule
+Server train time (ms) &0.05 $\pm$ 0.00  & 0.04 $\pm$ 0.00  & 0.07 $\pm$ 0.00  & 0.04 $\pm$ 0.00  & 0.04 $\pm$ 0.00  & 0.05 $\pm$ 0.00  & 0.04 $\pm$ 0.00  \\
+\Cell{Test time (ms):\\RSPI} &69.29 $\pm$ 1.61 & 76.29 $\pm$ 0.88 & 84.77 $\pm$ 0.88 & 79.44 $\pm$ 0.86 & 79.75 $\pm$ 0.48 & 80.59 $\pm$ 1.28 & 77.86 $\pm$ 0.80 \\
+NANO&44.64 $\pm$ 0.22 & 43.76 $\pm$ 0.07 & 44.42 $\pm$ 0.15 & 43.23 $\pm$ 0.17 & 43.99 $\pm$ 0.45 & 45.17 $\pm$ 0.08 & 43.01 $\pm$ 0.08 \\
+NEON&13.11 $\pm$ 0.08 & 12.70 $\pm$ 0.11 & 11.44 $\pm$ 0.06 & 12.91 $\pm$ 0.08 & 14.01 $\pm$ 0.37 & 12.81 $\pm$ 0.06 & 12.71 $\pm$ 0.21 \\
+\midrule
+\Cell{Space (kB)} &\Cell{962.51 $\pm$\\ 0.42} & \Cell{481.39 $\pm$\\ 0.08} & \Cell{2447.42 $\pm$\\ 1.07} & \Cell{521.54 $\pm$\\ 0.28} & \Cell{481.20 $\pm$\\ 0.14} & \Cell{1042.33 $\pm$\\ 0.31} & \Cell{441.04 $\pm$\\ 0.18} \\
+\midrule
+
+
+
+\multirow{4}{*}{UNB}   & AUC speedup &0.80 $\pm$ 0.07 & 0.76 $\pm$ 0.13 & 1.48 $\pm$ 0.06 & 1.58 $\pm$ 0.06 \\
+\cmidrule{2-6}
+& Server train speedup &0.02 $\pm$ 0.00  & 0.01 $\pm$ 0.00  & 1.31 $\pm$ 0.02  & 1.04 $\pm$ 0.02  \\
+& \Cell{Test speedup:\\RSPI} &2.33 $\pm$ 0.02 & 2.36 $\pm$ 0.07 & 27.11 $\pm$ 0.63 & 21.23 $\pm$ 0.49 \\
+& NANO &2.75 $\pm$ 0.04 & 2.81 $\pm$ 0.09 & 14.29 $\pm$ 0.07 & 10.86 $\pm$ 0.05 \\
+& NEON  &0.49 $\pm$ 0.04 & 0.51 $\pm$ 0.15 & 19.83 $\pm$ 0.13 & 15.18 $\pm$ 0.10 \\
+\cmidrule{2-6}
+& Space saving &42.54 $\pm$ 0.00 & 42.55 $\pm$ 0.00 & 22.03 $\pm$ 0.01 & 20.40 $\pm$ 0.01 \\
+\cmidrule{2-6}
+\midrule
+\multirow{4}{*}{CTU}   & AUC speedup &0.38 $\pm$ 0.04 & 0.37 $\pm$ 0.03 & 1.14 $\pm$ 0.02 & 1.23 $\pm$ 0.07 \\
+\cmidrule{2-6}
+& Server train speedup &0.02 $\pm$ 0.00  & 0.02 $\pm$ 0.00  & 1.06 $\pm$ 0.01  & 1.06 $\pm$ 0.01  \\
+& \Cell{Test speedup:\\RSPI} &2.72 $\pm$ 0.19 & 2.74 $\pm$ 0.18 & 23.02 $\pm$ 0.27 & 21.11 $\pm$ 0.24 \\
+& NANO &2.75 $\pm$ 0.07 & 2.72 $\pm$ 0.08 & 12.71 $\pm$ 0.02 & 12.16 $\pm$ 0.02 \\
+& NEON  &0.78 $\pm$ 0.45 & 0.55 $\pm$ 0.08 & 16.70 $\pm$ 0.15 & 17.70 $\pm$ 0.15 \\
+\cmidrule{2-6}
+& Space saving &23.34 $\pm$ 0.00 & 23.35 $\pm$ 0.00 & 18.64 $\pm$ 0.00 & 17.94 $\pm$ 0.00 \\
+\cmidrule{2-6}
+\midrule
+\multirow{4}{*}{MAWI}   & AUC speedup &0.23 $\pm$ 0.02 & 0.42 $\pm$ 0.04 & 0.13 $\pm$ 0.00 & 0.16 $\pm$ 0.00 \\
+\cmidrule{2-6}
+& Server train speedup &0.01 $\pm$ 0.00  & 0.02 $\pm$ 0.00  & 1.79 $\pm$ 0.04  & 1.66 $\pm$ 0.04  \\
+& \Cell{Test speedup:\\RSPI} &3.58 $\pm$ 0.18 & 3.64 $\pm$ 0.29 & 17.89 $\pm$ 0.19 & 18.03 $\pm$ 0.19 \\
+& NANO &2.84 $\pm$ 0.05 & 2.79 $\pm$ 0.07 & 10.55 $\pm$ 0.04 & 10.49 $\pm$ 0.04 \\
+& NEON  &0.51 $\pm$ 0.02 & 0.55 $\pm$ 0.08 & 13.77 $\pm$ 0.07 & 16.72 $\pm$ 0.08 \\
+\cmidrule{2-6}
+& Space saving &101.74 $\pm$ 0.00 & 101.75 $\pm$ 0.00 & 22.99 $\pm$ 0.01 & 22.99 $\pm$ 0.01 \\
+\cmidrule{2-6}
+\midrule
+\multirow{4}{*}{\Cell{MAC-\\CDC}}   & AUC speedup &0.48 $\pm$ 0.17 & 0.61 $\pm$ 0.23 & 1.01 $\pm$ 0.07 & 1.05 $\pm$ 0.06 \\
+\cmidrule{2-6}
+& Server train speedup &0.02 $\pm$ 0.00  & 0.02 $\pm$ 0.00  & 1.04 $\pm$ 0.03  & 1.07 $\pm$ 0.03  \\
+& \Cell{Test speedup:\\RSPI} &2.84 $\pm$ 0.17 & 2.74 $\pm$ 0.12 & 24.52 $\pm$ 0.27 & 24.53 $\pm$ 0.27 \\
+& NANO &2.78 $\pm$ 0.17 & 2.75 $\pm$ 0.08 & 13.66 $\pm$ 0.05 & 13.48 $\pm$ 0.05 \\
+& NEON  &0.50 $\pm$ 0.05 & 0.45 $\pm$ 0.05 & 25.84 $\pm$ 0.16 & 21.75 $\pm$ 0.13 \\
+\cmidrule{2-6}
+& Space saving &24.94 $\pm$ 0.00 & 24.95 $\pm$ 0.00 & 19.73 $\pm$ 0.01 & 19.65 $\pm$ 0.01 \\
+\cmidrule{2-6}
+\midrule
+\multirow{4}{*}{SFRIG}   & AUC speedup &0.17 $\pm$ 0.07 & 0.69 $\pm$ 0.00 & 0.83 $\pm$ 0.06 & 0.42 $\pm$ 0.10 \\
+\cmidrule{2-6}
+& Server train speedup &0.02 $\pm$ 0.00  & 0.02 $\pm$ 0.00  & 1.04 $\pm$ 0.01  & 1.06 $\pm$ 0.01  \\
+& \Cell{Test speedup:\\RSPI} &2.84 $\pm$ 0.14 & 2.84 $\pm$ 0.15 & 22.44 $\pm$ 0.14 & 21.51 $\pm$ 0.13 \\
+& NANO &2.79 $\pm$ 0.04 & 2.73 $\pm$ 0.08 & 12.52 $\pm$ 0.13 & 12.17 $\pm$ 0.12 \\
+& NEON  &0.62 $\pm$ 0.02 & 0.57 $\pm$ 0.10 & 14.64 $\pm$ 0.39 & 17.36 $\pm$ 0.46 \\
+\cmidrule{2-6}
+& Space saving &23.34 $\pm$ 0.00 & 23.35 $\pm$ 0.00 & 18.56 $\pm$ 0.01 & 18.10 $\pm$ 0.01 \\
+\cmidrule{2-6}
+\midrule
+\multirow{4}{*}{\Cell{AEC-\\HO}}   & AUC speedup &0.04 $\pm$ 0.02 & 0.16 $\pm$ 0.02 & 0.96 $\pm$ 0.09 & 1.09 $\pm$ 0.06 \\
+\cmidrule{2-6}
+& Server train speedup &0.02 $\pm$ 0.00  & 0.02 $\pm$ 0.00  & 1.29 $\pm$ 0.02  & 1.29 $\pm$ 0.02  \\
+& \Cell{Test speedup:\\RSPI} &3.00 $\pm$ 0.25 & 2.94 $\pm$ 0.17 & 22.32 $\pm$ 0.36 & 20.83 $\pm$ 0.33 \\
+& NANO &2.76 $\pm$ 0.05 & 2.84 $\pm$ 0.08 & 12.78 $\pm$ 0.02 & 11.97 $\pm$ 0.02 \\
+& NEON  &0.56 $\pm$ 0.03 & 0.49 $\pm$ 0.05 & 17.59 $\pm$ 0.09 & 20.80 $\pm$ 0.10 \\
+\cmidrule{2-6}
+& Space saving &45.74 $\pm$ 0.00 & 45.75 $\pm$ 0.00 & 21.61 $\pm$ 0.01 & 21.26 $\pm$ 0.01 \\
+\cmidrule{2-6}
+\midrule
+\multirow{4}{*}{\Cell{DWS-\\HR}}   & AUC speedup &0.44 $\pm$ 0.04 & 0.46 $\pm$ 0.01 & 1.04 $\pm$ 0.01 & 0.96 $\pm$ 0.03 \\
+\cmidrule{2-6}
+& Server train speedup &0.02 $\pm$ 0.00  & 0.02 $\pm$ 0.00  & 1.00 $\pm$ 0.01  & 0.93 $\pm$ 0.01  \\
+& \Cell{Test speedup:\\RSPI} &2.77 $\pm$ 0.21 & 2.78 $\pm$ 0.31 & 21.29 $\pm$ 0.22 & 20.50 $\pm$ 0.21 \\
+& NANO &2.70 $\pm$ 0.06 & 2.68 $\pm$ 0.06 & 11.93 $\pm$ 0.02 & 10.83 $\pm$ 0.02 \\
+& NEON  &0.52 $\pm$ 0.04 & 0.48 $\pm$ 0.05 & 17.01 $\pm$ 0.28 & 13.99 $\pm$ 0.23 \\
+\cmidrule{2-6}
+& Space saving &21.74 $\pm$ 0.00 & 21.75 $\pm$ 0.00 & 17.73 $\pm$ 0.01 & 16.85 $\pm$ 0.01 \\
+\cmidrule{2-6}
+\midrule
+
+
+UNB &    1.00$\pm$0.00 &    1.00$\pm$0.00 &    5.60$\pm$1.74 &    19.60$\pm$0.80\\ 
+CTU &    1.00$\pm$0.00 &    1.00$\pm$0.00 &    11.00$\pm$2.45 &    15.00$\pm$1.26\\ 
+MAWI &    1.00$\pm$0.00 &    1.00$\pm$0.00 &    20.00$\pm$0.00 &    20.00$\pm$0.00\\ 
+\Cell{MAC-\\CDC} &    1.00$\pm$0.00 &    1.00$\pm$0.00 &    7.00$\pm$1.10 &    7.40$\pm$0.49\\ 
+SFRIG &    1.00$\pm$0.00 &    1.00$\pm$0.00 &    11.40$\pm$1.02 &    14.00$\pm$0.63\\ 
+\Cell{AEC-\\HO} &    1.00$\pm$0.00 &    1.00$\pm$0.00 &    11.00$\pm$2.53 &    14.20$\pm$0.40\\ 
+\Cell{DWS-\\HR} &    1.00$\pm$0.00 &    1.00$\pm$0.00 &    13.60$\pm$1.02 &    18.80$\pm$1.17\\ 
+
+
+
+Dataset & Train set & Test set & dim\\ 
+UNB345_3 & normal: 5000|n_val: (600-47)) & normal: 300, novelty: 300 & 47\\ 
+CTU1 & normal: 5000|n_val: (600-23)) & normal: 300, novelty: 300 & 23\\ 
+MAWI1_2020 & normal: 5000|n_val: (600-121)) & normal: 300, novelty: 300 & 121\\ 
+MACCDC1 & normal: 5000|n_val: (600-25)) & normal: 300, novelty: 300 & 25\\ 
+SFRIG1_2020 & normal: 5000|n_val: (600-23)) & normal: 300, novelty: 300 & 23\\ 
+AECHO1_2020 & normal: 5000|n_val: (600-51)) & normal: 300, novelty: 300 & 51\\ 
+DWSHR_WSHR_2020 & normal: 5000|n_val: (600-21)) & normal: 300, novelty: 300 & 21\\ 
+

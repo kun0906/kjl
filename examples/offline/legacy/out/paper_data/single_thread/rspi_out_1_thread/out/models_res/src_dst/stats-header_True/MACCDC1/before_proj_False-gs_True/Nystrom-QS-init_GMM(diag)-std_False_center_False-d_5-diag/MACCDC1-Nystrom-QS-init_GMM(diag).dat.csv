@@ -1,0 +1,20 @@
+﻿0
+ MACCDC1|
+ Nystrom-QS-init_GMM(diag)
+ X_train: |X_val: 
+ X_test: (600
+ 31)
+ auc:
+ train:
+ test:
+ => aucs:0.7295222222222223-0.529788888888889-0.5485-0.5244555555555553-0.4096
+ train_times:
+ test_times:0.015553210338111967-0.015712093701586126-0.015891721961088477-0.015957860683556646-0.015048861829563975
+ n_comp: 
+""
+ space_sizes: |model_spaces: 30.213-30.213-30.389-30.477-30.125
+ tot_clusters: 
+ 
+ n_clusters: 
+ 
+ with params: []: 

@@ -1,0 +1,18 @@
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 14, in <module>
+    import numpy as np
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/__init__.py", line 140, in <module>
+    from . import core
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/__init__.py", line 22, in <module>
+    from . import multiarray
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/multiarray.py", line 12, in <module>
+    from . import overrides
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/core/overrides.py", line 9, in <module>
+    from numpy.compat._inspect import getargspec
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/compat/__init__.py", line 12, in <module>
+    from . import py3k
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/numpy/compat/py3k.py", line 21, in <module>
+    from pathlib import Path, PurePath
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/pathlib.py", line 463, in <module>
+    class _Selector:
+KeyboardInterrupt

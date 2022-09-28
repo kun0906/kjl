@@ -1,0 +1,22 @@
+Fatal Python error: initsite: Failed to import the site module
+Traceback (most recent call last):
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site.py", line 586, in <module>
+    main()
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site.py", line 573, in main
+    known_paths = addsitepackages(known_paths)
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site.py", line 349, in addsitepackages
+    addsitedir(sitedir, known_paths)
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site.py", line 207, in addsitedir
+    addpackage(sitedir, name, known_paths)
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site.py", line 168, in addpackage
+    exec(line)
+  File "<string>", line 1, in <module>
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/importlib/util.py", line 14, in <module>
+    from contextlib import contextmanager
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/contextlib.py", line 5, in <module>
+    from collections import deque
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/collections/__init__.py", line 24, in <module>
+    import heapq as _heapq
+  File "/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/heapq.py", line 587, in <module>
+    from _heapq import *
+KeyboardInterrupt

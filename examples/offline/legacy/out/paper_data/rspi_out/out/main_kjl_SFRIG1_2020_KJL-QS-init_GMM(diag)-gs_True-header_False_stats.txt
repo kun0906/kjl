@@ -1,0 +1,53 @@
+Namespace(dataset='SFRIG1_2020', feat='stats', gs='True', header='False', model='KJL-QS-init_GMM(diag)', time='2021-04-09 09:51:01')
+***SFRIG1_2020, KJL-QS-init_GMM(diag), stats, speedup/data/models/src_dst/stats-header_False/SFRIG1_2020/before_proj_False-gs_True/KJL-QS-init_GMM(diag)-std_False_center_False-d_5-diag
+***0_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 354, in main
+    model_params = load_data(model_params_file)
+  File "/home/pi/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/stats-header_False/SFRIG1_2020/before_proj_False-gs_True/KJL-QS-init_GMM(diag)-std_False_center_False-d_5-diag/repeat_0.model.model_params'
+Error: SFRIG1_2020, KJL-QS-init_GMM(diag)
+***1_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 354, in main
+    model_params = load_data(model_params_file)
+  File "/home/pi/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/stats-header_False/SFRIG1_2020/before_proj_False-gs_True/KJL-QS-init_GMM(diag)-std_False_center_False-d_5-diag/repeat_1.model.model_params'
+Error: SFRIG1_2020, KJL-QS-init_GMM(diag)
+***2_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 354, in main
+    model_params = load_data(model_params_file)
+  File "/home/pi/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/stats-header_False/SFRIG1_2020/before_proj_False-gs_True/KJL-QS-init_GMM(diag)-std_False_center_False-d_5-diag/repeat_2.model.model_params'
+Error: SFRIG1_2020, KJL-QS-init_GMM(diag)
+***3_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 354, in main
+    model_params = load_data(model_params_file)
+  File "/home/pi/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/stats-header_False/SFRIG1_2020/before_proj_False-gs_True/KJL-QS-init_GMM(diag)-std_False_center_False-d_5-diag/repeat_3.model.model_params'
+Error: SFRIG1_2020, KJL-QS-init_GMM(diag)
+***4_th repeat
+Traceback (most recent call last):
+  File "speedup/main_reload_idv.py", line 354, in main
+    model_params = load_data(model_params_file)
+  File "/home/pi/ky2440/kjl_reload/kjl/utils/tool.py", line 58, in load_data
+    with open(in_file, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'speedup/data/models/src_dst/stats-header_False/SFRIG1_2020/before_proj_False-gs_True/KJL-QS-init_GMM(diag)-std_False_center_False-d_5-diag/repeat_4.model.model_params'
+Error: SFRIG1_2020, KJL-QS-init_GMM(diag)
+/usr/local/lib/python3.7/site-packages/numpy/core/fromnumeric.py:3335: RuntimeWarning: Mean of empty slice.
+  out=out, **kwargs)
+/usr/local/lib/python3.7/site-packages/numpy/core/_methods.py:161: RuntimeWarning: invalid value encountered in double_scalars
+  ret = ret.dtype.type(ret / rcount)
+/usr/local/lib/python3.7/site-packages/numpy/core/_methods.py:217: RuntimeWarning: Degrees of freedom <= 0 for slice
+  keepdims=keepdims)
+/usr/local/lib/python3.7/site-packages/numpy/core/_methods.py:186: RuntimeWarning: invalid value encountered in true_divide
+  arrmean, rcount, out=arrmean, casting='unsafe', subok=False)
+/usr/local/lib/python3.7/site-packages/numpy/core/_methods.py:209: RuntimeWarning: invalid value encountered in double_scalars
+  ret = ret.dtype.type(ret / rcount)
+speedup/out/models_res/src_dst/stats-header_False/SFRIG1_2020/before_proj_False-gs_True/KJL-QS-init_GMM(diag)-std_False_center_False-d_5-diag/SFRIG1_2020-KJL-QS-init_GMM(diag).dat

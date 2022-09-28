@@ -1,0 +1,178 @@
+
+
+
+***tuning_False, full, IAT+SIZE, header_False
+
+
+***********************************************************************************
+tuning_False, full, IAT+SIZE, header_False,  OC-KJL Table
+\toprule
+\multicolumn{2}{|c|}{Dataset}    & UNB      & CTU  & MAWI         & MACCDC       & SFRIG  & AECHO   &DWSHR \\
+\midrule
+\multirow{3}{*}{\C{\hspace{-0.15cm}Test Time\\Speedup}} &  \C{RSPI} & 29.91 $\pm$ 0.03 & 31.39 $\pm$ 0.09 & 16.29 $\pm$ 0.14 & 31.22 $\pm$ 0.15 & 31.61 $\pm$ 0.09 & 29.56 $\pm$ 0.22 & 30.91 $\pm$ 0.18\\ 
+\cmidrule{2-9}
+& \C{NANO} & 38.48 $\pm$ 0.05 & 41.46 $\pm$ 0.08 & 22.70 $\pm$ 0.02 & 41.73 $\pm$ 0.10 & 41.88 $\pm$ 0.09 & 37.66 $\pm$ 0.01 & 42.07 $\pm$ 0.04\\ 
+\cmidrule{2-9}
+&\C{Server} & 32.25 $\pm$ 0.22 & 34.04 $\pm$ 0.39 & 19.08 $\pm$ 0.25 & 34.02 $\pm$ 0.49 & 33.25 $\pm$ 0.27 & 41.70 $\pm$ 0.04 & 43.91 $\pm$ 0.21\\ 
+\midrule
+\multicolumn{2}{|c|}{\C{Space Reduction}} & 44.75 $\pm$ 0.00 & 41.16 $\pm$ 0.01 & 27.50 $\pm$ 0.01 & 41.73 $\pm$ 0.01 & 37.81 $\pm$ 0.00 & 43.75 $\pm$ 0.00 & 42.67 $\pm$ 0.01\\ 
+\bottomrule
+
+
+***********************************************************************************
+tuning_False, full, IAT+SIZE, header_False,  OC-Nystrom Table
+\toprule
+\multicolumn{2}{|c|}{Dataset}    & UNB      & CTU  & MAWI         & MACCDC       & SFRIG  & AECHO   &DWSHR \\
+\midrule
+\multirow{3}{*}{\C{\hspace{-0.15cm}Test Time\\Speedup}} &  \C{RSPI} & 29.76 $\pm$ 0.03 & 31.78 $\pm$ 0.09 & 16.21 $\pm$ 0.14 & 31.25 $\pm$ 0.15 & 31.46 $\pm$ 0.09 & 29.43 $\pm$ 0.22 & 30.72 $\pm$ 0.18\\ 
+\cmidrule{2-9}
+& \C{NANO} & 37.73 $\pm$ 0.05 & 41.42 $\pm$ 0.08 & 22.70 $\pm$ 0.02 & 41.50 $\pm$ 0.10 & 41.85 $\pm$ 0.09 & 37.80 $\pm$ 0.01 & 42.15 $\pm$ 0.04\\ 
+\cmidrule{2-9}
+&\C{Server} & 33.59 $\pm$ 0.23 & 34.34 $\pm$ 0.39 & 19.10 $\pm$ 0.25 & 34.00 $\pm$ 0.49 & 33.72 $\pm$ 0.27 & 41.69 $\pm$ 0.04 & 43.59 $\pm$ 0.21\\ 
+\midrule
+\multicolumn{2}{|c|}{\C{Space Reduction}} & 44.73 $\pm$ 0.00 & 41.13 $\pm$ 0.01 & 27.50 $\pm$ 0.01 & 41.70 $\pm$ 0.01 & 37.77 $\pm$ 0.00 & 43.73 $\pm$ 0.00 & 42.64 $\pm$ 0.01\\ 
+\bottomrule
+
+
+***********************************************************************************
+tuning_False, full, IAT+SIZE, header_False,  OC-KJL-QS Table
+\toprule
+\multicolumn{2}{|c|}{Dataset}    & UNB      & CTU  & MAWI         & MACCDC       & SFRIG  & AECHO   &DWSHR \\
+\midrule
+\multirow{3}{*}{\C{\hspace{-0.15cm}Test Time\\Speedup}} &\C{RSPI} & 24.30 $\pm$ 0.02 & 25.81 $\pm$ 0.07 & 12.39 $\pm$ 0.11 & 27.07 $\pm$ 0.13 & 27.37 $\pm$ 0.08 & 25.66 $\pm$ 0.19 & 25.40 $\pm$ 0.15\\ 
+\cmidrule{2-9}
+&\C{NANO} & 28.94 $\pm$ 0.04 & 32.18 $\pm$ 0.07 & 15.99 $\pm$ 0.02 & 34.43 $\pm$ 0.08 & 34.21 $\pm$ 0.07 & 29.97 $\pm$ 0.01 & 30.88 $\pm$ 0.03\\ 
+\cmidrule{2-9}
+&\C{Server} & 25.80 $\pm$ 0.18 & 28.28 $\pm$ 0.33 & 13.38 $\pm$ 0.18 & 28.85 $\pm$ 0.41 & 28.30 $\pm$ 0.23 & 32.34 $\pm$ 0.03 & 31.49 $\pm$ 0.15\\ 
+\midrule
+\multicolumn{2}{|c|}{\C{Space Reduction}} & 41.30 $\pm$ 0.00 & 36.50 $\pm$ 0.01 & 26.28 $\pm$ 0.01 & 38.43 $\pm$ 0.00 & 33.57 $\pm$ 0.00 & 40.67 $\pm$ 0.00 & 37.80 $\pm$ 0.01\\ 
+\bottomrule
+
+
+***********************************************************************************
+tuning_False, full, IAT+SIZE, header_False, OC-Nystrom-QS Table
+\toprule
+\multicolumn{2}{|c|}{Dataset}    & UNB      & CTU  & MAWI         & MACCDC       & SFRIG  & AECHO   &DWSHR \\
+\midrule
+\multirow{3}{*}{\C{\hspace{-0.15cm}Test Time\\Speedup}} &\C{RSPI} & 22.70 $\pm$ 0.02 & 24.50 $\pm$ 0.07 & 12.38 $\pm$ 0.11 & 26.31 $\pm$ 0.13 & 26.79 $\pm$ 0.08 & 23.75 $\pm$ 0.18 & 24.79 $\pm$ 0.14\\ 
+\cmidrule{2-9}
+&\C{NANO} & 26.36 $\pm$ 0.03 & 30.28 $\pm$ 0.06 & 15.97 $\pm$ 0.02 & 33.22 $\pm$ 0.08 & 33.29 $\pm$ 0.07 & 27.37 $\pm$ 0.01 & 29.92 $\pm$ 0.03\\ 
+\cmidrule{2-9}
+&\C{Server} & 23.06 $\pm$ 0.16 & 26.89 $\pm$ 0.31 & 13.38 $\pm$ 0.18 & 28.06 $\pm$ 0.40 & 28.37 $\pm$ 0.23 & 29.33 $\pm$ 0.03 & 30.60 $\pm$ 0.15\\ 
+\midrule
+\multicolumn{2}{|c|}{\C{Space Reduction}} & 39.94 $\pm$ 0.00 & 35.34 $\pm$ 0.01 & 26.28 $\pm$ 0.01 & 37.78 $\pm$ 0.00 & 33.02 $\pm$ 0.00 & 39.28 $\pm$ 0.00 & 37.31 $\pm$ 0.01\\ 
+\bottomrule
+
+
+***********************************************************************************
+retrained AUC and Train time speedup: tuning_False, full, IAT+SIZE, header_False, OC-KJL, OC-KJL-QS vs OC-Nystrom, OC-Nystrom-QS
+\toprule
+\diagbox[width=7em,height=2.5em]{\vspace{0.cm}\hspace{-0.15cm}Method}{\vspace{8.cm}\hspace{8.cm}Dataset}    & UNB   & CTU  & MAWI & MACCDC & SFRIG  & AECHO   &DWSHR   \\
+\midrule
+\C{\hspace{-1.2cm}OC-KJL:\\\hspace{0.0cm}\uline{AUC Retained}}  & 1.41 $\pm$ 0.08 & 0.69 $\pm$ 0.05 & 0.33 $\pm$ 0.07 & 0.77 $\pm$ 0.05 & 0.46 $\pm$ 0.12 & 0.08 $\pm$ 0.02 & 0.40 $\pm$ 0.08\\ 
+\cmidrule{2-8}
+\C{Train Speedup} & 3.12 $\pm$ 0.06 & 2.84 $\pm$ 0.08 & 4.64 $\pm$ 0.06 & 2.77 $\pm$ 0.03 & 2.53 $\pm$ 0.09 & 3.42 $\pm$ 0.19 & 3.08 $\pm$ 0.23\\ 
+\midrule
+\C{\hspace{-.7cm}OC-KJL-QS:\\\hspace{-0.1cm}\uline{AUC Retained}} & 1.49 $\pm$ 0.02 & 1.20 $\pm$ 0.05 & 0.14 $\pm$ 0.00 & 0.90 $\pm$ 0.14 & 0.98 $\pm$ 0.03 & 1.20 $\pm$ 0.03 & 0.95 $\pm$ 0.02\\ 
+\cmidrule{2-8}
+\C{Train Speedup} & 1.32 $\pm$ 0.02 & 1.14 $\pm$ 0.03 & 1.37 $\pm$ 0.02 & 1.16 $\pm$ 0.01 & 0.98 $\pm$ 0.03 & 1.29 $\pm$ 0.07 & 1.26 $\pm$ 0.09\\ 
+\midrule
+\hline
+\midrule
+\C{\hspace{-.55cm}OC-Nystr\"om:\\\hspace{-0.1cm}\uline{AUC Retained}} & 1.45 $\pm$ 0.04 & 0.76 $\pm$ 0.03 & 0.48 $\pm$ 0.16 & 0.90 $\pm$ 0.25 & 0.77 $\pm$ 0.06 & 0.23 $\pm$ 0.08 & 0.58 $\pm$ 0.01\\ 
+\cmidrule{2-8}
+\C{Train Speedup} & 3.16 $\pm$ 0.06 & 2.63 $\pm$ 0.08 & 4.24 $\pm$ 0.05 & 2.84 $\pm$ 0.03 & 2.30 $\pm$ 0.08 & 3.30 $\pm$ 0.18 & 3.16 $\pm$ 0.24\\ 
+\midrule
+\C{\hspace{-0.05cm}OC-Nystr\"om-QS:\\\hspace{-0.1cm}\uline{AUC Retained}} & 1.54 $\pm$ 0.03 & 1.19 $\pm$ 0.10 & 0.17 $\pm$ 0.00 & 0.88 $\pm$ 0.17 & 0.77 $\pm$ 0.11 & 1.18 $\pm$ 0.00 & 0.90 $\pm$ 0.05\\ 
+\cmidrule{2-8}
+\C{Train Speedup} & 1.32 $\pm$ 0.02 & 1.14 $\pm$ 0.03 & 1.47 $\pm$ 0.02 & 1.14 $\pm$ 0.01 & 0.97 $\pm$ 0.03 & 1.26 $\pm$ 0.07 & 1.22 $\pm$ 0.09\\ 
+\bottomrule
+
+
+
+***tuning_True, full, IAT+SIZE, header_False
+
+
+***********************************************************************************
+tuning_True, full, IAT+SIZE, header_False,  OC-KJL Table
+\toprule
+\multicolumn{2}{|c|}{Dataset}    & UNB      & CTU  & MAWI         & MACCDC       & SFRIG  & AECHO   &DWSHR \\
+\midrule
+\multirow{3}{*}{\C{\hspace{-0.15cm}Test Time\\Speedup}} &  \C{RSPI} & 26.66 $\pm$ 0.02 & 22.81 $\pm$ 0.88 & 13.25 $\pm$ 0.01 & 25.91 $\pm$ 0.05 & 26.20 $\pm$ 0.05 & 24.52 $\pm$ 0.04 & 25.07 $\pm$ 0.06\\ 
+\cmidrule{2-9}
+& \C{NANO} & 29.66 $\pm$ 0.06 & 29.90 $\pm$ 0.28 & 18.24 $\pm$ 0.02 & 31.45 $\pm$ 0.29 & 27.13 $\pm$ 0.04 & 27.36 $\pm$ 0.02 & 28.38 $\pm$ 0.01\\ 
+\cmidrule{2-9}
+&\C{Server} & 28.80 $\pm$ 0.23 & 26.41 $\pm$ 1.80 & 14.73 $\pm$ 0.18 & 28.19 $\pm$ 0.32 & 23.63 $\pm$ 0.29 & 29.11 $\pm$ 0.05 & 30.48 $\pm$ 0.01\\ 
+\midrule
+\multicolumn{2}{|c|}{\C{Space Reduction}} & 42.55 $\pm$ 0.01 & 35.12 $\pm$ 0.03 & 26.52 $\pm$ 0.00 & 36.74 $\pm$ 0.02 & 32.58 $\pm$ 0.00 & 39.20 $\pm$ 0.00 & 37.13 $\pm$ 0.01\\ 
+\bottomrule
+
+
+***********************************************************************************
+tuning_True, full, IAT+SIZE, header_False,  OC-Nystrom Table
+\toprule
+\multicolumn{2}{|c|}{Dataset}    & UNB      & CTU  & MAWI         & MACCDC       & SFRIG  & AECHO   &DWSHR \\
+\midrule
+\multirow{3}{*}{\C{\hspace{-0.15cm}Test Time\\Speedup}} &  \C{RSPI} & 27.17 $\pm$ 0.02 & 24.30 $\pm$ 0.93 & 12.59 $\pm$ 0.01 & 27.02 $\pm$ 0.05 & 24.87 $\pm$ 0.05 & 25.33 $\pm$ 0.04 & 24.49 $\pm$ 0.06\\ 
+\cmidrule{2-9}
+& \C{NANO} & 29.98 $\pm$ 0.07 & 31.92 $\pm$ 0.30 & 17.14 $\pm$ 0.02 & 33.62 $\pm$ 0.31 & 25.88 $\pm$ 0.03 & 28.24 $\pm$ 0.02 & 27.94 $\pm$ 0.01\\ 
+\cmidrule{2-9}
+&\C{Server} & 28.31 $\pm$ 0.23 & 27.60 $\pm$ 1.88 & 13.95 $\pm$ 0.17 & 29.71 $\pm$ 0.34 & 23.22 $\pm$ 0.29 & 30.24 $\pm$ 0.05 & 29.91 $\pm$ 0.01\\ 
+\midrule
+\multicolumn{2}{|c|}{\C{Space Reduction}} & 42.79 $\pm$ 0.01 & 36.55 $\pm$ 0.03 & 26.25 $\pm$ 0.00 & 37.98 $\pm$ 0.02 & 31.60 $\pm$ 0.00 & 39.82 $\pm$ 0.00 & 36.89 $\pm$ 0.01\\ 
+\bottomrule
+
+
+***********************************************************************************
+tuning_True, full, IAT+SIZE, header_False,  OC-KJL-QS Table
+\toprule
+\multicolumn{2}{|c|}{Dataset}    & UNB      & CTU  & MAWI         & MACCDC       & SFRIG  & AECHO   &DWSHR \\
+\midrule
+\multirow{3}{*}{\C{\hspace{-0.15cm}Test Time\\Speedup}} &\C{RSPI} & 24.68 $\pm$ 0.02 & 24.22 $\pm$ 0.93 & 15.61 $\pm$ 0.01 & 27.56 $\pm$ 0.05 & 26.77 $\pm$ 0.05 & 26.38 $\pm$ 0.05 & 25.19 $\pm$ 0.06\\ 
+\cmidrule{2-9}
+&\C{NANO} & 27.18 $\pm$ 0.06 & 31.67 $\pm$ 0.30 & 21.29 $\pm$ 0.02 & 33.95 $\pm$ 0.31 & 27.20 $\pm$ 0.04 & 30.44 $\pm$ 0.03 & 28.78 $\pm$ 0.01\\ 
+\cmidrule{2-9}
+&\C{Server} & 26.33 $\pm$ 0.21 & 28.10 $\pm$ 1.92 & 17.17 $\pm$ 0.21 & 29.72 $\pm$ 0.34 & 24.15 $\pm$ 0.30 & 32.32 $\pm$ 0.05 & 30.94 $\pm$ 0.01\\ 
+\midrule
+\multicolumn{2}{|c|}{\C{Space Reduction}} & 41.36 $\pm$ 0.01 & 36.30 $\pm$ 0.03 & 27.18 $\pm$ 0.00 & 38.21 $\pm$ 0.02 & 32.83 $\pm$ 0.00 & 40.73 $\pm$ 0.00 & 37.42 $\pm$ 0.01\\ 
+\bottomrule
+
+
+***********************************************************************************
+tuning_True, full, IAT+SIZE, header_False, OC-Nystrom-QS Table
+\toprule
+\multicolumn{2}{|c|}{Dataset}    & UNB      & CTU  & MAWI         & MACCDC       & SFRIG  & AECHO   &DWSHR \\
+\midrule
+\multirow{3}{*}{\C{\hspace{-0.15cm}Test Time\\Speedup}} &\C{RSPI} & 22.86 $\pm$ 0.02 & 22.63 $\pm$ 0.87 & 15.54 $\pm$ 0.01 & 27.08 $\pm$ 0.05 & 26.48 $\pm$ 0.05 & 26.24 $\pm$ 0.05 & 25.56 $\pm$ 0.06\\ 
+\cmidrule{2-9}
+&\C{NANO} & 24.73 $\pm$ 0.05 & 29.63 $\pm$ 0.28 & 21.53 $\pm$ 0.02 & 33.56 $\pm$ 0.31 & 27.39 $\pm$ 0.04 & 30.07 $\pm$ 0.03 & 29.14 $\pm$ 0.01\\ 
+\cmidrule{2-9}
+&\C{Server} & 24.16 $\pm$ 0.20 & 25.90 $\pm$ 1.77 & 17.31 $\pm$ 0.21 & 29.44 $\pm$ 0.33 & 24.36 $\pm$ 0.30 & 31.73 $\pm$ 0.05 & 31.23 $\pm$ 0.01\\ 
+\midrule
+\multicolumn{2}{|c|}{\C{Space Reduction}} & 39.99 $\pm$ 0.01 & 35.09 $\pm$ 0.03 & 27.21 $\pm$ 0.00 & 37.98 $\pm$ 0.02 & 32.97 $\pm$ 0.00 & 40.66 $\pm$ 0.00 & 37.63 $\pm$ 0.01\\ 
+\bottomrule
+
+
+***********************************************************************************
+retrained AUC and Train time speedup: tuning_True, full, IAT+SIZE, header_False, OC-KJL, OC-KJL-QS vs OC-Nystrom, OC-Nystrom-QS
+\toprule
+\diagbox[width=7em,height=2.5em]{\vspace{0.cm}\hspace{-0.15cm}Method}{\vspace{8.cm}\hspace{8.cm}Dataset}    & UNB   & CTU  & MAWI & MACCDC & SFRIG  & AECHO   &DWSHR   \\
+\midrule
+\C{\hspace{-1.2cm}OC-KJL:\\\hspace{0.0cm}\uline{AUC Retained}}  & 1.36 $\pm$ 0.04 & 1.13 $\pm$ 0.04 & 0.99 $\pm$ 0.01 & 1.08 $\pm$ 0.01 & 0.99 $\pm$ 0.01 & 1.08 $\pm$ 0.00 & 0.99 $\pm$ 0.00\\ 
+\cmidrule{2-8}
+\C{Train Speedup} & 2.75 $\pm$ 0.14 & 2.44 $\pm$ 0.05 & 4.13 $\pm$ 0.08 & 2.47 $\pm$ 0.06 & 2.22 $\pm$ 0.21 & 2.84 $\pm$ 0.17 & 2.75 $\pm$ 0.14\\ 
+\midrule
+\C{\hspace{-.7cm}OC-KJL-QS:\\\hspace{-0.1cm}\uline{AUC Retained}} & 1.33 $\pm$ 0.02 & 1.05 $\pm$ 0.03 & 0.95 $\pm$ 0.03 & 1.03 $\pm$ 0.01 & 0.97 $\pm$ 0.02 & 1.07 $\pm$ 0.00 & 0.99 $\pm$ 0.00\\ 
+\cmidrule{2-8}
+\C{Train Speedup} & 1.36 $\pm$ 0.07 & 1.10 $\pm$ 0.02 & 1.65 $\pm$ 0.03 & 1.14 $\pm$ 0.03 & 0.97 $\pm$ 0.09 & 1.18 $\pm$ 0.07 & 1.19 $\pm$ 0.06\\ 
+\midrule
+\hline
+\midrule
+\C{\hspace{-.55cm}OC-Nystr\"om:\\\hspace{-0.1cm}\uline{AUC Retained}} & 1.41 $\pm$ 0.02 & 1.19 $\pm$ 0.03 & 0.99 $\pm$ 0.01 & 1.07 $\pm$ 0.03 & 0.97 $\pm$ 0.01 & 1.09 $\pm$ 0.00 & 0.99 $\pm$ 0.01\\ 
+\cmidrule{2-8}
+\C{Train Speedup} & 3.14 $\pm$ 0.16 & 2.59 $\pm$ 0.06 & 3.68 $\pm$ 0.07 & 2.60 $\pm$ 0.06 & 2.17 $\pm$ 0.21 & 2.94 $\pm$ 0.17 & 2.72 $\pm$ 0.14\\ 
+\midrule
+\C{\hspace{-0.05cm}OC-Nystr\"om-QS:\\\hspace{-0.1cm}\uline{AUC Retained}} & 1.37 $\pm$ 0.02 & 1.13 $\pm$ 0.04 & 0.90 $\pm$ 0.03 & 1.06 $\pm$ 0.02 & 0.96 $\pm$ 0.01 & 1.09 $\pm$ 0.01 & 0.98 $\pm$ 0.01\\ 
+\cmidrule{2-8}
+\C{Train Speedup} & 1.32 $\pm$ 0.07 & 1.12 $\pm$ 0.02 & 1.74 $\pm$ 0.03 & 1.16 $\pm$ 0.03 & 0.93 $\pm$ 0.09 & 1.26 $\pm$ 0.07 & 1.17 $\pm$ 0.06\\ 
+\bottomrule
