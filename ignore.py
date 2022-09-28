@@ -11,7 +11,7 @@ def search(in_dir = None):
 		f = os.path.join(in_dir, f)
 		if os.path.isfile(f):
 			size = os.path.getsize(f)
-			if size > 20 * 1000 * 1000: # 20 MB
+			if size > 2 * 1000 * 1000: # 20 MB
 				ignored_files.append((f, size))
 		else:
 			ignored_files.extend(search(in_dir = f))
@@ -20,6 +20,7 @@ def search(in_dir = None):
 
 def write(ignore_files, ignore_path = '.gitignore'):
 	with open(ignore_path, 'w') as f:
+		f.write('legacy/\n')
 		for file, size in ignore_files:
 			print(f'{file}, {int(size)/(1000*1000):.2f}MB')
 			f.write(file + '\n')
