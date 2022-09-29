@@ -36,6 +36,7 @@ def correlation(X, title=''):
 	plt.title(title)
 	plt.show()
 
+np.set_printoptions(precision=2)
 
 def parse_result(n_normal_max_train=1000, verbose = 1):
 	res = []
@@ -44,10 +45,11 @@ def parse_result(n_normal_max_train=1000, verbose = 1):
 	# dataset = 'CTU1'
 	# dataset = 'MACCDC1'
 	dataset = 'SFRIG1_2021'
-	# dataset = 'DWSHR_AECHO_2020'
 	# dataset = 'AECHO1_2020'
+	# dataset = 'DWSHR_AECHO_2020'
+
 	full_file = f'{in_dir}/{dataset}/IAT+SIZE/header_False/GMM(full)/tuning_True/res.dat'
-	diag_file = f'{in_dir}/{dataset}/IAT+SIZE/header_False/GMM(diag)/tuning_True/res.dat'
+	# diag_file = f'{in_dir}/{dataset}/IAT+SIZE/header_False/GMM(diag)/tuning_True/res.dat'
 
 	print(full_file)
 	full_data = load(full_file)
@@ -55,6 +57,7 @@ def parse_result(n_normal_max_train=1000, verbose = 1):
 	diag_data = full_data
 	# print(full_data.items())
 	aucs = []
+	val_aucs = []
 	for k in full_data.keys():
 		full = full_data[k]
 		diag = diag_data[k]
@@ -68,8 +71,11 @@ def parse_result(n_normal_max_train=1000, verbose = 1):
 			if verbose >=5:  print(np.alltrue(full[v][f'X_{v}'] == diag[v][f'X_{v}']),
 			      np.alltrue(full[v][f'y_{v}'] == diag[v][f'y_{v}']))
 
-		if verbose >=5: print(f'full_auc:', full['best']['score'], f'diag_auc:', diag['best']['score'])
+		if verbose >=5: print(f'full_best_auc:', full['best']['score'], f'diag_best_auc:', diag['best']['score'])
+		if verbose >= 5: print(f'full_val_auc:', full['val']['val_auc'], f'diag_val_auc:', diag['val']['val_auc'])
 		if verbose >=5: print(f'full_test_auc:', full['test']['test_auc'], f'diag_test_auc:', diag['test']['test_auc'])
+		aucs.append(full['test']['test_auc'])
+		val_aucs.append(full['val']['val_auc'])
 		continue
 		n_components = full['best']['model']['model'].model.n_components
 		for flg in [False, True]:
@@ -109,8 +115,10 @@ def parse_result(n_normal_max_train=1000, verbose = 1):
 				res = gmm.test(X_test, data['test']['y_test'])
 				lg.debug(f'res: {res}')
 
-	print(res)
-	return res
+	print(f'n_components: {res}, means: {np.mean(res)}, std: {np.std(res)}')
+	print(f'testing aucs: {aucs}, means: {np.mean(aucs)}, std: {np.std(aucs)}')
+	print(f'val aucs: {val_aucs}, means: {np.mean(val_aucs)}, std: {np.std(val_aucs)}')
+	return res, aucs, val_aucs
 
 def dat2gather_csv(in_file, out_file):
 	data = load(in_file)
@@ -229,12 +237,24 @@ def parse_kde_result():
 	except Exception as e:
 		lg.error(f'Error: {e}.')
 
+def format_(vs, n_precision=2):
+	return [float(f'{v:.{n_precision}f}') for v in vs]
+
 if __name__ == '__main__':
 
+	res = []
 	for n_normal_max_train in [1000, 2000, 3000, 4000, 5000]:
 		print(f'n_normal_max_train: {n_normal_max_train}')
-		parse_result(n_normal_max_train)
+		n_comps, test_aucs, val_aucs= parse_result(n_normal_max_train)
+		res.append((n_comps, test_aucs, val_aucs))
 
+	for i, n_normal_max_train in enumerate([1000, 2000, 3000, 4000, 5000]):
+		n_comps, test_aucs, _ = res[i]
+		print(n_normal_max_train, n_comps, format_(test_aucs), np.mean(test_aucs), np.std(test_aucs))
+
+	# print('n_comp', [res[i][0] for i in range(len(res))])
+	# print('test_auc', [format_(res[i][1]) for i in range(len(res))])
+	# print('val_auc', [format_(res[i][2]) for i in range(len(res))])
 	# parse_kde_result()
 	exit()
 

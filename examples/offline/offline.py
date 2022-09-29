@@ -39,7 +39,7 @@ from examples.offline._offline import Data
 from kjl.utils.tool import dump, timer, check_path, remove_file, get_train_val, get_test_rest, load
 
 RESULT_DIR = f'results/{START_TIME}'
-DATASETS = ['UNB3_345', ]  # DWSHR_AECHO_2020, Two different normal data, MAWI1_2020, SFRIG1_2020, 'UNB3_345'
+DATASETS = ['SFRIG1_2021', ]  # DWSHR_AECHO_2020, Two different normal data, MAWI1_2020, SFRIG1_2021, 'UNB3_345'
 FEATURES = ['IAT+SIZE']
 HEADERS = [False]
 # MODELS = [  "Nystrom-QS-GMM(full)",   "Nystrom-QS-GMM(diag)"] # "OCSVM(rbf)", "GMM(full)", "GMM(diag)", "KJL-GMM(full)", "KJL-GMM(diag)",
