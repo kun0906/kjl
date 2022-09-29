@@ -38,7 +38,7 @@ from kjl.utils import pstats
 from kjl.utils.tool import load, dump, check_path, timer
 
 RESULT_DIR = f'results/{START_TIME}'
-DATASETS = ['SFRIG1_2021']  # Two different normal data
+DATASETS = ['AECHO1_2020']  # Two different normal data
 # MODELS = ["KJL-OCSVM(linear)"]
 FEATURES = ['IAT+SIZE']
 HEADERS = [False]
@@ -523,6 +523,6 @@ def main(out_dir, n_normal_max_train=1000):
 
 if __name__ == '__main__':
 	# main()
-	for n_normal_max_train in  [1000, 2000, 3000, 4000, 5000]: # 1000, 3000, 5000, 10000
+	for n_normal_max_train in  [4000,]: # 1000, 3000, 5000, 10000, [1000, 2000, 3000, 4000, 5000]
 		out_dir = os.path.join(OUT_DIR, f'train_size_{n_normal_max_train}')
 		main(out_dir, n_normal_max_train)

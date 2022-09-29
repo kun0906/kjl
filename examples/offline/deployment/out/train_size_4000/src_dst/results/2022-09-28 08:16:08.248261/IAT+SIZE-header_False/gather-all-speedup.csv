@@ -116,10 +116,10 @@ SFRIG1_2021,IAT+SIZE,header_False,KJL-OCSVM(linear),tuning_False,0,0,0,0,0
 SFRIG1_2021,IAT+SIZE,header_False,KJL-OCSVM(linear),tuning_True,0,0,0,0,0
 SFRIG1_2021,IAT+SIZE,header_False,Nystrom-OCSVM(linear),tuning_False,0,0,0,0,0
 SFRIG1_2021,IAT+SIZE,header_False,Nystrom-OCSVM(linear),tuning_True,0,0,0,0,0
-SFRIG1_2021,IAT+SIZE,header_False,KDE,tuning_False,21.11 +/- 0.60,nan +/- nan,0.12 +/- 0.01,0.94 +/- 0.00,0.47 +/- 0.00
-SFRIG1_2021,IAT+SIZE,header_False,KDE,tuning_True,92.33 +/- 18.76,nan +/- nan,0.26 +/- 0.02,0.99 +/- 0.00,0.47 +/- 0.00
-SFRIG1_2021,IAT+SIZE,header_False,GMM(full),tuning_False,98.87 +/- 2.80,nan +/- nan,188.46 +/- 19.38,0.95 +/- 0.03,107.73 +/- 0.06
-SFRIG1_2021,IAT+SIZE,header_False,GMM(full),tuning_True,5.63 +/- 1.14,nan +/- nan,18.30 +/- 1.39,0.94 +/- 0.01,8.65 +/- 0.01
+SFRIG1_2021,IAT+SIZE,header_False,KDE,tuning_False,21.11 +/- 0.60,nan +/- nan,0.14 +/- 0.01,0.94 +/- 0.00,0.47 +/- 0.00
+SFRIG1_2021,IAT+SIZE,header_False,KDE,tuning_True,92.33 +/- 18.76,nan +/- nan,0.30 +/- 0.02,0.99 +/- 0.00,0.47 +/- 0.00
+SFRIG1_2021,IAT+SIZE,header_False,GMM(full),tuning_False,98.87 +/- 2.80,nan +/- nan,117.28 +/- 12.06,0.95 +/- 0.03,107.73 +/- 0.06
+SFRIG1_2021,IAT+SIZE,header_False,GMM(full),tuning_True,5.63 +/- 1.14,nan +/- nan,11.96 +/- 0.91,0.94 +/- 0.01,8.65 +/- 0.01
 SFRIG1_2021,IAT+SIZE,header_False,GMM(diag),tuning_False,0,0,0,0,0
 SFRIG1_2021,IAT+SIZE,header_False,GMM(diag),tuning_True,0,0,0,0,0
 SFRIG1_2021,IAT+SIZE,header_False,KJL-GMM(full),tuning_False,0,0,0,0,0
@@ -138,16 +138,16 @@ SFRIG1_2021,IAT+SIZE,header_False,Nystrom-QS-GMM(full),tuning_False,0,0,0,0,0
 SFRIG1_2021,IAT+SIZE,header_False,Nystrom-QS-GMM(full),tuning_True,0,0,0,0,0
 SFRIG1_2021,IAT+SIZE,header_False,Nystrom-QS-GMM(diag),tuning_False,0,0,0,0,0
 SFRIG1_2021,IAT+SIZE,header_False,Nystrom-QS-GMM(diag),tuning_True,0,0,0,0,0
-AECHO1_2020,IAT+SIZE,header_False,OCSVM(rbf),tuning_False,0,0,0,0,0
-AECHO1_2020,IAT+SIZE,header_False,OCSVM(rbf),tuning_True,0,0,0,0,0
+AECHO1_2020,IAT+SIZE,header_False,OCSVM(rbf),tuning_False,12.52 +/- 0.47,0.00 +/- 0.00,4.50 +/- 0.29,0.78 +/- 0.00,577.52 +/- 0.22
+AECHO1_2020,IAT+SIZE,header_False,OCSVM(rbf),tuning_True,18.65 +/- 4.06,0.00 +/- 0.00,4.92 +/- 0.52,0.91 +/- 0.02,577.98 +/- 0.23
 AECHO1_2020,IAT+SIZE,header_False,KJL-OCSVM(linear),tuning_False,0,0,0,0,0
 AECHO1_2020,IAT+SIZE,header_False,KJL-OCSVM(linear),tuning_True,0,0,0,0,0
 AECHO1_2020,IAT+SIZE,header_False,Nystrom-OCSVM(linear),tuning_False,0,0,0,0,0
 AECHO1_2020,IAT+SIZE,header_False,Nystrom-OCSVM(linear),tuning_True,0,0,0,0,0
-AECHO1_2020,IAT+SIZE,header_False,KDE,tuning_False,0,0,0,0,0
-AECHO1_2020,IAT+SIZE,header_False,KDE,tuning_True,0,0,0,0,0
-AECHO1_2020,IAT+SIZE,header_False,GMM(full),tuning_False,0,0,0,0,0
-AECHO1_2020,IAT+SIZE,header_False,GMM(full),tuning_True,0,0,0,0,0
+AECHO1_2020,IAT+SIZE,header_False,KDE,tuning_False,73.37 +/- 2.75,nan +/- nan,0.08 +/- 0.00,0.98 +/- 0.00,0.47 +/- 0.00
+AECHO1_2020,IAT+SIZE,header_False,KDE,tuning_True,121.06 +/- 26.37,nan +/- nan,0.09 +/- 0.01,0.89 +/- 0.04,0.47 +/- 0.00
+AECHO1_2020,IAT+SIZE,header_False,GMM(full),tuning_False,54.08 +/- 2.03,nan +/- nan,64.70 +/- 4.18,1.19 +/- 0.01,54.74 +/- 0.02
+AECHO1_2020,IAT+SIZE,header_False,GMM(full),tuning_True,7.01 +/- 1.53,nan +/- nan,12.21 +/- 1.30,1.06 +/- 0.00,4.08 +/- 0.00
 AECHO1_2020,IAT+SIZE,header_False,GMM(diag),tuning_False,0,0,0,0,0
 AECHO1_2020,IAT+SIZE,header_False,GMM(diag),tuning_True,0,0,0,0,0
 AECHO1_2020,IAT+SIZE,header_False,KJL-GMM(full),tuning_False,0,0,0,0,0
@@ -166,16 +166,16 @@ AECHO1_2020,IAT+SIZE,header_False,Nystrom-QS-GMM(full),tuning_False,0,0,0,0,0
 AECHO1_2020,IAT+SIZE,header_False,Nystrom-QS-GMM(full),tuning_True,0,0,0,0,0
 AECHO1_2020,IAT+SIZE,header_False,Nystrom-QS-GMM(diag),tuning_False,0,0,0,0,0
 AECHO1_2020,IAT+SIZE,header_False,Nystrom-QS-GMM(diag),tuning_True,0,0,0,0,0
-DWSHR_AECHO_2020,IAT+SIZE,header_False,OCSVM(rbf),tuning_False,27.42 +/- 13.91,0.00 +/- 0.00,5.70 +/- 0.81,0.88 +/- 0.01,481.48 +/- 0.10
-DWSHR_AECHO_2020,IAT+SIZE,header_False,OCSVM(rbf),tuning_True,11.32 +/- 1.03,0.00 +/- 0.00,6.22 +/- 0.42,0.93 +/- 0.00,482.34 +/- 0.18
+DWSHR_AECHO_2020,IAT+SIZE,header_False,OCSVM(rbf),tuning_False,27.42 +/- 13.91,0.00 +/- 0.00,4.12 +/- 0.17,0.88 +/- 0.01,481.48 +/- 0.10
+DWSHR_AECHO_2020,IAT+SIZE,header_False,OCSVM(rbf),tuning_True,11.32 +/- 1.03,0.00 +/- 0.00,4.65 +/- 0.46,0.93 +/- 0.00,482.34 +/- 0.18
 DWSHR_AECHO_2020,IAT+SIZE,header_False,KJL-OCSVM(linear),tuning_False,0,0,0,0,0
 DWSHR_AECHO_2020,IAT+SIZE,header_False,KJL-OCSVM(linear),tuning_True,0,0,0,0,0
 DWSHR_AECHO_2020,IAT+SIZE,header_False,Nystrom-OCSVM(linear),tuning_False,0,0,0,0,0
 DWSHR_AECHO_2020,IAT+SIZE,header_False,Nystrom-OCSVM(linear),tuning_True,0,0,0,0,0
-DWSHR_AECHO_2020,IAT+SIZE,header_False,KDE,tuning_False,229.02 +/- 116.13,nan +/- nan,0.09 +/- 0.01,0.92 +/- 0.00,0.47 +/- 0.00
-DWSHR_AECHO_2020,IAT+SIZE,header_False,KDE,tuning_True,86.60 +/- 7.90,nan +/- nan,0.15 +/- 0.01,0.98 +/- 0.00,0.47 +/- 0.00
-DWSHR_AECHO_2020,IAT+SIZE,header_False,GMM(full),tuning_False,62.98 +/- 31.94,nan +/- nan,40.56 +/- 5.79,1.00 +/- 0.00,64.83 +/- 0.01
-DWSHR_AECHO_2020,IAT+SIZE,header_False,GMM(full),tuning_True,3.29 +/- 0.30,nan +/- nan,12.96 +/- 0.87,0.98 +/- 0.00,5.55 +/- 0.00
+DWSHR_AECHO_2020,IAT+SIZE,header_False,KDE,tuning_False,229.02 +/- 116.13,nan +/- nan,0.09 +/- 0.00,0.92 +/- 0.00,0.47 +/- 0.00
+DWSHR_AECHO_2020,IAT+SIZE,header_False,KDE,tuning_True,86.60 +/- 7.90,nan +/- nan,0.16 +/- 0.02,0.98 +/- 0.00,0.47 +/- 0.00
+DWSHR_AECHO_2020,IAT+SIZE,header_False,GMM(full),tuning_False,62.98 +/- 31.94,nan +/- nan,64.91 +/- 2.71,1.00 +/- 0.00,64.83 +/- 0.01
+DWSHR_AECHO_2020,IAT+SIZE,header_False,GMM(full),tuning_True,3.29 +/- 0.30,nan +/- nan,13.51 +/- 1.32,0.98 +/- 0.00,5.55 +/- 0.00
 DWSHR_AECHO_2020,IAT+SIZE,header_False,GMM(diag),tuning_False,0,0,0,0,0
 DWSHR_AECHO_2020,IAT+SIZE,header_False,GMM(diag),tuning_True,0,0,0,0,0
 DWSHR_AECHO_2020,IAT+SIZE,header_False,KJL-GMM(full),tuning_False,0,0,0,0,0

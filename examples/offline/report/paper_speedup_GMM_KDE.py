@@ -296,7 +296,7 @@ def show_diff_train_sizes(ocsvm_gmm, out_file='', title='auc', n_repeats=5):
 	font_size = 15
 
 	colors = ['blue', 'green', 'orange', 'c', 'm', 'b', 'r', 'tab:brown', 'tab:green']
-	labels = ['OCSVM(rbf)', 'GMM(full)', 'KDE']
+	labels = ['OCSVM', 'GMM', 'KDE']
 
 	sub_dataset = []
 	yerrs = []
@@ -363,6 +363,8 @@ def show_diff_train_sizes(ocsvm_gmm, out_file='', title='auc', n_repeats=5):
 	if data_name == 'DWSHR_AECHO_2020':
 		# bbox_to_anchor: (x, y, width, height)
 		plt.legend(loc='upper right', bbox_to_anchor=(0.5, 0.3, 0.5, 0.5), fontsize=font_size - 2)
+	elif data_name == 'AECHO1_2020':
+		plt.legend(loc='upper right', bbox_to_anchor=(0.5, 0.068, 0.5, 0.5), fontsize=font_size - 2)
 	else:
 		plt.legend(loc='upper right', bbox_to_anchor=(0.5, 0.25, 0.5, 0.5), fontsize=font_size - 2)
 	# plt.ylim([0.86, 1])
@@ -375,7 +377,8 @@ def show_diff_train_sizes(ocsvm_gmm, out_file='', title='auc', n_repeats=5):
 
 	# plt.legend(show_repres, loc='lower right')
 	# # plt.savefig("DT_CNN_F1"+".jpg", dpi = 400)
-	plt.savefig(out_file)  # should use before plt.show()
+	print(out_file)
+	plt.savefig(out_file, dpi = 600)  # should use before plt.show()
 	plt.show()
 	plt.close()
 
@@ -476,7 +479,8 @@ if __name__ == '__main__':
 
 				#### for different training sizes
 				# 'DWSHR_AECHO_2020', 'CTU1', 'MAWI1_2020' ,'MACCDC1',  'AECHO1_2020', 'AECHO1_2020, UNB3_345, SFRIG1_2021
-				ocsvm_gmm.append((n_normal_max_train, get_results_(in_file, DATASETS = ['DWSHR_AECHO_2020'],
+				ocsvm_gmm_data_name = 'AECHO1_2020'
+				ocsvm_gmm.append((n_normal_max_train, get_results_(in_file, DATASETS = [ocsvm_gmm_data_name],
 				                                                   FEATURES=['IAT+SIZE'], HEADERS=[False],
 				                                                   TUNINGS = [True])))
 				_speedup.main(in_file, FEATURES=['IAT+SIZE'], HEADERS=[False])
@@ -528,6 +532,6 @@ if __name__ == '__main__':
 			df_all.to_csv(gmm_file, sep=',', encoding='utf-8', index=False)
 			print(gmm_file)
 
-			show_diff_train_sizes(ocsvm_gmm)
+			show_diff_train_sizes(ocsvm_gmm, out_file= gmm_file + f'-{ocsvm_gmm_data_name}.png')
 			# main(root_dir, feature='IAT+SIZE', header=False)
 			# main(root_dir, feature='STATS', header=True)

@@ -1,5 +1,5 @@
-import sys
 import os
+import sys
 import traceback
 
 import numpy as np
@@ -7,9 +7,7 @@ import sklearn.preprocessing
 from loguru import logger as lg
 from sklearn.decomposition import PCA
 
-from examples.offline.offline import gather
-from examples.offline.report import _speedup, paper_speedup
-from examples.offline.report.paper_speedup import baseline_table, speedup_table
+# from examples.offline.report import _speedup
 from kjl.models.gmm import GMM
 from kjl.utils.tool import load
 
@@ -19,6 +17,13 @@ print(flush=True)
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+class Args():
+
+	def __init__(self, params):
+		for k, v in params.items():
+			# self.args.k = v
+			setattr(self, k, v)
 
 def correlation(X, title=''):
 	df = pd.DataFrame(X)
@@ -32,35 +37,39 @@ def correlation(X, title=''):
 	plt.show()
 
 
-def parse_result():
+def parse_result(n_normal_max_train=1000, verbose = 1):
+	res = []
 	in_dir = 'examples/offline/out/src_dst'
-	dataset = 'CTU1'
-	dataset = 'MACCDC1'
-	# dataset = 'AECHO1_2020'
+	in_dir = f'examples/offline/out/train_size_{n_normal_max_train}/src_dst'
+	# dataset = 'CTU1'
+	# dataset = 'MACCDC1'
+	dataset = 'SFRIG1_2021'
 	# dataset = 'DWSHR_AECHO_2020'
 	# dataset = 'AECHO1_2020'
 	full_file = f'{in_dir}/{dataset}/IAT+SIZE/header_False/GMM(full)/tuning_True/res.dat'
 	diag_file = f'{in_dir}/{dataset}/IAT+SIZE/header_False/GMM(diag)/tuning_True/res.dat'
 
-
+	print(full_file)
 	full_data = load(full_file)
-	diag_data = load(diag_file)
+	# diag_data = load(diag_file)
+	diag_data = full_data
 	# print(full_data.items())
 	aucs = []
 	for k in full_data.keys():
 		full = full_data[k]
 		diag = diag_data[k]
 		lg.debug(k)
-		print('full', full['best']['model']['model'].model.n_components,
+		if verbose>=5: print('full', full['best']['model']['model'].model.n_components,
 		      full['best']['model']['model'].params['GMM_n_components'])
-		print('diag', diag['best']['model']['model'].model.n_components,
+		res.append(full['best']['model']['model'].model.n_components)
+		if verbose >=5: print('diag', diag['best']['model']['model'].model.n_components,
 		      diag['best']['model']['model'].params['GMM_n_components'])
 		for v in ['train', 'val', 'test']:
-			print(np.alltrue(full[v][f'X_{v}'] == diag[v][f'X_{v}']),
+			if verbose >=5:  print(np.alltrue(full[v][f'X_{v}'] == diag[v][f'X_{v}']),
 			      np.alltrue(full[v][f'y_{v}'] == diag[v][f'y_{v}']))
 
-		print(f'full_auc:', full['best']['score'], f'diag_auc:', diag['best']['score'])
-		print(f'full_test_auc:', full['test']['test_auc'], f'diag_test_auc:', diag['test']['test_auc'])
+		if verbose >=5: print(f'full_auc:', full['best']['score'], f'diag_auc:', diag['best']['score'])
+		if verbose >=5: print(f'full_test_auc:', full['test']['test_auc'], f'diag_test_auc:', diag['test']['test_auc'])
 		continue
 		n_components = full['best']['model']['model'].model.n_components
 		for flg in [False, True]:
@@ -99,6 +108,9 @@ def parse_result():
 				gmm.fit(X_train)
 				res = gmm.test(X_test, data['test']['y_test'])
 				lg.debug(f'res: {res}')
+
+	print(res)
+	return res
 
 def dat2gather_csv(in_file, out_file):
 	data = load(in_file)
@@ -218,7 +230,11 @@ def parse_kde_result():
 		lg.error(f'Error: {e}.')
 
 if __name__ == '__main__':
-	parse_result()
+
+	for n_normal_max_train in [1000, 2000, 3000, 4000, 5000]:
+		print(f'n_normal_max_train: {n_normal_max_train}')
+		parse_result(n_normal_max_train)
+
 	# parse_kde_result()
 	exit()
 
