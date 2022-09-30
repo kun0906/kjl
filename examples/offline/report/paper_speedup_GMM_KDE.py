@@ -461,6 +461,7 @@ if __name__ == '__main__':
 				data_str = '2022-09-26 20:51:34.988580'
 				data_str = '2022-09-27 21:03:06.474680'
 				data_str = '2022-09-28 08:16:08.248261'
+				data_str = '2022-09-29 20:43:38.649967'
 			df_all = []
 			ocsvm_gmm = []
 			for n_normal_max_train in [1000, 2000, 3000, 4000, 5000]:  # 1000, 3000, 5000, 10000, # 1000, 2000, 3000, 4000, 5000
@@ -479,7 +480,7 @@ if __name__ == '__main__':
 
 				#### for different training sizes
 				# 'DWSHR_AECHO_2020', 'CTU1', 'MAWI1_2020' ,'MACCDC1',  'AECHO1_2020', 'AECHO1_2020, UNB3_345, SFRIG1_2021
-				ocsvm_gmm_data_name = 'AECHO1_2020'
+				ocsvm_gmm_data_name = 'MAWI1_2020'
 				ocsvm_gmm.append((n_normal_max_train, get_results_(in_file, DATASETS = [ocsvm_gmm_data_name],
 				                                                   FEATURES=['IAT+SIZE'], HEADERS=[False],
 				                                                   TUNINGS = [True])))

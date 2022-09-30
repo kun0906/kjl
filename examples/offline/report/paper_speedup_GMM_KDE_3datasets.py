@@ -164,12 +164,13 @@ if __name__ == '__main__':
 	#### for different training sizes
 	# 'DWSHR_AECHO_2020', 'CTU1', 'MAWI1_2020' ,'MACCDC1',  'AECHO1_2020', 'AECHO1_2020, UNB3_345, SFRIG1_2021
 	# After deployment and copy the result ('examples/offline/deployment/out/src_dst/results') to 'examples/offline/report/out/src_dst/'
-	titles = ['a) AECHO', 'b) SFRIG', 'c) DWSHR']
-	for idx, ocsvm_gmm_data_name in enumerate(['AECHO1_2020', 'SFRIG1_2021', 'DWSHR_AECHO_2020']):
+	titles = ['a) SFRIG', 'b) DWSHR', 'c) MAWI']
+	for idx, ocsvm_gmm_data_name in enumerate(['SFRIG1_2021', 'DWSHR_AECHO_2020', 'MAWI1_2020']):
 		date_str = '2022-09-20 14:47:11.703436'
 		data_str = '2022-09-26 20:51:34.988580'
 		data_str = '2022-09-27 21:03:06.474680'
 		data_str = '2022-09-28 08:16:08.248261'
+		data_str = '2022-09-29 20:43:38.649967'
 		df_all = []
 		ocsvm_gmm = []
 		for n_normal_max_train in [1000, 2000, 3000, 4000, 5000]:  # 1000, 3000, 5000, 10000, # 1000, 2000, 3000, 4000, 5000
@@ -194,9 +195,9 @@ if __name__ == '__main__':
 	plt.gca().yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 
 	device = 'MacOS'
-	out_file = os.path.join(root_dir, f'{device}/different_training_size_AECHO_SFRIG_DWSHR.png')
+	out_file = os.path.join(root_dir, f'{device}/different_training_size_SFRIG_DWSHR_MAWI.png')
 	check_path(out_file)
-
+	# plt.yticks([0.75, 0.80, 0.85, 0.90, 0.95, 1.0])
 	plt.subplots_adjust(left=0.07, bottom=0.25, right=0.98, top=0.95, wspace=0.05, hspace=0)
 	# plt.tight_layout()
 	# plt.legend(show_repres, loc='lower right')
