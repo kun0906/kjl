@@ -38,7 +38,7 @@ from kjl.utils import pstats
 from kjl.utils.tool import load, dump, check_path, timer
 
 RESULT_DIR = f'results/{START_TIME}'
-DATASETS = ['AECHO1_2020']  # Two different normal data
+# DATASETS = ['MAWI1_2020']  # Two different normal data
 # MODELS = ["KJL-OCSVM(linear)"]
 FEATURES = ['IAT+SIZE']
 HEADERS = [False]
@@ -494,7 +494,7 @@ def evaluate(in_dir, out_dir, n_repeats=5, n_test_repeats=10, FEATURES=[], HEADE
 def main(out_dir, n_normal_max_train=1000):
 	n_repeats = 5
 	model_in_dir = f'examples/offline/deployment/data/train_size_{n_normal_max_train}/src_dst/models'
-	flg = True # this is only used in the trained server (e.g., NEON or MacOS), not RSPI(32bit) and NANO(64bit)
+	flg = False # this is only used in the trained server (e.g., NEON or MacOS), not RSPI(32bit) and NANO(64bit)
 	if flg:
 		# 1. only extract needed parameters from each built model. It should be done before deploying.
 		lg.debug(f'\n***Extract needed parameters')
@@ -511,7 +511,7 @@ def main(out_dir, n_normal_max_train=1000):
 		in_dir = model_in_dir
 		out_dir = f'examples/offline/deployment/out/train_size_{n_normal_max_train}/src_dst'
 		# n_test_repeats = 100
-		evaluate(in_dir, out_dir, n_repeats, n_test_repeats, FEATURES=[feature], HEADERS=[header])
+		# evaluate(in_dir, out_dir, n_repeats, n_test_repeats, FEATURES=[feature], HEADERS=[header])
 
 		# 4. Gather all the individual result
 		lg.debug(f'\n***Gather models')
@@ -523,6 +523,6 @@ def main(out_dir, n_normal_max_train=1000):
 
 if __name__ == '__main__':
 	# main()
-	for n_normal_max_train in  [4000,]: # 1000, 3000, 5000, 10000, [1000, 2000, 3000, 4000, 5000]
+	for n_normal_max_train in  [1000, 2000, 3000, 4000, 5000]: # 1000, 3000, 5000, 10000, [1000, 2000, 3000, 4000, 5000]
 		out_dir = os.path.join(OUT_DIR, f'train_size_{n_normal_max_train}')
 		main(out_dir, n_normal_max_train)
